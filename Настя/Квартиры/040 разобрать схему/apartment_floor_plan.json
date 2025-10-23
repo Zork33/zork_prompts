@@ -1,0 +1,114 @@
+```json
+{
+  "windows": [
+    {
+      "id": 1,
+      "position": {"x": 0, "y": 0},
+      "width": 1.57,
+      "height": 1.57,
+      "notes": "Top right balcony area"
+    },
+    {
+      "id": 2,
+      "position": {"x": 3.4, "y": 0},
+      "width": 1.57,
+      "height": 1.57,
+      "notes": "Right side, upper zone"
+    },
+    {
+      "id": 3,
+      "position": {"x": 0, "y": 2.0},
+      "width": 1.1,
+      "height": 1.57,
+      "notes": "Left side, middle zone"
+    }
+  ],
+  "doors": [
+    {
+      "id": 1,
+      "position": {"x": 1.8, "y": 1.4},
+      "width": 0.9,
+      "height": 2.1,
+      "notes": "Entrance to living area"
+    },
+    {
+      "id": 2,
+      "position": {"x": 2.5, "y": 0.8},
+      "width": 0.9,
+      "height": 2.1,
+      "notes": "Bedroom/upper zone entrance"
+    },
+    {
+      "id": 3,
+      "position": {"x": 0.9, "y": 2.8},
+      "width": 0.9,
+      "height": 2.1,
+      "notes": "Kitchen entrance"
+    },
+    {
+      "id": 4,
+      "position": {"x": 2.0, "y": 2.5},
+      "width": 0.7,
+      "height": 2.1,
+      "notes": "Bathroom door"
+    }
+  ],
+  "balconies": [
+    {
+      "id": 1,
+      "position": {"x": 3.5, "y": 0},
+      "width": 1.1,
+      "depth": 0.5,
+      "area": 5.32
+    }
+  ],
+  "zones": [
+    {
+      "name": "living_room",
+      "position": {"x": 1.5, "y": 0.8},
+      "width": 3.4,
+      "length": 3.0,
+      "area": 22.58
+    },
+    {
+      "name": "bedroom",
+      "position": {"x": 2.5, "y": 0},
+      "width": 1.99,
+      "length": 1.41,
+      "area": 14.12
+    },
+    {
+      "name": "kitchen",
+      "position": {"x": 0, "y": 2.3},
+      "width": 1.88,
+      "length": 1.15,
+      "area": 6.45
+    },
+    {
+      "name": "bathroom_1",
+      "position": {"x": 2.2, "y": 1.9},
+      "width": 1.125,
+      "length": 0.65,
+      "area": 3.69
+    },
+    {
+      "name": "bathroom_2",
+      "position": {"x": 1.8, "y": 1.6},
+      "width": 0.88,
+      "length": 0.6},
+      "area": 3.16
+    },
+    {
+      "name": "corridor",
+      "position": {"x": 1.1, "y": 2.0},
+      "width": 1.0,
+      "length": 1.0,
+      "area": 6.4
+    }
+  ],
+  "overall_dimensions": {
+    "width": 3.87,
+    "length": 7.18,
+    "total_area": 38.7
+  }
+}

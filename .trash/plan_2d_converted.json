@@ -1,0 +1,616 @@
+
+  "version": "apartment.v1",
+  "units": {
+    "length": "mm"
+  },
+  "coordinateSystem": {
+    "origin": [
+      0.0,
+      0.0
+    ],
+    "x": "right",
+    "y": "up",
+    "elevationZero": 0.0
+  },
+  "outline": {
+    "type": "Polygon",
+    "vertices": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        6400.0,
+        0.0
+      ],
+      [
+        6400.0,
+        6262.2
+      ],
+      [
+        6400.0,
+        8000.0
+      ],
+      [
+        3379.5,
+        8000.0
+      ],
+      [
+        3379.5,
+        7310.9
+      ],
+      [
+        3611.9,
+        7310.9
+      ],
+      [
+        3611.9,
+        6427.0
+      ],
+      [
+        0.0,
+        6427.0
+      ],
+      [
+        0.0,
+        0.0
+      ]
+    ]
+  },
+  "entrance": {
+    "id": "door_entrance",
+    "edge": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        6400.0,
+        0.0
+      ]
+    ],
+    "offset": 1800.0,
+    "width": 900.0,
+    "height": 2040.0,
+    "swing": "in",
+    "hinge": "left",
+    "from": "exterior",
+    "to": "z_hall"
+  },
+  "zones": [
+    {
+      "id": "z_hall",
+      "name": "Прихожая",
+      "polygon": [
+        [
+          316.8,
+          0.0
+        ],
+        [
+          3400.7,
+          0.0
+        ],
+        [
+          3400.7,
+          900.0
+        ],
+        [
+          316.8,
+          900.0
+        ],
+        [
+          316.8,
+          0.0
+        ]
+      ]
+    },
+    {
+      "id": "z_living",
+      "name": "Кухня-гостиная",
+      "polygon": [
+        [
+          3421.8,
+          0.0
+        ],
+        [
+          6120.0,
+          0.0
+        ],
+        [
+          6120.0,
+          2895.0
+        ],
+        [
+          3421.8,
+          2895.0
+        ],
+        [
+          3421.8,
+          0.0
+        ]
+      ]
+    },
+    {
+      "id": "z_bedroom",
+      "name": "Спальня",
+      "polygon": [
+        [
+          0.0,
+          913.9
+        ],
+        [
+          3569.6,
+          913.9
+        ],
+        [
+          3569.6,
+          2895.0
+        ],
+        [
+          0.0,
+          2895.0
+        ],
+        [
+          0.0,
+          913.9
+        ]
+      ]
+    },
+    {
+      "id": "z_bathroom",
+      "name": "Ванная",
+      "polygon": [
+        [
+          3590.8,
+          2906.4
+        ],
+        [
+          6120.0,
+          2906.4
+        ],
+        [
+          6120.0,
+          5050.0
+        ],
+        [
+          3590.8,
+          5050.0
+        ],
+        [
+          3590.8,
+          2906.4
+        ]
+      ]
+    },
+    {
+      "id": "z_utility",
+      "name": "Санузел/постирочная",
+      "polygon": [
+        [
+          3611.9,
+          5050.0
+        ],
+        [
+          6150.0,
+          5050.0
+        ],
+        [
+          6150.0,
+          6420.0
+        ],
+        [
+          3611.9,
+          6420.0
+        ],
+        [
+          3611.9,
+          5050.0
+        ]
+      ]
+    }
+  ],
+  "balconies": [
+    {
+      "id": "balcony",
+      "name": "Лоджия",
+      "polygon": [
+        [
+          3611.9,
+          6427.0
+        ],
+        [
+          6400.0,
+          6427.0
+        ],
+        [
+          6400.0,
+          8000.0
+        ],
+        [
+          3379.5,
+          8000.0
+        ],
+        [
+          3379.5,
+          7310.9
+        ],
+        [
+          3611.9,
+          7310.9
+        ],
+        [
+          3611.9,
+          6427.0
+        ]
+      ],
+      "accessDoorId": "door_balcony"
+    }
+  ],
+  "openings": {
+    "doors": [
+      {
+        "id": "door_entrance",
+        "edge": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            6400.0,
+            0.0
+          ]
+        ],
+        "offset": 1800.0,
+        "width": 900.0,
+        "height": 2040.0,
+        "swing": "in",
+        "hinge": "left",
+        "from": "exterior",
+        "to": "z_hall"
+      },
+      {
+        "id": "door_hall_bed",
+        "edge": [
+          [
+            0.0,
+            900.0
+          ],
+          [
+            3569.6,
+            900.0
+          ]
+        ],
+        "offset": 1600.0,
+        "width": 800.0,
+        "height": 2040.0,
+        "swing": "in",
+        "hinge": "right",
+        "from": "z_hall",
+        "to": "z_bedroom"
+      },
+      {
+        "id": "door_hall_living",
+        "edge": [
+          [
+            3400.7,
+            0.0
+          ],
+          [
+            3400.7,
+            900.0
+          ]
+        ],
+        "offset": 450.0,
+        "width": 800.0,
+        "height": 2040.0,
+        "swing": "in",
+        "hinge": "left",
+        "from": "z_hall",
+        "to": "z_living"
+      },
+      {
+        "id": "door_living_bath",
+        "edge": [
+          [
+            3590.8,
+            2895.0
+          ],
+          [
+            6120.0,
+            2895.0
+          ]
+        ],
+        "offset": 1500.0,
+        "width": 800.0,
+        "height": 2040.0,
+        "swing": "in",
+        "hinge": "right",
+        "from": "z_living",
+        "to": "z_bathroom"
+      },
+      {
+        "id": "door_bath_utility",
+        "edge": [
+          [
+            3611.9,
+            5050.0
+          ],
+          [
+            6120.0,
+            5050.0
+          ]
+        ],
+        "offset": 1200.0,
+        "width": 700.0,
+        "height": 2040.0,
+        "swing": "in",
+        "hinge": "left",
+        "from": "z_bathroom",
+        "to": "z_utility"
+      },
+      {
+        "id": "door_balcony",
+        "edge": [
+          [
+            3611.9,
+            6427.0
+          ],
+          [
+            3611.9,
+            7310.9
+          ]
+        ],
+        "offset": 400.0,
+        "width": 800.0,
+        "height": 2100.0,
+        "swing": "out",
+        "hinge": "right",
+        "from": "z_utility",
+        "to": "balcony"
+      }
+    ],
+    "windows": [
+      {
+        "id": "win_bedroom",
+        "edge": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            6427.0
+          ]
+        ],
+        "centerOffset": 1900.0,
+        "width": 1500.0,
+        "height": 1570.0,
+        "sillHeight": 480.0
+      },
+      {
+        "id": "win_living",
+        "edge": [
+          [
+            6400.0,
+            0.0
+          ],
+          [
+            6400.0,
+            6262.2
+          ]
+        ],
+        "centerOffset": 1800.0,
+        "width": 1800.0,
+        "height": 1570.0,
+        "sillHeight": 480.0
+      },
+      {
+        "id": "win_utility",
+        "edge": [
+          [
+            3611.9,
+            6427.0
+          ],
+          [
+            0.0,
+            6427.0
+          ]
+        ],
+        "centerOffset": 1200.0,
+        "width": 1200.0,
+        "height": 1570.0,
+        "sillHeight": 480.0
+      }
+    ]
+  },
+  "waterPoints": [
+    {
+      "id": "wp_wc_wash_cold",
+      "type": "cold",
+      "position": [
+        4730.5,
+        6409.8
+      ],
+      "elevation": 600.0,
+      "pipeDiameter": 20.0,
+      "zone": "z_utility"
+    },
+    {
+      "id": "wp_wc_sink_hot",
+      "type": "hot",
+      "position": [
+        6103.7,
+        5750.9
+      ],
+      "elevation": 850.0,
+      "pipeDiameter": 20.0,
+      "zone": "z_utility"
+    },
+    {
+      "id": "wp_wc_drain",
+      "type": "sewer",
+      "position": [
+        6103.0,
+        4891.0
+      ],
+      "elevation": 0.0,
+      "pipeDiameter": 50.0,
+      "zone": "z_bathroom"
+    },
+    {
+      "id": "wp_shower_cold",
+      "type": "cold",
+      "position": [
+        5716.0,
+        4271.1
+      ],
+      "elevation": 1100.0,
+      "pipeDiameter": 20.0,
+      "zone": "z_bathroom"
+    },
+    {
+      "id": "wp_shower_hot",
+      "type": "hot",
+      "position": [
+        5652.7,
+        3964.3
+      ],
+      "elevation": 1100.0,
+      "pipeDiameter": 20.0,
+      "zone": "z_bathroom"
+    },
+    {
+      "id": "wp_shower_drain",
+      "type": "sewer",
+      "position": [
+        5667.0,
+        3607.2
+      ],
+      "elevation": 0.0,
+      "pipeDiameter": 50.0,
+      "zone": "z_bathroom"
+    },
+    {
+      "id": "wp_kitchen_cold",
+      "type": "cold",
+      "position": [
+        6061.9,
+        1712.4
+      ],
+      "elevation": 850.0,
+      "pipeDiameter": 20.0,
+      "zone": "z_living"
+    },
+    {
+      "id": "wp_kitchen_hot",
+      "type": "hot",
+      "position": [
+        6076.6,
+        120.0
+      ],
+      "elevation": 850.0,
+      "pipeDiameter": 20.0,
+      "zone": "z_living"
+    },
+    {
+      "id": "wp_kitchen_drain",
+      "type": "sewer",
+      "position": [
+        4554.6,
+        80.0
+      ],
+      "elevation": 0.0,
+      "pipeDiameter": 50.0,
+      "zone": "z_living"
+    },
+    {
+      "id": "wp_kitchen_aux_cold",
+      "type": "cold",
+      "position": [
+        1890.0,
+        200.0
+      ],
+      "elevation": 850.0,
+      "pipeDiameter": 20.0,
+      "zone": "z_living"
+    },
+    {
+      "id": "wp_kitchen_aux_drain",
+      "type": "sewer",
+      "position": [
+        3716.5,
+        1804.8
+      ],
+      "elevation": 0.0,
+      "pipeDiameter": 50.0,
+      "zone": "z_living"
+    }
+  ],
+  "dimensions": [
+    {
+      "id": "overall_width",
+      "type": "linear",
+      "from": [
+        0.0,
+        0.0
+      ],
+      "to": [
+        6400.0,
+        0.0
+      ],
+      "value": 6400.0
+    },
+    {
+      "id": "overall_depth",
+      "type": "linear",
+      "from": [
+        0.0,
+        0.0
+      ],
+      "to": [
+        0.0,
+        6427.0
+      ],
+      "value": 6427.0
+    },
+    {
+      "id": "balcony_depth",
+      "type": "linear",
+      "from": [
+        3611.9,
+        6427.0
+      ],
+      "to": [
+        3611.9,
+        8000.0
+      ],
+      "value": 1573.0
+    },
+    {
+      "id": "living_width",
+      "type": "linear",
+      "from": [
+        3421.8,
+        0.0
+      ],
+      "to": [
+        6120.0,
+        0.0
+      ],
+      "value": 2698.2
+    },
+    {
+      "id": "hall_depth",
+      "type": "linear",
+      "from": [
+        3400.7,
+        0.0
+      ],
+      "to": [
+        3400.7,
+        900.0
+      ],
+      "value": 900.0
+    }
+  ]
+}

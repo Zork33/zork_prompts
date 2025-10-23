@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="463" height="665" viewBox="0 0 463 665">
+<image href="file:///mnt/data/7.1 2Д.png" x="0" y="0" width="463" height="665" opacity="0.25"/>
+<circle cx="23" cy="365" r="10" fill="none" stroke="lime" stroke-width="3"/>
+<text x="37" y="369" font-size="16" fill="lime">Вход</text>
+<text x="10" y="655" font-size="14" fill="#333">Scale: 1 px = 21.4953 mm (assumed 2300.0 mm ref)</text>
+</svg>

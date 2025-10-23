@@ -1,0 +1,293 @@
+{
+  "main": {
+    "id": "da8c9edaee5c8325",
+    "type": "split",
+    "children": [
+      {
+        "id": "88bec4ca8f43d1b9",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "acee00fb9126d041",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Настя/Квартиры/020 Формат 3Д данных/020 chatgpt.md",
+                "mode": "source",
+                "source": false,
+                "backlinks": true,
+                "backlinkOpts": {
+                  "collapseAll": false,
+                  "extraContext": false,
+                  "sortOrder": "alphabetical",
+                  "showSearch": false,
+                  "searchQuery": "",
+                  "backlinkCollapsed": false,
+                  "unlinkedCollapsed": true
+                }
+              },
+              "icon": "lucide-file",
+              "title": "020 chatgpt"
+            }
+          },
+          {
+            "id": "2a99e32b6269b00f",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Настя/Квартиры/040 разобрать схему/010 prompt.md",
+                "mode": "source",
+                "source": false,
+                "backlinks": true,
+                "backlinkOpts": {
+                  "collapseAll": false,
+                  "extraContext": false,
+                  "sortOrder": "alphabetical",
+                  "showSearch": false,
+                  "searchQuery": "",
+                  "backlinkCollapsed": false,
+                  "unlinkedCollapsed": true
+                }
+              },
+              "icon": "lucide-file",
+              "title": "010 prompt"
+            }
+          },
+          {
+            "id": "31957daab1f225a8",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Настя/Квартиры/050 Sora/030 план.md",
+                "mode": "source",
+                "source": false,
+                "backlinks": true,
+                "backlinkOpts": {
+                  "collapseAll": false,
+                  "extraContext": false,
+                  "sortOrder": "alphabetical",
+                  "showSearch": false,
+                  "searchQuery": "",
+                  "backlinkCollapsed": false,
+                  "unlinkedCollapsed": true
+                }
+              },
+              "icon": "lucide-file",
+              "title": "030 план"
+            }
+          }
+        ],
+        "currentTab": 2
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "eaa8b30152b6ab9e",
+    "type": "split",
+    "children": [
+      {
+        "id": "dc00ccd00c43f8ce",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "baea27663c5f9635",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": true
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "4383cb4874affcc8",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "\"# 📘 Руководство по работе с промптами## Правила1. Каждый запрос к ChatGPT — отдельная заметка в `/02_Prompts`.2. Ответ сохраняется под ним.3. Финальные версии кладутся в `/03_Results`.4. Всё связывается внутренними ссылками.## Полезные теги- `#prompt` — исходный промпт.- `#result` — обработанный результат.- `#draft` — в работе.- `#ready` — готово.## Плагины- Templater- Dataview- Projects / Kanban- Obsidian Git\"",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "1f281e380fb4999c",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          },
+          {
+            "id": "7c2bf31b986f2e7a",
+            "type": "leaf",
+            "state": {
+              "type": "file-tree-view",
+              "state": {},
+              "icon": "sheets-in-box",
+              "title": "File Tree"
+            }
+          }
+        ],
+        "currentTab": 3
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "cba9ea43efd37416",
+    "type": "split",
+    "children": [
+      {
+        "id": "e86123c288cdbe52",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "4f2764dc18292f5f",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Настя/Квартиры/050 Sora/030 план.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for 030 план"
+            }
+          },
+          {
+            "id": "0aa2a6db3344fcf5",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "1e4f9f1df29da932",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "AI_Projects_Vault/10_Projects/Treasury_System/01_Context.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of 01_Context"
+            }
+          },
+          {
+            "id": "a0c747e92a247418",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Настя/Квартиры/050 Sora/030 план.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from 030 план"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false,
+      "templater-obsidian:Templater": false,
+      "obsidian-git:Open Git source control": false,
+      "obsidian-kanban:Create new board": false,
+      "file-tree-alternative:File Tree Alternative Plugin": false
+    }
+  },
+  "active": "31957daab1f225a8",
+  "lastOpenFiles": [
+    "Настя/Квартиры/tmp/page-6.pdf",
+    "Настя/Квартиры/tmp/extract_upper_scheme.py",
+    "Настя/Квартиры/tmp/plan_out/parsed_plan.svg",
+    "Настя/Квартиры/tmp/plan_out/parsed_plan.json",
+    "Настя/Квартиры/tmp/plan_out",
+    "Настя/Квартиры/tmp/7.1 2Д.png",
+    "Настя/Квартиры/tmp/parse_floorplan.py",
+    "Настя/Квартиры/tmp",
+    "Настя/Квартиры/parse_floorplan.py",
+    "Настя/Квартиры/parse_plan.py",
+    "Настя/Квартиры/plan_out_package/7.1 2Д.png",
+    "Настя/Квартиры/plan_out_package/parsed_plan.svg",
+    "Настя/Квартиры/plan_out_package/parsed_plan_scaled.svg",
+    "Настя/Квартиры/plan_out_package/parsed_plan_scaled.json",
+    "Настя/Квартиры/plan_out_package",
+    "Настя/Квартиры/plan_out_package.zip",
+    "Настя/Квартиры/plan_package/7.1 2Д.png",
+    "Настя/Квартиры/plan_package/parsed_plan.svg",
+    "Настя/Квартиры/020 Формат 3Д данных/014 prompt.md",
+    "Настя/Квартиры/050 Sora/030 план.md",
+    "Настя/Квартиры/050 Sora/020 prompt v2.md",
+    "022 новая модель.md",
+    "Настя/Квартиры/040 разобрать схему/010 prompt.md",
+    "Настя/Квартиры/030 Варианты дизайна/010 prompt.md",
+    "Настя/Квартиры/020 Формат 3Д данных/020 chatgpt.md",
+    "Настя/Квартиры/020 Формат 3Д данных/010 prompt.md",
+    "Настя/Квартиры/020 Формат 3Д данных/012 prompt.md",
+    "Настя/Квартиры/040 разобрать схему/020 plan_2d_converted.md",
+    "Настя/Квартиры/010 Вводные/010 Окна, Двери.md",
+    "Настя/Квартиры/010 Вводные/7.1 2Д.png",
+    "Настя/Квартиры/010 Вводные/2025-10-21_19-37-37.png",
+    "Настя/Квартиры/030 Варианты дизайна/020 chatgpt.md",
+    "Настя/Квартиры/050 Sora/010 prompt.md",
+    "AI_Projects_Vault/10_Projects/Treasury_System/03_Results/Systems_List_v1.md",
+    "AI_Projects_Vault/10_Projects/Treasury_System/01_Context.md",
+    "AI_Projects_Vault/10_Projects/Treasury_System/99_Notes.md",
+    "AI_Projects_Vault/10_Projects/Treasury_System/02_Prompts/2025-10-19_IT_Systems_List.md",
+    "AI_Projects_Vault/00_Reference/Prompting_Guide.md",
+    "AI_Projects_Vault/00_Reference/Templates/Prompt_Template.md",
+    "AI_Projects_Vault/00_Reference/Templates/Chain_Template.md",
+    "AI_Projects_Vault/00_Reference/go.md",
+    "AI_Projects_Vault/10_Projects/Treasury_System/02_Prompts/Untitled.md",
+    "Грузовое такси.md",
+    "Как сделать сайт.md",
+    "03_Results.md"
+  ]
+}
