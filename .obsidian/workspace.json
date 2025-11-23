@@ -61,7 +61,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Настя/Квартиры/050 Sora/030 план.md",
+                "file": "Goldex/Канарейка.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": true,
@@ -76,7 +76,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "030 план"
+              "title": "Канарейка"
             }
           }
         ],
@@ -143,8 +143,7 @@
               "title": "File Tree"
             }
           }
-        ],
-        "currentTab": 3
+        ]
       }
     ],
     "direction": "horizontal",
@@ -164,7 +163,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Настя/Квартиры/050 Sora/030 план.md",
+                "file": "Goldex/Канарейка.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -174,7 +173,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for 030 план"
+              "title": "Backlinks for Канарейка"
             }
           },
           {
@@ -244,28 +243,35 @@
   },
   "active": "31957daab1f225a8",
   "lastOpenFiles": [
+    "Goldex/Андрей.md",
+    "Goldex/Канарейка.md",
+    "Goldex/business/как протестировать open telemetry.md",
+    "Goldex/business/тестируешь gRPC.md",
+    "Goldex/business/миграцию “чёрного ящика” с golden-master-тестами и shadow-traffic.md",
+    "Goldex/Nodejs сервис.md",
+    "Goldex/business",
+    "«6+ способов доп.заработка .pdf",
+    "Goldex",
+    "022 новая модель.md",
+    "Кредиты/Параметры кредита.md",
+    "Кредиты/Напиши план для системы.md",
+    "Настя/Квартиры/plan_out_package/parsed_plan_scaled.svg",
+    "Кредиты",
+    "Настя/Квартиры/plan_out_package/parsed_plan.svg",
+    "Настя/Квартиры/plan_out_package/7.1 2Д.png",
+    "Настя/Квартиры/tmp/7.1 2Д.png",
+    "Настя/Квартиры/plan_package/7.1 2Д.png",
+    "Настя/Квартиры/Инструменты для 3D-визуализации квартиры из 2D-плана.pdf",
+    "Настя/Квартиры/050 Sora/030 план.md",
     "Настя/Квартиры/tmp/page-6.pdf",
     "Настя/Квартиры/tmp/extract_upper_scheme.py",
     "Настя/Квартиры/tmp/plan_out/parsed_plan.svg",
     "Настя/Квартиры/tmp/plan_out/parsed_plan.json",
     "Настя/Квартиры/tmp/plan_out",
-    "Настя/Квартиры/tmp/7.1 2Д.png",
     "Настя/Квартиры/tmp/parse_floorplan.py",
-    "Настя/Квартиры/tmp",
-    "Настя/Квартиры/parse_floorplan.py",
-    "Настя/Квартиры/parse_plan.py",
-    "Настя/Квартиры/plan_out_package/7.1 2Д.png",
-    "Настя/Квартиры/plan_out_package/parsed_plan.svg",
-    "Настя/Квартиры/plan_out_package/parsed_plan_scaled.svg",
-    "Настя/Квартиры/plan_out_package/parsed_plan_scaled.json",
-    "Настя/Квартиры/plan_out_package",
-    "Настя/Квартиры/plan_out_package.zip",
-    "Настя/Квартиры/plan_package/7.1 2Д.png",
     "Настя/Квартиры/plan_package/parsed_plan.svg",
     "Настя/Квартиры/020 Формат 3Д данных/014 prompt.md",
-    "Настя/Квартиры/050 Sora/030 план.md",
     "Настя/Квартиры/050 Sora/020 prompt v2.md",
-    "022 новая модель.md",
     "Настя/Квартиры/040 разобрать схему/010 prompt.md",
     "Настя/Квартиры/030 Варианты дизайна/010 prompt.md",
     "Настя/Квартиры/020 Формат 3Д данных/020 chatgpt.md",
@@ -281,13 +287,6 @@
     "AI_Projects_Vault/10_Projects/Treasury_System/01_Context.md",
     "AI_Projects_Vault/10_Projects/Treasury_System/99_Notes.md",
     "AI_Projects_Vault/10_Projects/Treasury_System/02_Prompts/2025-10-19_IT_Systems_List.md",
-    "AI_Projects_Vault/00_Reference/Prompting_Guide.md",
-    "AI_Projects_Vault/00_Reference/Templates/Prompt_Template.md",
-    "AI_Projects_Vault/00_Reference/Templates/Chain_Template.md",
-    "AI_Projects_Vault/00_Reference/go.md",
-    "AI_Projects_Vault/10_Projects/Treasury_System/02_Prompts/Untitled.md",
-    "Грузовое такси.md",
-    "Как сделать сайт.md",
-    "03_Results.md"
+    "AI_Projects_Vault/00_Reference/Prompting_Guide.md"
   ]
 }
