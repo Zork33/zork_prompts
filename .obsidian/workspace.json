@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Настя/Квартиры/020 Формат 3Д данных/020 chatgpt.md",
+                "file": "Goldex/ToDo.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": true,
@@ -28,7 +28,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "020 chatgpt"
+              "title": "ToDo"
             }
           },
           {
@@ -61,7 +61,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Goldex/Канарейка.md",
+                "file": "Goldex.old/Андрей.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": true,
@@ -76,11 +76,34 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "Канарейка"
+              "title": "Андрей"
+            }
+          },
+          {
+            "id": "086a56cd279f60e1",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Goldex/check listst/010 ПЛАН РАБОТ ПО ПЕРЕНОСУ СЕРВИСА С GO НА NODE.JS.md",
+                "mode": "source",
+                "source": false,
+                "backlinks": true,
+                "backlinkOpts": {
+                  "collapseAll": false,
+                  "extraContext": false,
+                  "sortOrder": "alphabetical",
+                  "showSearch": false,
+                  "searchQuery": "",
+                  "backlinkCollapsed": false,
+                  "unlinkedCollapsed": true
+                }
+              },
+              "icon": "lucide-file",
+              "title": "010 ПЛАН РАБОТ ПО ПЕРЕНОСУ СЕРВИСА С GO НА NODE.JS"
             }
           }
-        ],
-        "currentTab": 2
+        ]
       }
     ],
     "direction": "vertical"
@@ -163,7 +186,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Goldex/Канарейка.md",
+                "file": "Goldex/ToDo.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -173,7 +196,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for Канарейка"
+              "title": "Backlinks for ToDo"
             }
           },
           {
@@ -241,52 +264,52 @@
       "file-tree-alternative:File Tree Alternative Plugin": false
     }
   },
-  "active": "31957daab1f225a8",
+  "active": "acee00fb9126d041",
   "lastOpenFiles": [
-    "Goldex/Андрей.md",
-    "Goldex/Канарейка.md",
-    "Goldex/business/как протестировать open telemetry.md",
-    "Goldex/business/тестируешь gRPC.md",
-    "Goldex/business/миграцию “чёрного ящика” с golden-master-тестами и shadow-traffic.md",
-    "Goldex/Nodejs сервис.md",
-    "Goldex/business",
-    "«6+ способов доп.заработка .pdf",
+    "Goldex.old/service/Molecular сервис.md",
+    "Goldex/ToDo.md",
+    "Goldex/check listst/010 ПЛАН РАБОТ ПО ПЕРЕНОСУ СЕРВИСА С GO НА NODE.JS.md",
+    "Goldex.old/service/Как сделать сервис.md",
+    "Goldex/check listst/005 prompt.md",
+    "Goldex/check listst/Untitled",
+    "Настя/Квартиры/020 Формат 3Д данных/020 chatgpt.md",
+    "Настя/Квартиры/040 разобрать схему/010 prompt.md",
+    "Goldex.old/Андрей.md",
+    "Goldex/010 Реквизиты/Тестовый терминал.md",
+    "Goldex/check listst",
     "Goldex",
-    "022 новая модель.md",
-    "Кредиты/Параметры кредита.md",
-    "Кредиты/Напиши план для системы.md",
+    "Goldex/010 Реквизиты/Тестовый контур.md",
+    "Goldex/010 Реквизиты",
+    "Goldex.old/service/промпт.md",
+    "Goldex.old/analyze/Анализ проекта.md",
+    "Goldex.old/service",
+    "Goldex.old/mysql/UI.md",
+    "Goldex.old/analyze",
+    "Goldex.old/db migration.md",
+    "Goldex.old/Nodejs сервис.md",
+    "Goldex.old/SQL.md",
+    "Goldex.old/ToDo.md",
+    "Goldex.old/robot/prompt.md",
+    "Clippings/Вакансия «Project Manager (PM)» в Москве, работа в компании «А ДЕНЬГИ» — Хабр Карьера.md",
+    "Goldex.old/robot",
+    "Clippings",
+    "Goldex.old/mysql/MySQL.md",
+    "Goldex.old/mysql",
+    "Goldex.old/v1 vs  v2 testing.md",
+    "Goldex.old/как сделать паралельное тестирование старого кода и нового.md",
+    "Промты для жизни и карьеры.pdf",
+    "Как сделать сайт.md",
+    "Goldex.old/Канарейка.md",
+    "Goldex.old/business/как протестировать open telemetry.md",
+    "Goldex.old/business/тестируешь gRPC.md",
     "Настя/Квартиры/plan_out_package/parsed_plan_scaled.svg",
-    "Кредиты",
     "Настя/Квартиры/plan_out_package/parsed_plan.svg",
     "Настя/Квартиры/plan_out_package/7.1 2Д.png",
     "Настя/Квартиры/tmp/7.1 2Д.png",
     "Настя/Квартиры/plan_package/7.1 2Д.png",
-    "Настя/Квартиры/Инструменты для 3D-визуализации квартиры из 2D-плана.pdf",
-    "Настя/Квартиры/050 Sora/030 план.md",
-    "Настя/Квартиры/tmp/page-6.pdf",
-    "Настя/Квартиры/tmp/extract_upper_scheme.py",
     "Настя/Квартиры/tmp/plan_out/parsed_plan.svg",
-    "Настя/Квартиры/tmp/plan_out/parsed_plan.json",
-    "Настя/Квартиры/tmp/plan_out",
-    "Настя/Квартиры/tmp/parse_floorplan.py",
     "Настя/Квартиры/plan_package/parsed_plan.svg",
-    "Настя/Квартиры/020 Формат 3Д данных/014 prompt.md",
-    "Настя/Квартиры/050 Sora/020 prompt v2.md",
-    "Настя/Квартиры/040 разобрать схему/010 prompt.md",
-    "Настя/Квартиры/030 Варианты дизайна/010 prompt.md",
-    "Настя/Квартиры/020 Формат 3Д данных/020 chatgpt.md",
-    "Настя/Квартиры/020 Формат 3Д данных/010 prompt.md",
-    "Настя/Квартиры/020 Формат 3Д данных/012 prompt.md",
-    "Настя/Квартиры/040 разобрать схему/020 plan_2d_converted.md",
-    "Настя/Квартиры/010 Вводные/010 Окна, Двери.md",
     "Настя/Квартиры/010 Вводные/7.1 2Д.png",
-    "Настя/Квартиры/010 Вводные/2025-10-21_19-37-37.png",
-    "Настя/Квартиры/030 Варианты дизайна/020 chatgpt.md",
-    "Настя/Квартиры/050 Sora/010 prompt.md",
-    "AI_Projects_Vault/10_Projects/Treasury_System/03_Results/Systems_List_v1.md",
-    "AI_Projects_Vault/10_Projects/Treasury_System/01_Context.md",
-    "AI_Projects_Vault/10_Projects/Treasury_System/99_Notes.md",
-    "AI_Projects_Vault/10_Projects/Treasury_System/02_Prompts/2025-10-19_IT_Systems_List.md",
-    "AI_Projects_Vault/00_Reference/Prompting_Guide.md"
+    "Настя/Квартиры/010 Вводные/2025-10-21_19-37-37.png"
   ]
 }

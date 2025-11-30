@@ -1,0 +1,4 @@
+- напиши на dyno / typescript / typeorm скрипт миграции
+- сделай код доступным как модуль из business-v2
+- схема БД в db_backup\backup_tm-dev_2025-11-23T16-33-00.sql 
+- результат в папку db-migration-v1
