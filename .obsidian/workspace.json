@@ -4,16 +4,16 @@
     "type": "split",
     "children": [
       {
-        "id": "88bec4ca8f43d1b9",
+        "id": "8845c2152edb285a",
         "type": "tabs",
         "children": [
           {
-            "id": "acee00fb9126d041",
+            "id": "b1f85124f2d02251",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Goldex/ToDo.md",
+                "file": "Goldex/040 flow, структурыБ варианты движения/prompt.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": true,
@@ -28,16 +28,16 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "ToDo"
+              "title": "prompt"
             }
           },
           {
-            "id": "2a99e32b6269b00f",
+            "id": "f921c384e8d6c086",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Настя/Квартиры/040 разобрать схему/010 prompt.md",
+                "file": "правила документирования.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": true,
@@ -52,16 +52,16 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "010 prompt"
+              "title": "правила документирования"
             }
           },
           {
-            "id": "31957daab1f225a8",
+            "id": "d73b9307ba4c1849",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Goldex.old/Андрей.md",
+                "file": "Goldex/030 документация на код/правила документирования существующего кода.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": true,
@@ -76,31 +76,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "Андрей"
-            }
-          },
-          {
-            "id": "086a56cd279f60e1",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Goldex/check listst/010 ПЛАН РАБОТ ПО ПЕРЕНОСУ СЕРВИСА С GO НА NODE.JS.md",
-                "mode": "source",
-                "source": false,
-                "backlinks": true,
-                "backlinkOpts": {
-                  "collapseAll": false,
-                  "extraContext": false,
-                  "sortOrder": "alphabetical",
-                  "showSearch": false,
-                  "searchQuery": "",
-                  "backlinkCollapsed": false,
-                  "unlinkedCollapsed": true
-                }
-              },
-              "icon": "lucide-file",
-              "title": "010 ПЛАН РАБОТ ПО ПЕРЕНОСУ СЕРВИСА С GO НА NODE.JS"
+              "title": "правила документирования существующего кода"
             }
           }
         ]
@@ -186,7 +162,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Goldex/ToDo.md",
+                "file": "Goldex/040 flow, структурыБ варианты движения/prompt.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -196,7 +172,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for ToDo"
+              "title": "Backlinks for prompt"
             }
           },
           {
@@ -264,17 +240,31 @@
       "file-tree-alternative:File Tree Alternative Plugin": false
     }
   },
-  "active": "acee00fb9126d041",
+  "active": "b1f85124f2d02251",
   "lastOpenFiles": [
-    "Goldex.old/service/Molecular сервис.md",
-    "Goldex/ToDo.md",
+    "Goldex/040 flow, структурыБ варианты движения/prompt 4 prompt.md",
+    "Goldex/040 flow, структурыБ варианты движения/prompt.md",
+    "правила документирования.md",
+    "Goldex/030 документация на код/правила документирования существующего кода.md",
+    "Goldex.old/Андрей.md",
+    "Goldex/040 flow, структурыБ варианты движения",
+    "Goldex/010 Реквизиты/Gitlab.md",
+    "Goldex/030 документация на код/business-v1 new.md",
+    "Goldex/030 документация на код/business-v1 current.md",
+    "Goldex/030 документация на код/правило для mermaid-диаграмм.md",
     "Goldex/check listst/010 ПЛАН РАБОТ ПО ПЕРЕНОСУ СЕРВИСА С GO НА NODE.JS.md",
+    "Настя/Квартиры/040 разобрать схему/010 prompt.md",
+    "Goldex/Root script.md",
+    "Goldex/030 документация на код",
+    "Goldex/020 версионный репозиторий",
+    "Goldex/Root files.md",
+    "Goldex/Root prompt.md",
+    "Goldex/ToDo.md",
+    "Goldex.old/service/Molecular сервис.md",
     "Goldex.old/service/Как сделать сервис.md",
     "Goldex/check listst/005 prompt.md",
     "Goldex/check listst/Untitled",
     "Настя/Квартиры/020 Формат 3Д данных/020 chatgpt.md",
-    "Настя/Квартиры/040 разобрать схему/010 prompt.md",
-    "Goldex.old/Андрей.md",
     "Goldex/010 Реквизиты/Тестовый терминал.md",
     "Goldex/check listst",
     "Goldex",
@@ -287,21 +277,7 @@
     "Goldex.old/analyze",
     "Goldex.old/db migration.md",
     "Goldex.old/Nodejs сервис.md",
-    "Goldex.old/SQL.md",
-    "Goldex.old/ToDo.md",
-    "Goldex.old/robot/prompt.md",
-    "Clippings/Вакансия «Project Manager (PM)» в Москве, работа в компании «А ДЕНЬГИ» — Хабр Карьера.md",
     "Goldex.old/robot",
-    "Clippings",
-    "Goldex.old/mysql/MySQL.md",
-    "Goldex.old/mysql",
-    "Goldex.old/v1 vs  v2 testing.md",
-    "Goldex.old/как сделать паралельное тестирование старого кода и нового.md",
-    "Промты для жизни и карьеры.pdf",
-    "Как сделать сайт.md",
-    "Goldex.old/Канарейка.md",
-    "Goldex.old/business/как протестировать open telemetry.md",
-    "Goldex.old/business/тестируешь gRPC.md",
     "Настя/Квартиры/plan_out_package/parsed_plan_scaled.svg",
     "Настя/Квартиры/plan_out_package/parsed_plan.svg",
     "Настя/Квартиры/plan_out_package/7.1 2Д.png",
