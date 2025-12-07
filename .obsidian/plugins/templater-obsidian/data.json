@@ -1,6 +1,6 @@
 {
   "command_timeout": 5,
-  "templates_folder": "AI_Projects_Vault/00_Reference/Templates",
+  "templates_folder": "_templates",
   "templates_pairs": [
     [
       "",

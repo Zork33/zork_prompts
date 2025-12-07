@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Goldex/040 flow, структурыБ варианты движения/prompt.md",
+                "file": "Goldex/080 business-v2/080 сделать правильный v2.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": true,
@@ -28,7 +28,31 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "prompt"
+              "title": "080 сделать правильный v2"
+            }
+          },
+          {
+            "id": "b947b3a7d3b9d764",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Goldex/100 common/100 prompt.md",
+                "mode": "source",
+                "source": false,
+                "backlinks": true,
+                "backlinkOpts": {
+                  "collapseAll": false,
+                  "extraContext": false,
+                  "sortOrder": "alphabetical",
+                  "showSearch": false,
+                  "searchQuery": "",
+                  "backlinkCollapsed": false,
+                  "unlinkedCollapsed": true
+                }
+              },
+              "icon": "lucide-file",
+              "title": "100 prompt"
             }
           },
           {
@@ -79,7 +103,8 @@
               "title": "правила документирования существующего кода"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -162,7 +187,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Goldex/040 flow, структурыБ варианты движения/prompt.md",
+                "file": "Goldex/100 common/100 prompt.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -172,7 +197,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for prompt"
+              "title": "Backlinks for 100 prompt"
             }
           },
           {
@@ -240,44 +265,44 @@
       "file-tree-alternative:File Tree Alternative Plugin": false
     }
   },
-  "active": "b1f85124f2d02251",
+  "active": "b947b3a7d3b9d764",
   "lastOpenFiles": [
-    "Goldex/040 flow, структурыБ варианты движения/prompt 4 prompt.md",
-    "Goldex/040 flow, структурыБ варианты движения/prompt.md",
-    "правила документирования.md",
+    "Goldex/100 common/Molecular сервис.md",
+    "Goldex/100 common/100 prompt.md",
+    "Goldex/080 business-v2/080 сделать правильный v2.md",
+    "Goldex/070 mock/070 prompt 4.md",
+    "Goldex/080 business-v2",
+    "Goldex/070 mock/070 prompt 4 - prompt.md",
+    "Goldex/070 mock/080 prompt.md",
+    "Goldex.old/service/Как сделать сервис.md",
+    "Goldex.old/service/промпт.md",
+    "Goldex/100 common",
+    "Goldex/070 mock/070 prompt 3.md",
+    "Goldex/070 mock/070 prompt 2.md",
+    "Goldex/070 mock/070 prompt.md",
+    "Goldex/060 robot/060 промпт.md",
+    "Goldex/Root files.md",
+    "Goldex/070 mock",
+    "Goldex/050 структурировать анализ/prompt - group.md",
     "Goldex/030 документация на код/правила документирования существующего кода.md",
-    "Goldex.old/Андрей.md",
-    "Goldex/040 flow, структурыБ варианты движения",
-    "Goldex/010 Реквизиты/Gitlab.md",
-    "Goldex/030 документация на код/business-v1 new.md",
+    "Untitled 1.md",
+    "Goldex/060 robot/test.md",
+    "AI_Projects_Vault/10_Projects/Treasury_System/01_Context.md",
+    "_templates/prompt.md",
+    "_templates",
+    "Goldex/050 структурировать анализ/prompt - flow.md",
+    "Goldex/060 robot",
+    "Goldex/040 flow, структуры, варианты движения/prompt.md",
     "Goldex/030 документация на код/business-v1 current.md",
     "Goldex/030 документация на код/правило для mermaid-диаграмм.md",
-    "Goldex/check listst/010 ПЛАН РАБОТ ПО ПЕРЕНОСУ СЕРВИСА С GO НА NODE.JS.md",
-    "Настя/Квартиры/040 разобрать схему/010 prompt.md",
-    "Goldex/Root script.md",
+    "Goldex.old/Андрей.md",
+    "Goldex/050 структурировать анализ",
+    "Goldex/040 flow, структуры, варианты движения/prompt 4 prompt.md",
+    "правила документирования.md",
+    "Goldex/040 flow, структуры, варианты движения",
     "Goldex/030 документация на код",
     "Goldex/020 версионный репозиторий",
-    "Goldex/Root files.md",
-    "Goldex/Root prompt.md",
-    "Goldex/ToDo.md",
-    "Goldex.old/service/Molecular сервис.md",
-    "Goldex.old/service/Как сделать сервис.md",
-    "Goldex/check listst/005 prompt.md",
     "Goldex/check listst/Untitled",
-    "Настя/Квартиры/020 Формат 3Д данных/020 chatgpt.md",
-    "Goldex/010 Реквизиты/Тестовый терминал.md",
-    "Goldex/check listst",
-    "Goldex",
-    "Goldex/010 Реквизиты/Тестовый контур.md",
-    "Goldex/010 Реквизиты",
-    "Goldex.old/service/промпт.md",
-    "Goldex.old/analyze/Анализ проекта.md",
-    "Goldex.old/service",
-    "Goldex.old/mysql/UI.md",
-    "Goldex.old/analyze",
-    "Goldex.old/db migration.md",
-    "Goldex.old/Nodejs сервис.md",
-    "Goldex.old/robot",
     "Настя/Квартиры/plan_out_package/parsed_plan_scaled.svg",
     "Настя/Квартиры/plan_out_package/parsed_plan.svg",
     "Настя/Квартиры/plan_out_package/7.1 2Д.png",
