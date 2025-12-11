@@ -9,17 +9,16 @@
     "embed_model": {
       "adapter": "transformers",
       "transformers": {
-        "legacy_transformers": false,
-        "model_key": "TaylorAI/bge-micro-v2"
+        "model_key": "TaylorAI/bge-micro-v2",
+        "legacy_transformers": false
       },
       "TaylorAI/bge-micro-v2": {}
-    }
+    },
+    "excluded_headings": "",
+    "file_exclusions": "Untitled",
+    "folder_exclusions": ""
   },
-  "excluded_headings": "",
-  "file_exclusions": "Untitled",
-  "folder_exclusions": "",
   "language": "en",
-  "new_user": true,
   "re_import_wait_time": 13,
   "smart_chat_threads": {
     "chat_model": {
@@ -27,16 +26,23 @@
       "ollama": {}
     }
   },
-  "smart_notices": {},
+  "smart_notices": {
+    "muted": {}
+  },
   "smart_view_filter": {
     "expanded_view": false,
     "render_markdown": true,
     "show_full_path": false
   },
   "version": "",
+  "new_user": true,
+  "models": {
+    "embedding_platform": "transformers",
+    "chat_completion_platform": "open_router"
+  },
   "smart_contexts": {
     "link_depth": 0,
-    "inlinks": true,
+    "inlinks": false,
     "follow_links_in_excluded": true,
     "excluded_headings": [],
     "max_len": 0,
@@ -53,6 +59,20 @@
         "before": "<context>\n<file_tree>\n{{FILE_TREE}}\n</file_tree>",
         "after": "</context>"
       }
-    }
+    },
+    "template_before": "<context>\n{{FILE_TREE}}",
+    "template_after": "</context>"
+  },
+  "context_items": {
+    "template_before": "<item loc=\"{{KEY}}\" at=\"{{TIME_AGO}}\">",
+    "template_after": "</item>"
+  },
+  "lookup_lists": {
+    "results_collection_key": "smart_blocks",
+    "score_algo_key": "similarity",
+    "results_limit": 20
+  },
+  "embedding_models": {
+    "default_model_key": "transformers#1765435699507"
   }
 }

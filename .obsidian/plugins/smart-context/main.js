@@ -130,15 +130,1350 @@ var require_base64_js = __commonJS({
   }
 });
 
-// main.js
+// src/main.js
 var main_exports = {};
 __export(main_exports, {
   default: () => SmartContextPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian29 = require("obsidian");
+var import_obsidian44 = require("obsidian");
 
-// node_modules/smart-file-system/utils/glob_to_regex.js
+// node_modules/obsidian-smart-env/smart_plugin.js
+var import_obsidian = require("obsidian");
+var SmartPlugin = class extends import_obsidian.Plugin {
+  /**
+   * override in subclass to provide commands.
+   * use property key to override commands in further subclasses.
+   */
+  get commands() {
+    return {
+      show_release_notes: {
+        id: "show-release-notes",
+        name: "Show release notes",
+        callback: () => this.show_release_notes()
+      }
+    };
+  }
+  register_commands() {
+    Object.values(this.commands).forEach((cmd) => {
+      this.addCommand(cmd);
+    });
+  }
+  /**
+   * override in subclass to provide ribbon icons.
+   * use property key to override ribbon icons in further subclasses.
+   */
+  get ribbon_icons() {
+    return {};
+  }
+  register_ribbon_icons() {
+    const icons = Object.values(this.ribbon_icons);
+    for (let i = 0; i < icons.length; i++) {
+      const ri = icons[i];
+      this.addRibbonIcon(ri.icon_name, ri.description, ri.callback);
+    }
+  }
+  get item_views() {
+    return {};
+  }
+  register_item_views() {
+    const views = Object.values(this.item_views);
+    for (let i = 0; i < views.length; i++) {
+      const ViewClass = views[i];
+      if (typeof ViewClass.register_item_view === "function") {
+        ViewClass.register_item_view(this);
+      }
+    }
+  }
+  /**
+   * user version and first seen handling
+   */
+  async is_new_user() {
+    const data = await this.loadData() || {};
+    if (!data.installed_at) {
+      data.installed_at = Date.now();
+      await this.saveData(data);
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Returns the last saved plugin version or an empty string.
+   * @returns {Promise<string>}
+   */
+  async get_last_known_version() {
+    const data = await this.loadData() || {};
+    return data.last_version || "";
+  }
+  /**
+   * Persists the provided plugin version as last shown.
+   * @param {string} version
+   * @returns {Promise<void>}
+   */
+  async set_last_known_version(version) {
+    const data = await this.loadData() || {};
+    data.last_version = version;
+    await this.saveData(data);
+  }
+  /**
+   * Determines if release notes should be shown for `current_version`.
+   * @param {string} current_version
+   * @returns {Promise<boolean>}
+   */
+  async is_new_plugin_version(current_version) {
+    return await this.get_last_known_version() !== current_version;
+  }
+};
+
+// node_modules/obsidian-smart-env/smart_env.js
+var import_obsidian35 = require("obsidian");
+
+// node_modules/obsidian-smart-env/node_modules/smart-events/adapters/_adapter.js
+var WILDCARD_KEY = "*";
+var SmartEventsAdapter = class {
+  constructor(instance) {
+    this.instance = instance;
+    this.handlers = /* @__PURE__ */ Object.create(null);
+  }
+  /**
+   * Register an event handler.
+   * When event_key is '*', the handler subscribes to all events.
+   * Handlers receive (event, event_key).
+   * @param {string} event_key
+   * @param {Function} event_callback
+   */
+  on(event_key, event_callback) {
+  }
+  /**
+   * Register a one-time handler.
+   * When event_key is '*', the handler fires once on the next emitted event of any key.
+   * Handlers receive (event, event_key).
+   * @param {string} event_key
+   * @param {Function} event_callback
+   */
+  once(event_key, event_callback) {
+  }
+  /**
+   * Remove an event handler.
+   * When event_key is '*', removes from the wildcard list only.
+   * @param {string} event_key
+   * @param {Function} event_callback
+   */
+  off(event_key, event_callback) {
+  }
+  /**
+   * Emit an event.
+   * event_key must not be '*'.
+   * @param {string} event_key
+   * @param {Object} event
+   */
+  emit(event_key, event) {
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-events/adapters/default.js
+var DefaultEventsAdapter = class extends SmartEventsAdapter {
+  constructor(instance) {
+    super(instance);
+    this._next_id = 1;
+  }
+  on(event_key, event_callback = () => {
+  }) {
+    const key = event_key === WILDCARD_KEY ? WILDCARD_KEY : event_key;
+    const list = this.handlers[key] || (this.handlers[key] = []);
+    const entry = { id: this._next_id++, cb: event_callback };
+    list.push(entry);
+    return () => this.off_entry(key, entry.id);
+  }
+  once(event_key, event_callback = () => {
+  }) {
+    const key = event_key === WILDCARD_KEY ? WILDCARD_KEY : event_key;
+    const list = this.handlers[key] || (this.handlers[key] = []);
+    const entry = { id: this._next_id++, cb: null };
+    const wrapper = (event, emitted_key) => {
+      this.off_entry(key, entry.id);
+      event_callback(event, emitted_key);
+    };
+    entry.cb = wrapper;
+    list.push(entry);
+    return () => this.off_entry(key, entry.id);
+  }
+  /**
+   * Public removal by function reference.
+   * Removes a single matching registration for the given function.
+   * Preference is to remove the most-recent registration (LIFO) when duplicates exist.
+   */
+  off(event_key, event_callback) {
+    const list = this.handlers[event_key];
+    if (!list || !event_callback) return;
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].cb === event_callback) {
+        list.splice(i, 1);
+        break;
+      }
+    }
+  }
+  /**
+   * Internal precise removal by entry id.
+   * Used by unsubscribe closures returned from on/once.
+   */
+  off_entry(event_key, entry_id) {
+    const list = this.handlers[event_key];
+    if (!list) return;
+    const idx = list.findIndex((e) => e.id === entry_id);
+    if (idx !== -1) list.splice(idx, 1);
+  }
+  emit(event_key, event = {}) {
+    if (event_key === WILDCARD_KEY) {
+      throw new Error('emit("*") is not allowed; "*" is reserved for wildcard listeners.');
+    }
+    const specific_list = this.handlers[event_key];
+    const wildcard_list = this.handlers[WILDCARD_KEY];
+    if (!specific_list && !wildcard_list) return;
+    const call_specific = specific_list ? [...specific_list] : [];
+    const call_wildcard = wildcard_list ? [...wildcard_list] : [];
+    for (let i = 0; i < call_specific.length; i++) {
+      call_specific[i].cb(event, event_key);
+    }
+    for (let i = 0; i < call_wildcard.length; i++) {
+      call_wildcard[i].cb(event, event_key);
+    }
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-events/smart_events.js
+var SmartEvents = class _SmartEvents {
+  constructor(env, opts = {}) {
+    env.create_env_getter(this);
+    this.opts = opts;
+  }
+  static create(env, opts = {}) {
+    const smart_events = new _SmartEvents(env, opts);
+    if (!Object.getOwnPropertyDescriptor(env, "events")) {
+      Object.defineProperty(env, "events", { get: () => smart_events });
+    }
+    return smart_events;
+  }
+  get adapter() {
+    if (!this._adapter) {
+      this._adapter = this.opts.adapter_class ? new this.opts.adapter_class(this) : new DefaultEventsAdapter(this);
+    }
+    return this._adapter;
+  }
+  on(event_key, event_callback = (event) => {
+  }) {
+    return this.adapter.on(event_key, event_callback);
+  }
+  once(event_key, event_callback = (event) => {
+  }) {
+    return this.adapter.once(event_key, event_callback);
+  }
+  off(event_key, event_callback = (event) => {
+  }) {
+    return this.adapter.off(event_key, event_callback);
+  }
+  /**
+   * Emit an event.
+   * @param {string} event_key
+   * @param {Record<string, unknown>} [event]
+   * @returns {void}
+   */
+  emit(event_key, event = {}) {
+    const payload = { ...event };
+    if (payload.at === void 0) {
+      payload.at = Date.now();
+    }
+    Object.freeze(payload);
+    return this.adapter.emit(event_key, payload);
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-environment/components/settings.js
+async function build_html(env, opts = {}) {
+  const env_settings_html = Object.entries(env.settings_config).map(([setting_key, setting_config]) => {
+    if (!setting_config.setting) setting_config.setting = setting_key;
+    return this.render_setting_html(setting_config);
+  }).join("\n");
+  const env_collections_containers_html = Object.entries(env.collections).map(([collection_key, collection]) => {
+    return `<div data-smart-settings="${collection_key}"></div>`;
+  }).join("\n");
+  const html = `
+    <div class="">
+      ${env_settings_html}
+      ${env_collections_containers_html}
+    </div>
+  `;
+  return html;
+}
+async function render(env, opts = {}) {
+  const html = await build_html.call(this, env, opts);
+  const frag = this.create_doc_fragment(html);
+  return await post_process.call(this, env, frag, opts);
+}
+async function post_process(env, frag, opts = {}) {
+  await this.render_setting_components(frag, { scope: env });
+  const env_collections_containers = frag.querySelectorAll("[data-smart-settings]");
+  for (const env_collections_container of env_collections_containers) {
+    const collection_key = env_collections_container.dataset.smartSettings;
+    const collection = env[collection_key];
+    await collection.render_settings(env_collections_container);
+  }
+  return frag;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-settings/smart_settings.js
+var SmartSettings = class {
+  /**
+   * Creates an instance of SmartEnvSettings.
+   * @param {Object} main - The main object to contain the instance (smart_settings) and getter (settings)
+   * @param {Object} [opts={}] - Configuration options.
+   */
+  constructor(main, opts = {}) {
+    this.main = main;
+    this.opts = opts;
+    this._fs = null;
+    this._settings = {};
+    this._saved = false;
+    this.save_timeout = null;
+    this.save_delay_ms = typeof opts.save_delay_ms === "number" ? opts.save_delay_ms : 1e3;
+  }
+  static async create(main, opts = {}) {
+    const smart_settings = new this(main, opts);
+    await smart_settings.load();
+    main.smart_settings = smart_settings;
+    Object.defineProperty(main, "settings", {
+      get() {
+        return smart_settings.settings;
+      },
+      set(settings) {
+        smart_settings.settings = settings;
+      }
+    });
+    return smart_settings;
+  }
+  static create_sync(main, opts = {}) {
+    const smart_settings = new this(main, opts);
+    smart_settings.load_sync();
+    main.smart_settings = smart_settings;
+    Object.defineProperty(main, "settings", {
+      get() {
+        return smart_settings.settings;
+      },
+      set(settings) {
+        smart_settings.settings = settings;
+      }
+    });
+    return smart_settings;
+  }
+  /**
+   * Gets the current settings, wrapped with an observer to handle changes.
+   * @returns {Proxy} A proxy object that observes changes to the settings.
+   */
+  get settings() {
+    return observe_object(this._settings, (change) => {
+      this.emit_settings_changed(change);
+      this.schedule_save();
+    });
+  }
+  /**
+   * Sets the current settings.
+   * @param {Object} settings - The new settings to apply.
+   */
+  set settings(settings) {
+    this._settings = settings;
+  }
+  schedule_save() {
+    if (this.save_timeout) clearTimeout(this.save_timeout);
+    this.save_timeout = setTimeout(() => {
+      this.save(this._settings);
+      this.save_timeout = null;
+    }, this.save_delay_ms);
+  }
+  emit_settings_changed(change) {
+    const events_bus = this.resolve_events_bus();
+    if (!events_bus?.emit) return;
+    events_bus.emit("settings:changed", build_settings_changed_event(change));
+  }
+  resolve_events_bus() {
+    if (this.opts.events) return this.opts.events;
+    if (typeof this.opts.emit === "function") {
+      return { emit: this.opts.emit };
+    }
+    if (this.main?.events) return this.main.events;
+    if (this.main?.env?.events) return this.main.env.events;
+    return null;
+  }
+  async save(settings = this._settings) {
+    if (typeof this.opts.save === "function") await this.opts.save(settings);
+    else await this.main.save_settings(settings);
+  }
+  async load() {
+    if (typeof this.opts.load === "function") this._settings = await this.opts.load();
+    else this._settings = await this.main.load_settings();
+  }
+  load_sync() {
+    if (typeof this.opts.load === "function") this._settings = this.opts.load();
+    else this._settings = this.main.load_settings();
+  }
+};
+function observe_object(obj, on_change) {
+  const proxy_cache = /* @__PURE__ */ new WeakMap();
+  const proxy_targets = /* @__PURE__ */ new WeakMap();
+  const wrap_value = (value, path) => {
+    if (!is_observable(value)) return value;
+    if (proxy_targets.has(value)) return value;
+    if (proxy_cache.has(value)) return proxy_cache.get(value);
+    const proxy = create_proxy(value, path);
+    proxy_cache.set(value, proxy);
+    proxy_targets.set(proxy, value);
+    return proxy;
+  };
+  const create_proxy = (target, path) => new Proxy(target, {
+    set(target2, property, value) {
+      const property_path = [...path, property];
+      const previous_snapshot = snapshot_value(target2[property]);
+      const next_snapshot = snapshot_value(value);
+      target2[property] = wrap_value(value, property_path);
+      if (has_changed(previous_snapshot, next_snapshot)) {
+        on_change({
+          type: "set",
+          path: property_path,
+          value: next_snapshot,
+          previous_value: previous_snapshot
+        });
+      }
+      return true;
+    },
+    get(target2, property) {
+      const result = target2[property];
+      return wrap_value(result, [...path, property]);
+    },
+    deleteProperty(target2, property) {
+      if (!Object.prototype.hasOwnProperty.call(target2, property)) {
+        return true;
+      }
+      const property_path = [...path, property];
+      const previous_snapshot = snapshot_value(target2[property]);
+      delete target2[property];
+      on_change({
+        type: "delete",
+        path: property_path,
+        previous_value: previous_snapshot
+      });
+      return true;
+    }
+  });
+  return wrap_value(obj, []);
+}
+function build_settings_changed_event(change) {
+  const path = Array.isArray(change.path) ? change.path : [];
+  return {
+    type: change.type,
+    path,
+    path_string: path.join("."),
+    value: change.value,
+    previous_value: change.previous_value
+  };
+}
+function snapshot_value(value) {
+  if (!is_observable(value)) {
+    return value;
+  }
+  if (typeof structuredClone === "function") {
+    try {
+      return structuredClone(value);
+    } catch (error) {
+    }
+  }
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    return value;
+  }
+}
+function has_changed(previous_snapshot, next_snapshot) {
+  return serialize_value(previous_snapshot) !== serialize_value(next_snapshot);
+}
+function serialize_value(value) {
+  if (value === void 0) return "undefined";
+  if (Number.isNaN(value)) return "number:NaN";
+  if (value === Infinity) return "number:Infinity";
+  if (value === -Infinity) return "number:-Infinity";
+  if (!is_observable(value)) {
+    return `${typeof value}:${String(value)}`;
+  }
+  try {
+    return `object:${JSON.stringify(value)}`;
+  } catch (error) {
+    return `object:${String(value)}`;
+  }
+}
+function is_observable(value) {
+  return typeof value === "object" && value !== null;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/deep_merge.js
+function deep_merge(target = {}, source = {}) {
+  for (const key in source) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    if (is_plain_object(source[key]) && is_plain_object(target[key])) {
+      deep_merge(target[key], source[key]);
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+function is_plain_object(o) {
+  return o && typeof o === "object" && !Array.isArray(o);
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/camel_case_to_snake_case.js
+function camel_case_to_snake_case(str = "") {
+  return str.replace(/([A-Z])/g, (m) => `_${m.toLowerCase()}`).replace(/^_/, "").replace(/2$/, "");
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/normalize_opts.js
+function normalize_opts(opts) {
+  if (!opts.collections) opts.collections = {};
+  if (!opts.modules) opts.modules = {};
+  if (!opts.items) opts.items = {};
+  Object.entries(opts.collections).forEach(([key, val]) => {
+    if (typeof val === "function") {
+      opts.collections[key] = { class: val };
+    }
+    const new_key = camel_case_to_snake_case(key);
+    if (new_key !== key) {
+      opts.collections[new_key] = opts.collections[key];
+      delete opts.collections[key];
+    }
+    if (!opts.collections[new_key].collection_key) opts.collections[new_key].collection_key = new_key;
+    if (val.item_type) {
+      opts.items[val.item_type.key || camel_case_to_snake_case(val.item_type.name)] = {
+        class: val.item_type
+      };
+    }
+  });
+  Object.entries(opts.modules).forEach(([key, val]) => {
+    if (typeof val === "function") {
+      opts.modules[key] = { class: val };
+    }
+    const new_key = camel_case_to_snake_case(key);
+    if (new_key !== key) {
+      opts.modules[new_key] = opts.modules[key];
+      delete opts.modules[key];
+    }
+  });
+  if (!opts.item_types) opts.item_types = {};
+  if (!opts.items) opts.items = {};
+  Object.entries(opts.item_types).forEach(([key, val]) => {
+    if (typeof val === "function") {
+      const new_key = camel_case_to_snake_case(key);
+      opts.items[new_key] = {
+        class: val,
+        actions: {},
+        ...opts.items[new_key] || {}
+      };
+    }
+  });
+  return opts;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/deep_clone_config.js
+function is_plain_object2(value) {
+  if (!value || typeof value !== "object") return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+function deep_clone_config(input) {
+  if (Array.isArray(input)) {
+    return input.map((item) => deep_clone_config(item));
+  }
+  if (is_plain_object2(input)) {
+    const output = {};
+    for (const [k, v] of Object.entries(input)) {
+      output[k] = deep_clone_config(v);
+    }
+    return output;
+  }
+  return input;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/compare_versions.js
+function compare_versions(new_value, cur_value) {
+  const a = normalize_version_value(new_value);
+  const b = normalize_version_value(cur_value);
+  const len = Math.max(a.parts.length, b.parts.length);
+  for (let i = 0; i < len; i++) {
+    const av = a.parts[i] !== void 0 ? a.parts[i] : 0;
+    const bv = b.parts[i] !== void 0 ? b.parts[i] : 0;
+    if (av > bv) return 1;
+    if (av < bv) return -1;
+  }
+  if (a.type === b.type) return 0;
+  if (a.type === "semver" && b.type !== "semver") return 1;
+  if (b.type === "semver" && a.type !== "semver") return -1;
+  if (a.type === "number" && b.type === "none") {
+    return a.parts[0] === 0 ? 0 : 1;
+  }
+  if (b.type === "number" && a.type === "none") {
+    return b.parts[0] === 0 ? 0 : -1;
+  }
+  return 0;
+}
+function normalize_version_value(value) {
+  if (value === null || value === void 0) {
+    return { type: "none", parts: [0, 0, 0] };
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return { type: "none", parts: [0, 0, 0] };
+    }
+    const major = Math.floor(value);
+    const minor = Math.floor((value - major) * 10);
+    return { type: "number", parts: [major, minor, 0] };
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return { type: "none", parts: [0, 0, 0] };
+    }
+    const raw_parts = trimmed.split(".");
+    const parts = raw_parts.map((part) => {
+      const match = part.match(/^\d+/);
+      if (!match) return 0;
+      const num = Number.parseInt(match[0], 10);
+      return Number.isNaN(num) ? 0 : num;
+    });
+    while (parts.length < 3) {
+      parts.push(0);
+    }
+    return {
+      type: "semver",
+      parts
+    };
+  }
+  return { type: "none", parts: [0, 0, 0] };
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/is_plain_object.js
+function is_plain_object3(o) {
+  if (o === null) return false;
+  if (typeof o !== "object") return false;
+  if (Array.isArray(o)) return false;
+  if (o instanceof Function) return false;
+  if (o instanceof Date) return false;
+  return Object.getPrototypeOf(o) === Object.prototype;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/deep_merge_no_overwrite.js
+function deep_merge_no_overwrite(target, source, path = []) {
+  if (!is_plain_object3(target) || !is_plain_object3(source)) {
+    return target;
+  }
+  if (path.includes(source)) {
+    return target;
+  }
+  path.push(source);
+  for (const key of Object.keys(source)) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      continue;
+    }
+    const val = source[key];
+    if (Array.isArray(target[key]) && Array.isArray(val)) {
+      for (const item of val) {
+        if (typeof item === "function") {
+          const item_name = item.name;
+          const has_same_fn = target[key].some(
+            (el) => typeof el === "function" && el.name === item_name
+          );
+          if (!has_same_fn) {
+            target[key].push(item);
+          }
+        } else if (item === null || ["string", "number", "boolean", "undefined"].includes(typeof item)) {
+          if (!target[key].includes(item)) {
+            target[key].push(item);
+          }
+        } else {
+          target[key].push(item);
+        }
+      }
+    } else if (is_plain_object3(val)) {
+      if (!is_plain_object3(target[key])) {
+        target[key] = {};
+      }
+      deep_merge_no_overwrite(target[key], val, [...path]);
+    } else if (!Object.prototype.hasOwnProperty.call(target, key)) {
+      target[key] = val;
+    }
+  }
+  return target;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/merge_env_config.js
+function merge_env_config(target, incoming) {
+  const CUR_VER = target.version;
+  const NEW_VER = incoming.version;
+  for (const [key, value] of Object.entries(incoming)) {
+    if (key === "collections" && value && typeof value === "object") {
+      if (!target.collections) target.collections = {};
+      for (const [col_key, col_def] of Object.entries(value)) {
+        const existing_def = target.collections[col_key];
+        if (!existing_def) {
+          target.collections[col_key] = { ...col_def };
+          continue;
+        }
+        const new_version_raw = col_def && col_def.version !== void 0 ? col_def.version : col_def?.class?.version;
+        const cur_version_raw = existing_def && existing_def.version !== void 0 ? existing_def.version : existing_def?.class?.version;
+        const cmp = compare_versions(new_version_raw, cur_version_raw);
+        if (cmp > 0) {
+          const replaced = { ...col_def };
+          deep_merge_no_overwrite(replaced, existing_def);
+          target.collections[col_key] = replaced;
+        } else {
+          deep_merge_no_overwrite(existing_def, col_def);
+        }
+      }
+      continue;
+    }
+    if (["actions", "collections", "components", "item_types", "modules"].includes(key) && value && typeof value === "object") {
+      if (!target[key]) target[key] = {};
+      for (const [comp_key, comp_def] of Object.entries(value)) {
+        if (!target[key][comp_key]) {
+          target[key][comp_key] = { ...comp_def };
+          continue;
+        }
+        const target_comp = target[key][comp_key];
+        const incoming_ver = comp_def && comp_def.version;
+        const target_ver = target_comp && target_comp.version;
+        const cmp = compare_versions(incoming_ver, target_ver);
+        if (cmp > 0) {
+          target[key][comp_key] = comp_def;
+          target[key][comp_key].version = incoming_ver || -1;
+        } else {
+          deep_merge_no_overwrite(target_comp, comp_def);
+        }
+      }
+      continue;
+    }
+    if (Array.isArray(value)) {
+      if (Array.isArray(target[key])) {
+        if (value.length > 0 && (typeof value[0] === "string" || typeof value[0] === "number" || typeof value[0] === "boolean")) {
+          target[key] = Array.from(/* @__PURE__ */ new Set([...target[key], ...value]));
+        } else {
+          target[key] = [...target[key], ...value];
+        }
+      } else {
+        if (value.length > 0 && (typeof value[0] === "string" || typeof value[0] === "number" || typeof value[0] === "boolean")) {
+          target[key] = Array.from(new Set(value));
+        } else {
+          target[key] = [...value];
+        }
+      }
+    } else if (value && typeof value === "object") {
+      if (!target[key]) target[key] = {};
+      deep_merge_no_overwrite(target[key], value);
+    } else {
+      target[key] = value;
+    }
+  }
+  return target;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-environment/migrations/exclusion_settings.js
+function migrate_exclusion_settings_2025_08_22(settings = {}) {
+  const { file_exclusions, folder_exclusions, excluded_headings } = settings;
+  if (file_exclusions !== void 0 || folder_exclusions !== void 0 || excluded_headings !== void 0) {
+    settings.smart_sources = settings.smart_sources || {};
+    if (file_exclusions !== void 0) {
+      if (file_exclusions.length && file_exclusions !== "Untitled" && (!settings.smart_sources?.file_exclusions?.length || settings.smart_sources?.file_exclusions === "Untitled")) {
+        settings.smart_sources.file_exclusions = file_exclusions;
+      }
+    }
+    if (folder_exclusions !== void 0) {
+      if (folder_exclusions.length && !settings.smart_sources.folder_exclusions?.length) {
+        settings.smart_sources.folder_exclusions = folder_exclusions;
+      }
+    }
+    if (excluded_headings !== void 0) {
+      if (excluded_headings.length && !settings.smart_sources.excluded_headings?.length) {
+        settings.smart_sources.excluded_headings = excluded_headings;
+      }
+    }
+  }
+  delete settings.file_exclusions;
+  delete settings.folder_exclusions;
+  delete settings.excluded_headings;
+  return settings;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-environment/smart_env.js
+var ROOT_SCOPE = typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+var SmartEnv = class {
+  static version = "2.2.0";
+  scope_name = "smart_env";
+  static global_ref = ROOT_SCOPE;
+  global_ref = this.constructor.global_ref;
+  constructor(opts = {}) {
+    this.state = "init";
+    this._components = {};
+    this.collections = {};
+    this.load_timeout = null;
+    this._collections_version_signature = null;
+    this._events = SmartEvents.create(this, build_events_opts(this.config?.modules?.smart_events));
+    if (opts.primary_main_key) this.primary_main_key = opts.primary_main_key;
+  }
+  /**
+   * Builds or returns the cached configuration object.
+   * The cache is invalidated automatically whenever the “version signature”
+   * of any collection class changes (controlled by its static `version`).
+   *
+   * @returns {Object} the merged, up-to-date environment config
+   */
+  get config() {
+    const signature = this.compute_collections_version_signature();
+    if (this._config && signature === this._collections_version_signature) {
+      return this._config;
+    }
+    this._collections_version_signature = signature;
+    this._config = {};
+    const sorted_configs = Object.entries(this.smart_env_configs).sort(([main_key]) => {
+      if (!this.primary_main_key) return 0;
+      return main_key === this.primary_main_key ? -1 : 0;
+    });
+    for (const [key, rec] of sorted_configs) {
+      if (!rec?.main) {
+        console.warn(`SmartEnv: '${key}' unloaded, skipping`);
+        delete this.smart_env_configs[key];
+        continue;
+      }
+      if (!rec?.opts) {
+        console.warn(`SmartEnv: '${key}' opts missing, skipping`);
+        continue;
+      }
+      merge_env_config(
+        this._config,
+        deep_clone_config(normalize_opts(rec.opts))
+      );
+    }
+    return this._config;
+  }
+  /**
+   * Produces a deterministic string representing the current versions of every
+   * collection class across all mains.  When any collection ships a higher
+   * `static version`, the signature changes – automatically invalidating the
+   * cached `config`.
+   *
+   * @returns {string} pipe-delimited version signature
+   */
+  compute_collections_version_signature() {
+    const list = [];
+    for (const rec of Object.values(this.smart_env_configs)) {
+      const { opts } = rec || {};
+      if (!opts) continue;
+      for (const [collection_key, def] of Object.entries(opts.collections || {})) {
+        const cls = def?.class;
+        const v = typeof cls?.version === "number" ? cls.version : 0;
+        list.push(`${collection_key}:${v}`);
+      }
+    }
+    return list.sort().join("|");
+  }
+  // ========================================================================
+  // ──  GLOBAL HELPERS / STATIC API                                         ──
+  // ========================================================================
+  get env_start_wait_time() {
+    if (typeof this.config.env_start_wait_time === "number") return this.config.env_start_wait_time;
+    return 5e3;
+  }
+  static get global_env() {
+    return this.global_ref.smart_env;
+  }
+  static set global_env(env) {
+    this.global_ref.smart_env = env;
+  }
+  static get mains() {
+    return Object.keys(this.global_ref.smart_env_configs || {});
+  }
+  get mains() {
+    return Object.keys(this.global_ref.smart_env_configs || {});
+  }
+  static get should_reload() {
+    if (!this.global_env) return true;
+    if (this.global_env.state === "loaded") return true;
+    if (typeof this.global_env?.constructor?.version === "undefined") return true;
+    if (compare_versions(this.version, this.global_env.constructor?.version) > 0) {
+      console.warn(
+        "SmartEnv: Reloading environment because of version mismatch",
+        `${this.version} > ${this.global_env.constructor.version}`
+      );
+      return true;
+    }
+    return false;
+  }
+  static get smart_env_configs() {
+    if (!this.global_ref.smart_env_configs) this.global_ref.smart_env_configs = {};
+    return this.global_ref.smart_env_configs;
+  }
+  get smart_env_configs() {
+    if (!this.global_ref.smart_env_configs) this.global_ref.smart_env_configs = {};
+    return this.global_ref.smart_env_configs;
+  }
+  /**
+   * Serializes all collection data in the environment into a plain object.
+   * @returns {object}
+   */
+  to_json() {
+    return Object.fromEntries(
+      Object.entries(this).filter(([, val]) => typeof val?.collection_key !== "undefined").map(([key, collection]) => [key, collection_to_plain(collection)])
+    );
+  }
+  /**
+   * Waits for either a specific main to be registered in the environment,
+   * or (if `opts.main` is not specified) waits for environment collections to load.
+   * @param {object} opts
+   * @param {object} [opts.main] - if set, the function waits until that main is found.
+   * @returns {Promise<SmartEnv>} Resolves with the environment instance
+   */
+  static wait_for(opts = {}) {
+    return new Promise((resolve) => {
+      if (opts.main) {
+        const interval = setInterval(() => {
+          if (this.global_env && this.global_env[opts.main]) {
+            clearInterval(interval);
+            resolve(this.global_env);
+          }
+        }, 1e3);
+      } else {
+        const interval = setInterval(() => {
+          if (this.global_env && this.global_env.state === "loaded") {
+            clearInterval(interval);
+            resolve(this.global_env);
+          }
+        }, 100);
+      }
+    });
+  }
+  /**
+   * Creates or updates a SmartEnv instance.
+   * - If a global environment exists and is an older version or lacks 'init_main', it is replaced.
+   * @param {Object} main - The main object to be added to the SmartEnv instance.
+   * @param {Object} [env_config] - Options for configuring the SmartEnv instance.
+   * @returns {SmartEnv} The SmartEnv instance.
+   * @throws {TypeError} If an invalid main object is provided.
+   * @throws {Error} If there's an error creating or updating the SmartEnv instance.
+   */
+  static async create(main, env_config) {
+    if (!main || typeof main !== "object") {
+      throw new TypeError("SmartEnv: Invalid main object provided");
+    }
+    if (!env_config) throw new Error("SmartEnv.create: 'env_config' parameter is required.");
+    env_config.version = this.version;
+    this.add_main(main, env_config);
+    if (this.should_reload) {
+      const opts = {};
+      if (this.global_env && compare_versions(this.version, this.global_env.constructor?.version || 0) > 0) {
+        opts.primary_main_key = camel_case_to_snake_case(main.constructor.name);
+      }
+      if (this.global_env?.load_timeout) clearTimeout(this.global_env.load_timeout);
+      this.global_env = new this(opts);
+      const g = this.global_ref;
+      if (!g.all_envs) g.all_envs = [];
+      g.all_envs.push(this.global_env);
+    }
+    clearTimeout(this.global_env.load_timeout);
+    this.global_env.load_timeout = setTimeout(async () => {
+      await this.global_env.load();
+      this.global_env.load_timeout = null;
+    }, this.global_env.env_start_wait_time);
+    return this.global_env;
+  }
+  static add_main(main, env_config = null) {
+    if (this.global_env) {
+      this.global_env._config = null;
+      this.global_env._collections_version_signature = null;
+    }
+    const main_key = camel_case_to_snake_case(main.constructor.name);
+    this.smart_env_configs[main_key] = { main, opts: env_config };
+    this.create_env_getter(main);
+  }
+  /**
+   * Creates a dynamic environment getter on any instance object.
+   * The returned 'env' property will yield the global `smart_env`.
+   * @param {Object} instance_to_receive_getter
+   */
+  static create_env_getter(instance_to_receive_getter) {
+    Object.defineProperty(instance_to_receive_getter, "env", {
+      configurable: true,
+      get: () => this.global_env
+    });
+  }
+  create_env_getter(instance_to_receive_getter) {
+    this.constructor.create_env_getter(instance_to_receive_getter);
+  }
+  async load() {
+    this.state = "loading";
+    await this.fs.load_files();
+    if (!this.settings) await SmartSettings.create(this);
+    if (this.config.default_settings) {
+      deep_merge_no_overwrite(this.settings, this.config.default_settings);
+    }
+    migrate_exclusion_settings_2025_08_22(this.settings);
+    this.smart_settings.save();
+    await this.init_collections();
+    for (const [main_key, { main, opts }] of Object.entries(this.smart_env_configs)) {
+      this[main_key] = main;
+    }
+    await this.ready_to_load_collections();
+    await this.load_collections();
+    this.state = "loaded";
+  }
+  /**
+   * Initializes collection classes if they have an 'init' function.
+   * @param {Object} [config=this.config]
+  */
+  async init_collections(config = this.config) {
+    for (const key of Object.keys(config.collections || {})) {
+      const _class = config.collections[key]?.class;
+      if (!_class) continue;
+      if (_class.default_settings) {
+        deep_merge_no_overwrite(
+          this.settings,
+          {
+            [key]: _class.default_settings
+          }
+        );
+      }
+      if (typeof _class.init !== "function") continue;
+      await _class.init(this, { ...config.collections[key] });
+      this.collections[key] = "init";
+    }
+  }
+  /**
+   * Hook/Override this method to wait for any conditions before loading collections. 
+   * @param {Object} main
+   */
+  async ready_to_load_collections() {
+  }
+  /**
+   * Loads any available collections, processing their load queues.
+   * @param {Object} [collections=this.collections] - Key-value map of collection instances.
+   */
+  async load_collections(collections = this.collections) {
+    const collection_keys = Object.keys(collections || {}).sort((a, b) => {
+      const order_a = this.config.collections?.[a]?.load_order || 0;
+      const order_b = this.config.collections?.[b]?.load_order || 0;
+      return order_a - order_b;
+    });
+    for (const key of collection_keys) {
+      const time_start = Date.now();
+      if (typeof this[key]?.process_load_queue === "function") {
+        await this[key].process_load_queue();
+        this[key].load_time_ms = Date.now() - time_start;
+        this.collections[key] = "loaded";
+        console.log(`Loaded ${this[key].collection_key} in ${this[key].load_time_ms}ms`);
+      }
+    }
+  }
+  /**
+   * Removes a main from the global.smart_env_configs to exclude it on reload
+   * @param {Class} main
+   * @param {Object|null} [unload_config=null]
+   */
+  static unload_main(main) {
+    const main_key = camel_case_to_snake_case(main.constructor.name);
+    this.smart_env_configs[main_key] = null;
+    delete this.smart_env_configs[main_key];
+  }
+  unload_main(main) {
+    this.constructor.unload_main(main);
+  }
+  /**
+   * Triggers a save event in all known collections.
+   */
+  save() {
+    for (const key of Object.keys(this.collections)) {
+      this[key].process_save_queue?.();
+    }
+  }
+  /**
+   * Initialize a module from the configured `this.opts.modules`.
+   * @param {string} module_key
+   * @param {object} opts
+   * @returns {object|null} instance of the requested module or null if not found
+   */
+  init_module(module_key, opts = {}) {
+    const module_config = this.opts.modules[module_key];
+    if (!module_config) {
+      return console.warn(`SmartEnv: module ${module_key} not found`);
+    }
+    opts = {
+      ...{ ...module_config, class: null },
+      ...opts
+    };
+    return new module_config.class(opts);
+  }
+  get notices() {
+    if (!this._notices) {
+      const SmartNoticesClass = this.config.modules.smart_notices.class;
+      this._notices = new SmartNoticesClass(this, {
+        adapter: this.config.modules.smart_notices.adapter
+      });
+    }
+    return this._notices;
+  }
+  /**
+   * Exposes a settings template function from environment opts or defaults.
+   * @returns {Function}
+   */
+  get settings_template() {
+    return this.opts.components?.smart_env?.settings || render;
+  }
+  /**
+   * Renders settings UI into a container, using the environment's `settings_template`.
+   * @param {HTMLElement} [container=this.settings_container]
+   */
+  async render_settings(container = this.settings_container) {
+    if (!this.settings_container || container !== this.settings_container) {
+      this.settings_container = container;
+    }
+    if (!container) {
+      throw new Error("Container is required");
+    }
+    const frag = await this.render_component("settings", this, {});
+    this.smart_view.empty(container);
+    container.appendChild(frag);
+    return frag;
+  }
+  /**
+   * Renders a named component using an optional scope and options.
+   * @deprecated use env.smart_components.render instead (2025-10-11)
+   * @param {string} component_key
+   * @param {Object} scope
+   * @param {Object} [opts]
+   * @returns {Promise<HTMLElement>}
+   */
+  async render_component(component_key, scope, opts = {}) {
+    const component_renderer = this.get_component(component_key, scope);
+    if (!component_renderer) {
+      console.warn(`SmartEnv: component ${component_key} not found for scope ${scope.constructor.name}`);
+      return this.smart_view.create_doc_fragment(`<div class="smart-env-component-not-found">
+        <h1>Component Not Found</h1>
+        <p>The component ${component_key} was not found for scope ${scope.constructor.name}.</p>
+      </div>`);
+    }
+    const frag = await component_renderer(scope, opts);
+    return frag;
+  }
+  /**
+   * Retrieves or creates a memoized component renderer function.
+   * @deprecated use env.smart_components instead (2025-10-11)
+   * @param {string} component_key
+   * @param {Object} scope
+   * @returns {Function|undefined}
+   */
+  get_component(component_key, scope) {
+    const scope_name = scope.collection_key ?? scope.scope_name;
+    const _cache_key = scope_name ? `${scope_name}-${component_key}` : component_key;
+    if (!this._components[_cache_key]) {
+      try {
+        if (this.opts.components[scope_name]?.[component_key]) {
+          const component_config = this.opts.components[scope_name][component_key];
+          const component = component_config.render || component_config;
+          this._components[_cache_key] = component.bind(
+            this.init_module("smart_view")
+          );
+        } else if (this.opts.components[component_key]) {
+          const component_config = this.opts.components[component_key];
+          const component = component_config.render || component_config;
+          this._components[_cache_key] = component.bind(
+            this.init_module("smart_view")
+          );
+        } else {
+          console.warn(
+            `SmartEnv: component ${component_key} not found for scope ${scope_name}`
+          );
+        }
+      } catch (e) {
+        console.error("Error getting component", e);
+        console.log(
+          `scope_name: ${scope_name}; component_key: ${component_key}; this.opts.components: ${Object.keys(
+            this.opts.components || {}
+          ).join(", ")}; this.opts.components[scope_name]: ${Object.keys(
+            this.opts.components[scope_name] || {}
+          ).join(", ")}`
+        );
+      }
+    }
+    return this._components[_cache_key];
+  }
+  /**
+   * A built-in settings schema for this environment.
+   * @abstract
+   * @returns {Object}
+   */
+  get settings_config() {
+    return {};
+  }
+  get global_prop() {
+    return this.opts.global_prop ?? "smart_env";
+  }
+  get item_types() {
+    return this.opts.item_types;
+  }
+  get fs_module_config() {
+    return this.opts.modules.smart_fs;
+  }
+  get fs() {
+    if (!this.smart_fs) {
+      this.smart_fs = new this.fs_module_config.class(this, {
+        adapter: this.fs_module_config.adapter,
+        fs_path: this.opts.env_path || ""
+      });
+    }
+    return this.smart_fs;
+  }
+  get env_data_dir() {
+    const env_settings_files = this.fs.file_paths?.filter((path) => path.endsWith("smart_env.json")) || [];
+    let env_data_dir = ".smart-env";
+    if (env_settings_files.length > 0) {
+      if (env_settings_files.length > 1) {
+        const env_data_dir_counts = env_settings_files.map((path) => {
+          const dir = path.split("/").slice(-2, -1)[0];
+          return {
+            dir,
+            count: this.fs.file_paths.filter((p) => p.includes(dir)).length
+          };
+        });
+        env_data_dir = env_data_dir_counts.reduce(
+          (max, dirObj) => dirObj.count > max.count ? dirObj : max,
+          env_data_dir_counts[0]
+        ).dir;
+      } else {
+        env_data_dir = env_settings_files[0].split("/").slice(-2, -1)[0];
+      }
+    }
+    return env_data_dir;
+  }
+  get data_fs() {
+    if (!this._fs) {
+      this._fs = new this.fs_module_config.class(this, {
+        adapter: this.fs_module_config.adapter,
+        fs_path: this.data_fs_path
+      });
+    }
+    return this._fs;
+  }
+  get data_fs_path() {
+    if (!this._data_fs_path) {
+      this._data_fs_path = (this.opts.env_path + (this.opts.env_path ? this.opts.env_path.includes("\\") ? "\\" : "/" : "") + this.env_data_dir).replace(/\\\\/g, "\\").replace(/\/\//g, "/");
+    }
+    return this._data_fs_path;
+  }
+  /**
+   * Saves the current settings to the file system.
+   * @param {Object|null} [settings=null] - Optional settings to override the current settings before saving.
+   * @returns {Promise<void>}
+   */
+  async save_settings(settings) {
+    this._saved = false;
+    if (!await this.data_fs.exists("")) {
+      await this.data_fs.mkdir("");
+    }
+    await this.data_fs.write("smart_env.json", JSON.stringify(settings, null, 2));
+    this._saved = true;
+  }
+  /**
+   * Loads settings from the file system, merging with any `default_settings`
+   * @returns {Promise<Object>} the loaded settings
+   */
+  async load_settings() {
+    if (!await this.data_fs.exists("smart_env.json")) await this.save_settings({});
+    let settings = JSON.parse(JSON.stringify(this.config.default_settings || {}));
+    deep_merge(settings, JSON.parse(await this.data_fs.read("smart_env.json")));
+    this._saved = true;
+    if (this.fs.auto_excluded_files) {
+      const existing_file_exclusions = settings.smart_sources.file_exclusions.split(",").map((s) => s.trim()).filter(Boolean);
+      settings.smart_sources.file_exclusions = [...existing_file_exclusions, ...this.fs.auto_excluded_files].filter((value, index, self) => self.indexOf(value) === index).join(",");
+    }
+    return settings;
+  }
+  /**
+   * Refreshes file-system state if exclusions changed,
+   * then re-renders relevant settings UI
+   */
+  async update_exclusions() {
+    this.smart_sources._fs = null;
+    await this.smart_sources.init_fs();
+  }
+  // DEPRECATED
+  /**
+   * Lazily instantiate the module 'smart_view'.
+   * @deprecated use env.smart_components instead (2025-09-30)
+   * @returns {object}
+   */
+  get smart_view() {
+    if (!this._smart_view) {
+      this._smart_view = this.init_module("smart_view");
+    }
+    return this._smart_view;
+  }
+  /** @deprecated access `this.state` and `collection.state` directly instead */
+  get collections_loaded() {
+    return this.state === "loaded";
+  }
+  /** @deprecated Use this['main_class_name'] instead of this.main/this.plugin */
+  get main() {
+    return this.smart_env_configs[this.mains[0]]?.main;
+  }
+  /**
+   * @deprecated use component pattern instead
+   */
+  get ejs() {
+    return this.opts.ejs;
+  }
+  /**
+   * @deprecated use component pattern instead
+   */
+  get templates() {
+    return this.opts.templates;
+  }
+  /**
+   * @deprecated use component pattern instead
+   */
+  get views() {
+    return this.opts.views;
+  }
+  /**
+   * @deprecated use this.config instead
+   */
+  get opts() {
+    return this.config;
+  }
+  /**
+   * @deprecated Use this.main_class_name instead of this.plugin
+   */
+  get plugin() {
+    return this.main;
+  }
+};
+function collection_to_plain(collection) {
+  return {
+    items: Object.fromEntries(
+      Object.entries(collection.items || {}).map(([key, item]) => [key, item.data])
+    )
+  };
+}
+function build_events_opts(module_config) {
+  if (!module_config) return {};
+  if (typeof module_config === "function") {
+    return { adapter_class: module_config };
+  }
+  const adapter_class = module_config.adapter_class || module_config.adapter;
+  return adapter_class ? { adapter_class } : {};
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-file-system/utils/glob_to_regex.js
 function create_regex(pattern, { case_sensitive, extended_glob, windows_paths }) {
   const regex_pattern = glob_to_regex_pattern(pattern, extended_glob);
   const adjusted_pattern = adjust_for_windows_paths(regex_pattern, windows_paths);
@@ -282,7 +1617,7 @@ function glob_to_regex(pattern, options = {}) {
   return create_regex(pattern, merged_options);
 }
 
-// node_modules/smart-file-system/utils/fuzzy_search.js
+// node_modules/obsidian-smart-env/node_modules/smart-file-system/utils/fuzzy_search.js
 function fuzzy_search(arr, search_term) {
   let matches = [];
   for (let i = 0; i < arr.length; i++) {
@@ -306,7 +1641,7 @@ function fuzzy_search(arr, search_term) {
   return matches.map((match) => match.name);
 }
 
-// node_modules/smart-file-system/smart_fs.js
+// node_modules/obsidian-smart-env/node_modules/smart-file-system/smart_fs.js
 var SmartFs = class {
   /**
    * Create a new SmartFs instance
@@ -370,7 +1705,7 @@ var SmartFs = class {
   async load_exclusions() {
     const gitignore_path = ".gitignore";
     const gitignore_exists = await this.adapter.exists(gitignore_path);
-    if (gitignore_exists) {
+    if (gitignore_exists && !this.env.settings.skip_excluding_gitignore) {
       const gitignore_content = await this.adapter.read(gitignore_path, "utf-8");
       gitignore_content.split("\n").filter((line) => !line.startsWith("#")).filter(Boolean).forEach((pattern) => this.add_ignore_pattern(pattern));
     }
@@ -378,7 +1713,6 @@ var SmartFs = class {
     this.add_ignore_pattern("**/.**");
     this.add_ignore_pattern("**/.*/**");
     this.add_ignore_pattern("**/*.ajson");
-    this.add_ignore_pattern("**/*.excalidraw.md");
   }
   /**
    * Add a new ignore pattern
@@ -459,6 +1793,12 @@ var SmartFs = class {
     let resp = await this.adapter[method](...paths, ...args);
     return this.post_process(resp);
   }
+  use_adapter_sync(method, paths, ...args) {
+    if (!this.adapter[method]) throw new Error(`Method ${method} not found in adapter`);
+    paths = this.pre_process(paths ?? []);
+    let resp = this.adapter[method](...paths, ...args);
+    return this.post_process(resp);
+  }
   /**
    * Append content to a file
    * 
@@ -486,6 +1826,9 @@ var SmartFs = class {
    */
   async exists(rel_path) {
     return await this.use_adapter("exists", [rel_path]);
+  }
+  exists_sync(rel_path) {
+    return this.use_adapter_sync("exists_sync", [rel_path]);
   }
   /**
    * List files in a directory
@@ -601,11 +1944,11 @@ var SmartFs = class {
   }
 };
 
-// node_modules/smart-file-system/adapters/obsidian.js
+// node_modules/obsidian-smart-env/src/adapters/smart-fs/obsidian.js
 var obsidian = __toESM(require("obsidian"), 1);
-var SmartFsObsidianAdapter = class {
+var ObsidianFsAdapter = class {
   /**
-   * Create an SmartFsObsidianAdapter instance
+   * Create an ObsidianFsAdapter instance
    * 
    * @param {Object} smart_fs - The SmartFs instance
    */
@@ -673,6 +2016,9 @@ var SmartFsObsidianAdapter = class {
     if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
     return await this.obsidian_adapter.exists(rel_path);
   }
+  exists_sync(rel_path) {
+    return !!this.obsidian_app.vault.getAbstractFileByPath(rel_path);
+  }
   /**
    * List files in a directory (NOT up-to-date with list_recursive)
    * 
@@ -840,1607 +2186,72 @@ var SmartFsObsidianAdapter = class {
     const sep = rel_path.includes("/") ? "/" : "\\";
     return this.get_base_path() + sep + rel_path;
   }
-};
-
-// node_modules/obsidian-smart-env/smart_env.js
-var import_obsidian18 = require("obsidian");
-
-// node_modules/obsidian-smart-env/node_modules/smart-environment/components/settings.js
-async function build_html(env, opts = {}) {
-  const env_settings_html = Object.entries(env.settings_config).map(([setting_key, setting_config]) => {
-    if (!setting_config.setting) setting_config.setting = setting_key;
-    return this.render_setting_html(setting_config);
-  }).join("\n");
-  const env_collections_containers_html = Object.entries(env.collections).map(([collection_key, collection]) => {
-    return `<div data-smart-settings="${collection_key}"></div>`;
-  }).join("\n");
-  const html = `
-    <div class="">
-      ${env_settings_html}
-      ${env_collections_containers_html}
-    </div>
-  `;
-  return html;
-}
-async function render(env, opts = {}) {
-  const html = await build_html.call(this, env, opts);
-  const frag = this.create_doc_fragment(html);
-  return await post_process.call(this, env, frag, opts);
-}
-async function post_process(env, frag, opts = {}) {
-  await this.render_setting_components(frag, { scope: env });
-  const env_collections_containers = frag.querySelectorAll("[data-smart-settings]");
-  for (const env_collections_container of env_collections_containers) {
-    const collection_key = env_collections_container.dataset.smartSettings;
-    const collection = env[collection_key];
-    await collection.render_settings(env_collections_container);
-  }
-  return frag;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-settings/smart_settings.js
-var SmartSettings = class {
   /**
-   * Creates an instance of SmartEnvSettings.
-   * @param {Object} main - The main object to contain the instance (smart_settings) and getter (settings)
-   * @param {Object} [opts={}] - Configuration options.
+   * Registers Obsidian vault/workspace listeners that emit Smart Environment events for Smart Sources.
+   * @param {import('smart-sources').SmartSources} sources_collection
+   * @returns {boolean}
    */
-  constructor(main, opts = {}) {
-    this.main = main;
-    this.opts = opts;
-    this._fs = null;
-    this._settings = {};
-    this._saved = false;
-    this.save_timeout = null;
-  }
-  static async create(main, opts = {}) {
-    const smart_settings = new this(main, opts);
-    await smart_settings.load();
-    main.smart_settings = smart_settings;
-    Object.defineProperty(main, "settings", {
-      get() {
-        return smart_settings.settings;
-      },
-      set(settings) {
-        smart_settings.settings = settings;
-      }
-    });
-    return smart_settings;
-  }
-  static create_sync(main, opts = {}) {
-    const smart_settings = new this(main, opts);
-    smart_settings.load_sync();
-    main.smart_settings = smart_settings;
-    Object.defineProperty(main, "settings", {
-      get() {
-        return smart_settings.settings;
-      },
-      set(settings) {
-        smart_settings.settings = settings;
-      }
-    });
-    return smart_settings;
-  }
-  /**
-   * Gets the current settings, wrapped with an observer to handle changes.
-   * @returns {Proxy} A proxy object that observes changes to the settings.
-   */
-  get settings() {
-    return observe_object(this._settings, (property, value, target) => {
-      if (this.save_timeout) clearTimeout(this.save_timeout);
-      this.save_timeout = setTimeout(() => {
-        this.save(this._settings);
-        this.save_timeout = null;
-      }, 1e3);
-    });
-  }
-  /**
-   * Sets the current settings.
-   * @param {Object} settings - The new settings to apply.
-   */
-  set settings(settings) {
-    this._settings = settings;
-  }
-  async save(settings = this._settings) {
-    if (typeof this.opts.save === "function") await this.opts.save(settings);
-    else await this.main.save_settings(settings);
-  }
-  async load() {
-    if (typeof this.opts.load === "function") this._settings = await this.opts.load();
-    else this._settings = await this.main.load_settings();
-  }
-  load_sync() {
-    if (typeof this.opts.load === "function") this._settings = this.opts.load();
-    else this._settings = this.main.load_settings();
-  }
-};
-function observe_object(obj, on_change) {
-  function create_proxy(target) {
-    return new Proxy(target, {
-      set(target2, property, value) {
-        if (target2[property] !== value) {
-          target2[property] = value;
-          on_change(property, value, target2);
-        }
-        if (typeof value === "object" && value !== null) {
-          target2[property] = create_proxy(value);
-        }
-        return true;
-      },
-      get(target2, property) {
-        const result = target2[property];
-        if (typeof result === "object" && result !== null) {
-          return create_proxy(result);
-        }
-        return result;
-      },
-      deleteProperty(target2, property) {
-        if (property in target2) {
-          delete target2[property];
-          on_change(property, void 0, target2);
-        }
-        return true;
-      }
-    });
-  }
-  return create_proxy(obj);
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/is_plain_object.js
-function is_plain_object(o) {
-  if (o === null) return false;
-  if (typeof o !== "object") return false;
-  if (Array.isArray(o)) return false;
-  if (o instanceof Function) return false;
-  if (o instanceof Date) return false;
-  return Object.getPrototypeOf(o) === Object.prototype;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/deep_merge.js
-function deep_merge(target, source2) {
-  for (const key in source2) {
-    if (!Object.prototype.hasOwnProperty.call(source2, key)) continue;
-    if (is_plain_object(source2[key]) && is_plain_object(target[key])) {
-      deep_merge(target[key], source2[key]);
-    } else {
-      target[key] = source2[key];
+  register_source_watchers(sources_collection) {
+    if (this._source_watchers_registered) return this._source_watchers_registered;
+    const plugin = this.smart_fs.env?.main;
+    if (!plugin?.registerEvent) {
+      console.warn("ObsidianFsAdapter: Unable to register source watchers without plugin context");
+      return false;
     }
-  }
-  return target;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/camel_case_to_snake_case.js
-function camel_case_to_snake_case(str) {
-  const result = str.replace(/([A-Z])/g, (match) => `_${match.toLowerCase()}`).replace(/^_/, "").replace(/2$/, "");
-  return result;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/normalize_opts.js
-function normalize_opts(opts) {
-  if (!opts.collections) opts.collections = {};
-  if (!opts.modules) opts.modules = {};
-  if (!opts.items) opts.items = {};
-  Object.entries(opts.collections).forEach(([key, val]) => {
-    if (typeof val === "function") {
-      opts.collections[key] = { class: val };
-    }
-    const new_key = camel_case_to_snake_case(key);
-    if (new_key !== key) {
-      opts.collections[new_key] = opts.collections[key];
-      delete opts.collections[key];
-    }
-    if (!opts.collections[new_key].collection_key) opts.collections[new_key].collection_key = new_key;
-    if (val.item_type) {
-      opts.items[camel_case_to_snake_case(val.item_type.name)] = {
-        class: val.item_type
-      };
-    }
-  });
-  Object.entries(opts.modules).forEach(([key, val]) => {
-    if (typeof val === "function") {
-      opts.modules[key] = { class: val };
-    }
-    const new_key = camel_case_to_snake_case(key);
-    if (new_key !== key) {
-      opts.modules[new_key] = opts.modules[key];
-      delete opts.modules[key];
-    }
-  });
-  if (!opts.item_types) opts.item_types = {};
-  if (!opts.items) opts.items = {};
-  Object.entries(opts.item_types).forEach(([key, val]) => {
-    if (typeof val === "function") {
-      const new_key = camel_case_to_snake_case(key);
-      opts.items[new_key] = {
-        class: val,
-        actions: {},
-        ...opts.items[new_key] || {}
-      };
-    }
-  });
-  return opts;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/deep_clone_config.js
-function is_plain_object2(value) {
-  if (!value || typeof value !== "object") return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
-}
-function deep_clone_config(input) {
-  if (Array.isArray(input)) {
-    return input.map((item) => deep_clone_config(item));
-  }
-  if (is_plain_object2(input)) {
-    const output = {};
-    for (const [k, v] of Object.entries(input)) {
-      output[k] = deep_clone_config(v);
-    }
-    return output;
-  }
-  return input;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/deep_merge_no_overwrite.js
-function deep_merge_no_overwrite(target, source2, path = []) {
-  if (!is_plain_object(target) || !is_plain_object(source2)) {
-    return target;
-  }
-  if (path.includes(source2)) {
-    return target;
-  }
-  path.push(source2);
-  for (const key of Object.keys(source2)) {
-    if (!Object.prototype.hasOwnProperty.call(source2, key)) {
-      continue;
-    }
-    const val = source2[key];
-    if (Array.isArray(target[key]) && Array.isArray(val)) {
-      for (const item of val) {
-        if (typeof item === "function") {
-          const item_name = item.name;
-          const has_same_fn = target[key].some(
-            (el) => typeof el === "function" && el.name === item_name
-          );
-          if (!has_same_fn) {
-            target[key].push(item);
-          }
-        } else {
-          target[key].push(item);
-        }
-      }
-    } else if (is_plain_object(val)) {
-      if (!is_plain_object(target[key])) {
-        target[key] = {};
-      }
-      deep_merge_no_overwrite(target[key], val, [...path]);
-    } else if (!Object.prototype.hasOwnProperty.call(target, key)) {
-      target[key] = val;
-    }
-  }
-  return target;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-environment/utils/merge_env_config.js
-function merge_env_config(target, incoming) {
-  for (const [key, value] of Object.entries(incoming)) {
-    if (key === "collections" && value && typeof value === "object") {
-      if (!target.collections) target.collections = {};
-      for (const [col_key, col_def] of Object.entries(value)) {
-        const existing_def = target.collections[col_key];
-        if (!existing_def) {
-          target.collections[col_key] = { ...col_def };
-          continue;
-        }
-        const new_ver = +(col_def?.class?.version ?? 0);
-        const cur_ver = +(existing_def?.class?.version ?? 0);
-        if (new_ver > cur_ver) {
-          const replaced = { ...col_def };
-          deep_merge_no_overwrite(replaced, existing_def);
-          target.collections[col_key] = replaced;
-        } else {
-          deep_merge_no_overwrite(existing_def, col_def);
-        }
-      }
-      continue;
-    }
-    if (key === "components" && value && typeof value === "object") {
-      if (!target.components) target.components = {};
-      for (const [comp_key, comp_def] of Object.entries(value)) {
-        if (!target.components[comp_key]) target.components[comp_key] = comp_def;
-        else {
-          const new_ver = +(comp_def?.version ?? 0);
-          const cur_ver = +(target.components[comp_key]?.version ?? 0);
-          if (new_ver > cur_ver) {
-            target.components[comp_key] = comp_def;
-          } else {
-            deep_merge_no_overwrite(target.components[comp_key], comp_def);
-          }
-        }
-      }
-      continue;
-    }
-    if (Array.isArray(value)) {
-      target[key] = [...target[key] || [], ...value];
-    } else if (value && typeof value === "object") {
-      if (!target[key]) target[key] = {};
-      deep_merge_no_overwrite(target[key], value);
-    } else {
-      target[key] = value;
-    }
-  }
-  return target;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-environment/smart_env.js
-var ROOT_SCOPE = typeof globalThis !== "undefined" ? globalThis : Function("return this")();
-var SmartEnv = class {
-  /**
-   * @type {number} version - Bump this number when shipping a new version of SmartEnv.
-   * If a newer version is loaded into a runtime that already has an older environment,
-   * an automatic reload of all existing mains will occur.
-   */
-  static version = 2.139241;
-  scope_name = "smart_env";
-  static global_ref = ROOT_SCOPE;
-  global_ref = this.constructor.global_ref;
-  constructor(opts = {}) {
-    this.state = "init";
-    this._components = {};
-    this.collections = {};
-    this.load_timeout = null;
-    this._collections_version_signature = null;
-    if (opts.primary_main_key) this.primary_main_key = opts.primary_main_key;
-  }
-  // ========================================================================
-  // ──  CONFIG (now version-aware)                                          ──
-  // ========================================================================
-  /**
-   * Builds or returns the cached configuration object.
-   * The cache is invalidated automatically whenever the “version signature”
-   * of any collection class changes (controlled by its static `version`).
-   *
-   * @returns {Object} the merged, up-to-date environment config
-   */
-  get config() {
-    const signature = this.compute_collections_version_signature();
-    if (this._config && signature === this._collections_version_signature) {
-      return this._config;
-    }
-    this._collections_version_signature = signature;
-    this._config = {};
-    const sorted_configs = Object.entries(this.smart_env_configs).sort(([main_key]) => {
-      if (!this.primary_main_key) return 0;
-      return main_key === this.primary_main_key ? -1 : 0;
-    });
-    for (const [key, rec] of sorted_configs) {
-      if (!rec?.main) {
-        console.warn(`SmartEnv: '${key}' unloaded, skipping`);
-        delete this.smart_env_configs[key];
-        continue;
-      }
-      if (!rec?.opts) {
-        console.warn(`SmartEnv: '${key}' opts missing, skipping`);
-        continue;
-      }
-      merge_env_config(
-        this._config,
-        deep_clone_config(normalize_opts(rec.opts))
-      );
-    }
-    return this._config;
-  }
-  /**
-   * Produces a deterministic string representing the current versions of every
-   * collection class across all mains.  When any collection ships a higher
-   * `static version`, the signature changes – automatically invalidating the
-   * cached `config`.
-   *
-   * @returns {string} pipe-delimited version signature
-   */
-  compute_collections_version_signature() {
-    const list = [];
-    for (const rec of Object.values(this.smart_env_configs)) {
-      const { opts } = rec || {};
-      if (!opts) continue;
-      for (const [collection_key, def] of Object.entries(opts.collections || {})) {
-        const cls = def?.class;
-        const v = typeof cls?.version === "number" ? cls.version : 0;
-        list.push(`${collection_key}:${v}`);
-      }
-    }
-    return list.sort().join("|");
-  }
-  // ========================================================================
-  // ──  GLOBAL HELPERS / STATIC API                                         ──
-  // ========================================================================
-  get env_start_wait_time() {
-    if (typeof this.config.env_start_wait_time === "number") return this.config.env_start_wait_time;
-    return 5e3;
-  }
-  static get global_env() {
-    return this.global_ref.smart_env;
-  }
-  static set global_env(env) {
-    this.global_ref.smart_env = env;
-  }
-  static get mains() {
-    return Object.keys(this.global_ref.smart_env_configs || {});
-  }
-  get mains() {
-    return Object.keys(this.global_ref.smart_env_configs || {});
-  }
-  static get should_reload() {
-    if (!this.global_env) return true;
-    if (this.global_env.state === "loaded") return true;
-    if (typeof this.global_env?.constructor?.version === "undefined") return true;
-    if (this.global_env.constructor.version < this.version) {
-      console.warn(
-        "SmartEnv: Reloading environment because of version mismatch",
-        `${this.version} > ${this.global_env.constructor.version}`
-      );
-      return true;
-    }
-    return false;
-  }
-  static get smart_env_configs() {
-    if (!this.global_ref.smart_env_configs) this.global_ref.smart_env_configs = {};
-    return this.global_ref.smart_env_configs;
-  }
-  get smart_env_configs() {
-    if (!this.global_ref.smart_env_configs) this.global_ref.smart_env_configs = {};
-    return this.global_ref.smart_env_configs;
-  }
-  /**
-   * Waits for either a specific main to be registered in the environment,
-   * or (if `opts.main` is not specified) waits for environment collections to load.
-   * @param {object} opts
-   * @param {object} [opts.main] - if set, the function waits until that main is found.
-   * @returns {Promise<SmartEnv>} Resolves with the environment instance
-   */
-  static wait_for(opts = {}) {
-    return new Promise((resolve) => {
-      if (opts.main) {
-        const interval = setInterval(() => {
-          if (this.global_env && this.global_env[opts.main]) {
-            clearInterval(interval);
-            resolve(this.global_env);
-          }
-        }, 1e3);
-      } else {
-        const interval = setInterval(() => {
-          if (this.global_env && this.global_env.state === "loaded") {
-            clearInterval(interval);
-            resolve(this.global_env);
-          }
-        }, 100);
-      }
-    });
-  }
-  /**
-   * Creates or updates a SmartEnv instance.
-   * - If a global environment exists and is an older version or lacks 'init_main', it is replaced.
-   * @param {Object} main - The main object to be added to the SmartEnv instance.
-   * @param {Object} [main_env_opts={}] - Options for configuring the SmartEnv instance.
-   * @returns {SmartEnv} The SmartEnv instance.
-   * @throws {TypeError} If an invalid main object is provided.
-   * @throws {Error} If there's an error creating or updating the SmartEnv instance.
-   */
-  static async create(main, main_env_opts = null) {
-    if (!main || typeof main !== "object") {
-      throw new TypeError("SmartEnv: Invalid main object provided");
-    }
-    if (!main_env_opts) {
-      if (!main.smart_env_config) {
-        throw new Error("SmartEnv: No main_env_opts or main.smart_env_config provided");
-      }
-      main_env_opts = main.smart_env_config;
-    }
-    this.add_main(main, main_env_opts);
-    if (this.should_reload) {
-      const opts = {};
-      if (this.global_env && this.version > (this.global_env.constructor?.version || 0)) {
-        opts.primary_main_key = camel_case_to_snake_case(main.constructor.name);
-      }
-      if (this.global_env?.load_timeout) clearTimeout(this.global_env.load_timeout);
-      this.global_env = new this(opts);
-      const g = this.global_ref;
-      if (!g.all_envs) g.all_envs = [];
-      g.all_envs.push(this.global_env);
-    }
-    clearTimeout(this.global_env.load_timeout);
-    this.global_env.load_timeout = setTimeout(async () => {
-      await this.global_env.load();
-      this.global_env.load_timeout = null;
-    }, this.global_env.env_start_wait_time);
-    return this.global_env;
-  }
-  static add_main(main, main_env_opts = null) {
-    if (this.global_env) {
-      this.global_env._config = null;
-      this.global_env._collections_version_signature = null;
-    }
-    if (!main_env_opts) main_env_opts = main.smart_env_config;
-    const main_key = camel_case_to_snake_case(main.constructor.name);
-    this.smart_env_configs[main_key] = { main, opts: main_env_opts };
-    this.create_env_getter(main);
-  }
-  /**
-   * Creates a dynamic environment getter on any instance object.
-   * The returned 'env' property will yield the global `smart_env`.
-   * @param {Object} instance_to_receive_getter
-   */
-  static create_env_getter(instance_to_receive_getter) {
-    Object.defineProperty(instance_to_receive_getter, "env", {
-      configurable: true,
-      get: () => this.global_env
-    });
-  }
-  create_env_getter(instance_to_receive_getter) {
-    this.constructor.create_env_getter(instance_to_receive_getter);
-  }
-  async load() {
-    this.state = "loading";
-    await this.fs.load_files();
-    if (!this.settings) await SmartSettings.create(this);
-    if (this.config.default_settings) {
-      deep_merge_no_overwrite(this.settings, this.config.default_settings);
-    }
-    this.smart_settings.save();
-    await this.init_collections();
-    for (const [main_key, { main, opts }] of Object.entries(this.smart_env_configs)) {
-      this[main_key] = main;
-    }
-    await this.ready_to_load_collections();
-    await this.load_collections();
-    this.state = "loaded";
-  }
-  /**
-   * Initializes collection classes if they have an 'init' function.
-   * @param {Object} [config=this.config]
-  */
-  async init_collections(config = this.config) {
-    for (const key of Object.keys(config.collections || {})) {
-      const _class = config.collections[key]?.class;
-      if (!_class) continue;
-      if (_class.default_settings) {
-        deep_merge_no_overwrite(
-          this.settings,
-          {
-            [key]: _class.default_settings
-          }
-        );
-      }
-      if (typeof _class.init !== "function") continue;
-      await _class.init(this, { ...config.collections[key] });
-      this.collections[key] = "init";
-    }
-  }
-  /**
-   * Hook/Override this method to wait for any conditions before loading collections. 
-   * @param {Object} main
-   */
-  async ready_to_load_collections() {
-  }
-  /**
-   * Loads any available collections, processing their load queues.
-   * @param {Object} [collections=this.collections] - Key-value map of collection instances.
-   */
-  async load_collections(collections = this.collections) {
-    for (const key of Object.keys(collections || {})) {
-      const time_start = Date.now();
-      if (typeof this[key]?.process_load_queue === "function") {
-        await this[key].process_load_queue();
-        this[key].load_time_ms = Date.now() - time_start;
-        this.collections[key] = "loaded";
-        console.log(`Loaded ${this[key].collection_key} in ${this[key].load_time_ms}ms`);
-      }
-    }
-  }
-  /**
-   * Removes a main from the global.smart_env_configs to exclude it on reload
-   * @param {Class} main
-   * @param {Object|null} [unload_config=null]
-   */
-  static unload_main(main) {
-    const main_key = camel_case_to_snake_case(main.constructor.name);
-    this.smart_env_configs[main_key] = null;
-    delete this.smart_env_configs[main_key];
-  }
-  unload_main(main) {
-    this.constructor.unload_main(main);
-  }
-  /**
-   * Triggers a save event in all known collections.
-   */
-  save() {
-    for (const key of Object.keys(this.collections)) {
-      this[key].process_save_queue?.();
-    }
-  }
-  /**
-   * Initialize a module from the configured `this.opts.modules`.
-   * @param {string} module_key
-   * @param {object} opts
-   * @returns {object|null} instance of the requested module or null if not found
-   */
-  init_module(module_key, opts = {}) {
-    const module_config = this.opts.modules[module_key];
-    if (!module_config) {
-      return console.warn(`SmartEnv: module ${module_key} not found`);
-    }
-    opts = {
-      ...{ ...module_config, class: null },
-      ...opts
-    };
-    return new module_config.class(opts);
-  }
-  get notices() {
-    if (!this._notices) {
-      const SmartNoticesClass = this.config.modules.smart_notices.class;
-      this._notices = new SmartNoticesClass(this, {
-        adapter: this.config.modules.smart_notices.adapter
+    const { app } = plugin;
+    const emit_event = (event_key, payload) => {
+      if (!payload?.path && !payload?.item_key) return;
+      this.smart_fs.env.events?.emit(event_key, {
+        collection_key: sources_collection.collection_key,
+        item_key: payload.item_key || payload.path,
+        ...payload
       });
-    }
-    return this._notices;
-  }
-  /**
-   * Exposes a settings template function from environment opts or defaults.
-   * @returns {Function}
-   */
-  get settings_template() {
-    return this.opts.components?.smart_env?.settings || render;
-  }
-  /**
-   * Renders settings UI into a container, using the environment's `settings_template`.
-   * @param {HTMLElement} [container=this.settings_container]
-   */
-  async render_settings(container = this.settings_container) {
-    if (!this.settings_container || container !== this.settings_container) {
-      this.settings_container = container;
-    }
-    if (!container) {
-      throw new Error("Container is required");
-    }
-    const frag = await this.render_component("settings", this, {});
-    this.smart_view.empty(container);
-    container.appendChild(frag);
-    return frag;
-  }
-  /**
-   * Renders a named component using an optional scope and options.
-   * @param {string} component_key
-   * @param {Object} scope
-   * @param {Object} [opts]
-   * @returns {Promise<HTMLElement>}
-   */
-  async render_component(component_key, scope, opts = {}) {
-    const component_renderer = this.get_component(component_key, scope);
-    if (!component_renderer) {
-      console.warn(`SmartEnv: component ${component_key} not found for scope ${scope.constructor.name}`);
-      return this.smart_view.create_doc_fragment(`<div class="smart-env-component-not-found">
-        <h1>Component Not Found</h1>
-        <p>The component ${component_key} was not found for scope ${scope.constructor.name}.</p>
-      </div>`);
-    }
-    const frag = await component_renderer(scope, opts);
-    return frag;
-  }
-  /**
-   * Retrieves or creates a memoized component renderer function.
-   * @param {string} component_key
-   * @param {Object} scope
-   * @returns {Function|undefined}
-   */
-  get_component(component_key, scope) {
-    const scope_name = scope.collection_key ?? scope.scope_name;
-    const _cache_key = scope_name ? `${scope_name}-${component_key}` : component_key;
-    if (!this._components[_cache_key]) {
-      try {
-        if (this.opts.components[scope_name]?.[component_key]) {
-          this._components[_cache_key] = this.opts.components[scope_name][component_key].bind(
-            this.init_module("smart_view")
-          );
-        } else if (this.opts.components[component_key]) {
-          this._components[_cache_key] = this.opts.components[component_key].bind(
-            this.init_module("smart_view")
-          );
-        } else {
-          console.warn(
-            `SmartEnv: component ${component_key} not found for scope ${scope_name}`
-          );
-        }
-      } catch (e) {
-        console.error("Error getting component", e);
-        console.log(
-          `scope_name: ${scope_name}; component_key: ${component_key}; this.opts.components: ${Object.keys(
-            this.opts.components || {}
-          ).join(", ")}; this.opts.components[scope_name]: ${Object.keys(
-            this.opts.components[scope_name] || {}
-          ).join(", ")}`
-        );
-      }
-    }
-    return this._components[_cache_key];
-  }
-  /**
-   * Lazily instantiate the module 'smart_view'.
-   * @returns {object}
-   */
-  get smart_view() {
-    if (!this._smart_view) {
-      this._smart_view = this.init_module("smart_view");
-    }
-    return this._smart_view;
-  }
-  /**
-   * A built-in settings schema for this environment.
-   * @returns {Object}
-   */
-  get settings_config() {
-    return {
-      is_obsidian_vault: {
-        name: "Obsidian Vault",
-        description: "Toggle on if this is an Obsidian vault.",
-        type: "toggle",
-        default: false
-      },
-      file_exclusions: {
-        name: "File Exclusions",
-        description: "Comma-separated list of files to exclude.",
-        type: "text",
-        default: "",
-        callback: "update_exclusions"
-      },
-      folder_exclusions: {
-        name: "Folder Exclusions",
-        description: "Comma-separated list of folders to exclude.",
-        type: "text",
-        default: "",
-        callback: "update_exclusions"
-      },
-      excluded_headings: {
-        name: "Excluded Headings",
-        description: "Comma-separated list of headings to exclude. Note: currently only applies to blocks (2025-04-07).",
-        type: "text",
-        default: ""
-      }
     };
-  }
-  get global_prop() {
-    return this.opts.global_prop ?? "smart_env";
-  }
-  get item_types() {
-    return this.opts.item_types;
-  }
-  get fs_module_config() {
-    return this.opts.modules.smart_fs;
-  }
-  get fs() {
-    if (!this.smart_fs) {
-      this.smart_fs = new this.fs_module_config.class(this, {
-        adapter: this.fs_module_config.adapter,
-        fs_path: this.opts.env_path || ""
-      });
-    }
-    return this.smart_fs;
-  }
-  get env_data_dir() {
-    const env_settings_files = this.fs.file_paths?.filter((path) => path.endsWith("smart_env.json")) || [];
-    let env_data_dir = ".smart-env";
-    if (env_settings_files.length > 0) {
-      if (env_settings_files.length > 1) {
-        const env_data_dir_counts = env_settings_files.map((path) => {
-          const dir = path.split("/").slice(-2, -1)[0];
-          return {
-            dir,
-            count: this.fs.file_paths.filter((p) => p.includes(dir)).length
-          };
+    plugin.registerEvent(
+      app.vault.on("create", (file) => {
+        emit_event("sources:created", {
+          path: file.path,
+          event_source: "obsidian:vault.create"
         });
-        env_data_dir = env_data_dir_counts.reduce(
-          (max, dirObj) => dirObj.count > max.count ? dirObj : max,
-          env_data_dir_counts[0]
-        ).dir;
-      } else {
-        env_data_dir = env_settings_files[0].split("/").slice(-2, -1)[0];
-      }
-    }
-    return env_data_dir;
-  }
-  get data_fs() {
-    if (!this._fs) {
-      this._fs = new this.fs_module_config.class(this, {
-        adapter: this.fs_module_config.adapter,
-        fs_path: this.data_fs_path
-      });
-    }
-    return this._fs;
-  }
-  get data_fs_path() {
-    if (!this._data_fs_path) {
-      this._data_fs_path = (this.opts.env_path + (this.opts.env_path ? this.opts.env_path.includes("\\") ? "\\" : "/" : "") + this.env_data_dir).replace(/\\\\/g, "\\").replace(/\/\//g, "/");
-    }
-    return this._data_fs_path;
-  }
-  /**
-   * Saves the current settings to the file system.
-   * @param {Object|null} [settings=null] - Optional settings to override the current settings before saving.
-   * @returns {Promise<void>}
-   */
-  async save_settings(settings) {
-    this._saved = false;
-    if (!await this.data_fs.exists("")) {
-      await this.data_fs.mkdir("");
-    }
-    await this.data_fs.write("smart_env.json", JSON.stringify(settings, null, 2));
-    this._saved = true;
-  }
-  /**
-   * Loads settings from the file system, merging with any `default_settings` or `smart_env_settings`.
-   * @returns {Promise<Object>} the loaded settings
-   */
-  async load_settings() {
-    if (!await this.data_fs.exists("smart_env.json")) await this.save_settings({});
-    let settings = JSON.parse(JSON.stringify(this.config.default_settings || {}));
-    deep_merge(settings, JSON.parse(await this.data_fs.read("smart_env.json")));
-    deep_merge(settings, this.opts?.smart_env_settings || {});
-    this._saved = true;
-    if (this.fs.auto_excluded_files) {
-      const existing_file_exclusions = settings.file_exclusions.split(",").map((s) => s.trim()).filter(Boolean);
-      settings.file_exclusions = [...existing_file_exclusions, ...this.fs.auto_excluded_files].filter((value, index, self) => self.indexOf(value) === index).join(",");
-    }
-    return settings;
-  }
-  /**
-   * Refreshes file-system state if exclusions changed,
-   * then re-renders relevant settings UI
-   */
-  async update_exclusions() {
-    this.smart_sources._fs = null;
-    await this.smart_sources.init_fs();
-  }
-  // DEPRECATED
-  /** @deprecated access `this.state` and `collection.state` directly instead */
-  get collections_loaded() {
-    return this.state === "loaded";
-  }
-  /** @deprecated Use this['main_class_name'] instead of this.main/this.plugin */
-  get main() {
-    return this.smart_env_configs[this.mains[0]]?.main;
-  }
-  /**
-   * @deprecated use component pattern instead
-   */
-  get ejs() {
-    return this.opts.ejs;
-  }
-  /**
-   * @deprecated use component pattern instead
-   */
-  get templates() {
-    return this.opts.templates;
-  }
-  /**
-   * @deprecated use component pattern instead
-   */
-  get views() {
-    return this.opts.views;
-  }
-  /**
-   * @deprecated use this.config instead
-   */
-  get opts() {
-    return this.config;
-  }
-  /**
-   * @deprecated Use this.main_class_name instead of this.plugin
-   */
-  get plugin() {
-    return this.main;
-  }
-};
-
-// node_modules/obsidian-smart-env/node_modules/smart-file-system/utils/glob_to_regex.js
-function create_regex2(pattern, { case_sensitive, extended_glob, windows_paths }) {
-  const regex_pattern = glob_to_regex_pattern2(pattern, extended_glob);
-  const adjusted_pattern = adjust_for_windows_paths2(regex_pattern, windows_paths);
-  const flags = case_sensitive ? "" : "i";
-  return new RegExp(`^${adjusted_pattern}$`, flags);
-}
-function adjust_for_windows_paths2(pattern, windows_paths) {
-  return windows_paths ? pattern.replace(/\\\//g, "[\\\\/]").replace(/\\\\\\/g, "[\\\\/]") : pattern;
-}
-function glob_to_regex_pattern2(pattern, extended_glob) {
-  let in_class = false;
-  let in_brace = 0;
-  let result = "";
-  for (let i = 0; i < pattern.length; i++) {
-    const char = pattern[i];
-    switch (char) {
-      case "\\":
-        if (i + 1 < pattern.length) {
-          result += `\\${pattern[i + 1]}`;
-          i++;
-        } else {
-          result += "\\\\";
-        }
-        break;
-      case "/":
-        result += "\\/";
-        break;
-      case "[":
-        if (!in_class) {
-          const closingIndex = pattern.indexOf("]", i + 1);
-          if (closingIndex === -1) {
-            result += "\\[";
-          } else {
-            in_class = true;
-            if (pattern[i + 1] === "!") {
-              result += "[^";
-              i++;
-            } else {
-              result += "[";
-            }
-          }
-        } else {
-          result += "\\[";
-        }
-        break;
-      case "]":
-        if (in_class) {
-          in_class = false;
-          result += "]";
-        } else {
-          result += "\\]";
-        }
-        break;
-      case "{":
-        if (!in_class) {
-          const closingIndex = pattern.indexOf("}", i + 1);
-          if (closingIndex === -1) {
-            result += "\\{";
-          } else {
-            in_brace++;
-            result += "(";
-          }
-        } else {
-          result += "\\{";
-        }
-        break;
-      case "}":
-        if (!in_class && in_brace > 0) {
-          in_brace--;
-          result += ")";
-        } else {
-          result += "\\}";
-        }
-        break;
-      case ",":
-        if (!in_class && in_brace > 0) {
-          result += "|";
-        } else {
-          result += ",";
-        }
-        break;
-      case "*":
-        if (!in_class) {
-          if (i + 1 < pattern.length && pattern[i + 1] === "*") {
-            result += ".*";
-            i++;
-          } else {
-            result += "[^/]*";
-          }
-        } else {
-          result += "\\*";
-        }
-        break;
-      case "?":
-        if (!in_class) {
-          result += "[^/]";
-        } else {
-          result += "\\?";
-        }
-        break;
-      // We escape these to ensure they remain literal
-      case "(":
-      case ")":
-      case "+":
-      case "|":
-      case "^":
-      case "$":
-      case ".":
-        result += `\\${char}`;
-        break;
-      default:
-        result += char;
-        break;
-    }
-  }
-  if (in_class) {
-    result += "]";
-    in_class = false;
-  }
-  if (extended_glob) {
-    result = result.replace(/\\\+\\\((.*?)\\\)/g, "($1)+").replace(/\\\@\\\((.*?)\\\)/g, "($1)").replace(/\\\!\\\((.*?)\\\)/g, "(?!$1).*").replace(/\\\?\\\((.*?)\\\)/g, "($1)?").replace(/\\\*\\\((.*?)\\\)/g, "($1)*");
-  }
-  return result;
-}
-function glob_to_regex2(pattern, options = {}) {
-  const default_options = {
-    case_sensitive: true,
-    extended_glob: false,
-    windows_paths: false
-  };
-  const merged_options = { ...default_options, ...options };
-  if (pattern === "") {
-    return /^$/;
-  }
-  if (pattern === "*" && !merged_options.windows_paths) {
-    return /^[^/]+$/;
-  }
-  if (pattern === "**" && !merged_options.windows_paths) {
-    return /^.+$/;
-  }
-  return create_regex2(pattern, merged_options);
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-file-system/utils/fuzzy_search.js
-function fuzzy_search2(arr, search_term) {
-  let matches = [];
-  for (let i = 0; i < arr.length; i++) {
-    const search_chars = search_term.toLowerCase().split("");
-    let match = true;
-    let distance = 0;
-    const name = arr[i];
-    const label_name = name.toLowerCase();
-    for (let j = 0; j < search_chars.length; j++) {
-      const search_index = label_name.substring(distance).indexOf(search_chars[j]);
-      if (search_index >= 0) {
-        distance += search_index + 1;
-      } else {
-        match = false;
-        break;
-      }
-    }
-    if (match) matches.push({ name, distance });
-  }
-  matches.sort((a, b) => a.distance - b.distance);
-  return matches.map((match) => match.name);
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-file-system/smart_fs.js
-var SmartFs2 = class {
-  /**
-   * Create a new SmartFs instance
-   * 
-   * @param {Object} env - The Smart Environment instance
-   * @param {Object} [opts={}] - Optional configuration
-   * @param {string} [opts.fs_path] - Custom environment path
-   */
-  constructor(env, opts = {}) {
-    this.env = env;
-    this.opts = opts;
-    this.fs_path = opts.fs_path || opts.env_path || "";
-    if (!opts.adapter) throw new Error("SmartFs requires an adapter");
-    this.adapter = new opts.adapter(this);
-    this.excluded_patterns = [];
-    if (Array.isArray(opts.exclude_patterns)) {
-      opts.exclude_patterns.forEach((pattern) => this.add_ignore_pattern(pattern));
-    }
-    this.folders = {};
-    this.files = {};
-    this.file_paths = [];
-    this.folder_paths = [];
-    this.auto_excluded_files = [];
-  }
-  async refresh() {
-    this.files = {};
-    this.file_paths = [];
-    this.folders = {};
-    this.folder_paths = [];
-    await this.init();
-  }
-  async init() {
-    await this.load_exclusions();
-    await this.load_files();
-  }
-  async load_files() {
-    const all = await this.list_recursive();
-    this.file_paths = [];
-    this.folder_paths = [];
-    all.forEach((file) => {
-      if (file.type === "file") {
-        this.files[file.path] = file;
-        this.file_paths.push(file.path);
-      } else if (file.type === "folder") {
-        this.folders[file.path] = file;
-        this.folder_paths.push(file.path);
-      }
-    });
-  }
-  include_file(file_path) {
-    const file = this.adapter.get_file(file_path);
-    this.files[file.path] = file;
-    this.file_paths.push(file.path);
-    return file;
-  }
-  /**
-   * Load .gitignore patterns
-   * 
-   * @returns {Promise<RegExp[]>} Array of RegExp patterns
-   */
-  async load_exclusions() {
-    const gitignore_path = ".gitignore";
-    const gitignore_exists = await this.adapter.exists(gitignore_path);
-    if (gitignore_exists) {
-      const gitignore_content = await this.adapter.read(gitignore_path, "utf-8");
-      gitignore_content.split("\n").filter((line) => !line.startsWith("#")).filter(Boolean).forEach((pattern) => this.add_ignore_pattern(pattern));
-    }
-    this.add_ignore_pattern(".**");
-    this.add_ignore_pattern("**/.**");
-    this.add_ignore_pattern("**/.*/**");
-    this.add_ignore_pattern("**/*.ajson");
-    this.add_ignore_pattern("**/*.excalidraw.md");
-  }
-  /**
-   * Add a new ignore pattern
-   * 
-   * @param {string} pattern - The pattern to add
-   */
-  add_ignore_pattern(pattern, opts = {}) {
-    this.excluded_patterns.push(glob_to_regex2(pattern.trim(), opts));
-  }
-  /**
-   * Check if a path is ignored based on gitignore patterns
-   * 
-   * @param {string} _path - The path to check
-   * @returns {boolean} True if the path is ignored, false otherwise
-   */
-  is_excluded(_path) {
-    try {
-      if (_path.includes("#")) return true;
-      if (!this.excluded_patterns.length) return false;
-      return this.excluded_patterns.some((pattern) => pattern.test(_path));
-    } catch (e) {
-      console.error(`Error checking if path is excluded: ${e.message}`);
-      console.error(`Path: `, _path);
-      throw e;
-    }
-  }
-  /**
-   * Check if any path in an array of paths is excluded
-   * 
-   * @param {string[]} paths - Array of paths to check
-   * @returns {boolean} True if any path is excluded, false otherwise
-   */
-  has_excluded_patterns(paths) {
-    return paths.some((p) => this.is_excluded(p));
-  }
-  /**
-   * Pre-process an array of paths, throwing an error if any path is excluded
-   * 
-   * @param {string[]} paths - Array of paths to pre-process
-   * @throws {Error} If any path in the array is excluded
-   * @returns {string[]} The array of paths
-   */
-  pre_process(paths) {
-    if (this.has_excluded_patterns(paths)) {
-      throw new Error(`Path is excluded: ${paths.find((p) => this.is_excluded(p))}`);
-    }
-    return paths;
-  }
-  /**
-   * Post-process the result of an operation
-   * 
-   * @param {any} returned_value - The value returned by the operation
-   * @returns {any} The post-processed value
-   */
-  post_process(returned_value) {
-    if (this.adapter.post_process) return this.adapter.post_process(returned_value);
-    if (Array.isArray(returned_value)) {
-      returned_value = returned_value.filter((r) => {
-        if (typeof r === "string") return !this.is_excluded(r);
-        if (typeof r === "object" && r.path) return !this.is_excluded(r.path);
-        return true;
-      });
-    }
-    return returned_value;
-  }
-  // v2
-  /**
-   * Use the adapter for a method
-   * runs pre_process and post_process (checks exclusions)
-   * @param {string} method - The method to use
-   * @param {string[]} paths - The paths to use
-   * @param {...any} args - Additional arguments for the method
-   * @returns {Promise<any>} The result of the method
-   */
-  async use_adapter(method, paths, ...args) {
-    if (!this.adapter[method]) throw new Error(`Method ${method} not found in adapter`);
-    paths = this.pre_process(paths ?? []);
-    let resp = await this.adapter[method](...paths, ...args);
-    return this.post_process(resp);
-  }
-  /**
-   * Append content to a file
-   * 
-   * @param {string} rel_path - The relative path of the file to append to
-   * @param {string|Buffer} content - The content to append
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async append(rel_path, content) {
-    return await this.use_adapter("append", [rel_path], content);
-  }
-  /**
-   * Create a new directory
-   * 
-   * @param {string} rel_path - The relative path of the directory to create
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async mkdir(rel_path, opts = { recursive: true }) {
-    return await this.use_adapter("mkdir", [rel_path], opts);
-  }
-  /**
-   * Check if a file or directory exists
-   * 
-   * @param {string} rel_path - The relative path to check
-   * @returns {Promise<boolean>} True if the path exists, false otherwise
-   */
-  async exists(rel_path) {
-    return await this.use_adapter("exists", [rel_path]);
-  }
-  /**
-   * List files in a directory
-   * 
-   * @param {string} rel_path - The relative path to list
-   * @returns {Promise<string[]>} Array of file paths
-   */
-  async list(rel_path = "/") {
-    return await this.use_adapter("list", [rel_path]);
-  }
-  async list_recursive(rel_path = "/") {
-    return await this.use_adapter("list_recursive", [rel_path]);
-  }
-  async list_files(rel_path = "/") {
-    return await this.use_adapter("list_files", [rel_path]);
-  }
-  async list_files_recursive(rel_path = "/") {
-    return await this.use_adapter("list_files_recursive", [rel_path]);
-  }
-  async list_folders(rel_path = "/") {
-    return await this.use_adapter("list_folders", [rel_path]);
-  }
-  async list_folders_recursive(rel_path = "/") {
-    return await this.use_adapter("list_folders_recursive", [rel_path]);
-  }
-  /**
-   * Read the contents of a file
-   * 
-   * @param {string} rel_path - The relative path of the file to read
-   * @returns {Promise<string|Buffer>} The contents of the file
-   */
-  async read(rel_path, encoding = "utf-8") {
-    try {
-      const content = await this.adapter.read(rel_path, encoding);
-      return content;
-    } catch (error) {
-      console.warn("Error during read: " + error.message, rel_path);
-      if (error.code === "ENOENT") return null;
-      return { error: error.message };
-    }
-  }
-  /**
-   * Remove a file
-   * 
-   * @param {string} rel_path - The relative path of the file to remove
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async remove(rel_path) {
-    return await this.use_adapter("remove", [rel_path]);
-  }
-  /**
-   * Remove a directory
-   * 
-   * @param {string} rel_path - The relative path of the directory to remove
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async remove_dir(rel_path, recursive = false) {
-    return await this.use_adapter("remove_dir", [rel_path], recursive);
-  }
-  /**
-   * Rename a file or directory
-   * 
-   * @param {string} rel_path - The current relative path
-   * @param {string} new_rel_path - The new relative path
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async rename(rel_path, new_rel_path) {
-    await this.use_adapter("rename", [rel_path, new_rel_path]);
-    await this.refresh();
-  }
-  /**
-   * Get file or directory statistics
-   * 
-   * @param {string} rel_path - The relative path to get statistics for
-   * @returns {Promise<Object>} An object containing file or directory statistics
-   */
-  async stat(rel_path) {
-    return await this.use_adapter("stat", [rel_path]);
-  }
-  /**
-   * Write content to a file
-   * Should handle when target path is within a folder that doesn't exist
-   * 
-   * @param {string} rel_path - The relative path of the file to write to
-   * @param {string|Buffer} content - The content to write
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async write(rel_path, content) {
-    try {
-      await this.adapter.write(rel_path, content);
-    } catch (error) {
-      console.error("Error during write:", error);
-      throw error;
-    }
-  }
-  // // aliases
-  // async create(rel_path, content) { return await this.use_adapter('write', [rel_path], content); }
-  // async update(rel_path, content) { return await this.use_adapter('write', [rel_path], content); }
-  get_link_target_path(link_target, source_path) {
-    if (this.adapter.get_link_target_path) return this.adapter.get_link_target_path(link_target, source_path);
-    if (!this.file_paths) return console.warn("get_link_target_path: file_paths not found");
-    const matching_file_paths = this.file_paths.filter((path) => path.includes(link_target));
-    return fuzzy_search2(matching_file_paths, link_target)[0];
-  }
-  get sep() {
-    return this.adapter.sep || "/";
-  }
-  get_full_path(rel_path = "") {
-    return this.adapter.get_full_path(rel_path);
-  }
-  get base_path() {
-    return this.adapter.get_base_path();
-  }
-};
-
-// node_modules/obsidian-smart-env/node_modules/smart-file-system/adapters/obsidian.js
-var obsidian2 = __toESM(require("obsidian"), 1);
-var SmartFsObsidianAdapter2 = class {
-  /**
-   * Create an SmartFsObsidianAdapter instance
-   * 
-   * @param {Object} smart_fs - The SmartFs instance
-   */
-  constructor(smart_fs) {
-    this.smart_fs = smart_fs;
-    this.obsidian = obsidian2;
-    this.obsidian_app = smart_fs.env.main.app;
-    this.obsidian_adapter = smart_fs.env.main.app.vault.adapter;
-  }
-  get fs_path() {
-    return this.smart_fs.fs_path;
-  }
-  get_file(file_path) {
-    const file = {};
-    file.path = file_path.replace(/\\/g, "/").replace(this.smart_fs.fs_path, "").replace(/^\//, "");
-    file.type = "file";
-    file.extension = file.path.split(".").pop().toLowerCase();
-    file.name = file.path.split("/").pop();
-    file.basename = file.name.split(".").shift();
-    Object.defineProperty(file, "stat", {
-      get: () => {
-        const tfile = this.obsidian_app.vault.getAbstractFileByPath(file_path);
-        if (tfile) {
-          return {
-            ctime: tfile.stat.ctime,
-            mtime: tfile.stat.mtime,
-            size: tfile.stat.size,
-            isDirectory: () => tfile instanceof this.obsidian.TFolder,
-            isFile: () => tfile instanceof this.obsidian.TFile
-          };
-        }
-        return null;
-      }
-    });
-    return file;
-  }
-  /**
-   * Append content to a file
-   * 
-   * @param {string} rel_path - The relative path of the file to append to
-   * @param {string} data - The content to append
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async append(rel_path, data) {
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    return await this.obsidian_adapter.append(rel_path, data);
-  }
-  /**
-   * Create a new directory
-   * 
-   * @param {string} rel_path - The relative path of the directory to create
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async mkdir(rel_path) {
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    return await this.obsidian_adapter.mkdir(rel_path);
-  }
-  /**
-   * Check if a file or directory exists
-   * 
-   * @param {string} rel_path - The relative path to check
-   * @returns {Promise<boolean>} True if the path exists, false otherwise
-   */
-  async exists(rel_path) {
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    return await this.obsidian_adapter.exists(rel_path);
-  }
-  /**
-   * List files in a directory (NOT up-to-date with list_recursive)
-   * 
-   * @param {string} rel_path - The relative path to list
-   * @returns {Promise<string[]>} Array of file paths
-   */
-  async list(rel_path, opts = {}) {
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    if (rel_path.startsWith("/")) rel_path = rel_path.slice(1);
-    if (rel_path.endsWith("/")) rel_path = rel_path.slice(0, -1);
-    if (rel_path.includes(".")) {
-      const { files: file_paths } = await this.obsidian_adapter.list(rel_path);
-      const files2 = file_paths.map((file_path) => {
-        if (this.smart_fs.fs_path) file_path = file_path.replace(this.smart_fs.fs_path, "").slice(1);
-        const file_name = file_path.split("/").pop();
-        const file = {
-          basename: file_name.split(".")[0],
-          extension: file_name.split(".").pop().toLowerCase(),
-          name: file_name,
-          path: file_path
-        };
-        return file;
-      });
-      return files2;
-    }
-    const files = this.obsidian_app.vault.getAllLoadedFiles().filter((file) => {
-      const last_slash = file.path.lastIndexOf("/");
-      if (last_slash === -1 && rel_path !== "") return false;
-      const folder_path = file.path.slice(0, last_slash);
-      if (folder_path !== rel_path) return false;
-      return true;
-    });
-    return files;
-  }
-  // NOTE: currently does not handle hidden files and folders
-  async list_recursive(rel_path, opts = {}) {
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    if (rel_path.startsWith("/")) rel_path = rel_path.slice(1);
-    if (rel_path.endsWith("/")) rel_path = rel_path.slice(0, -1);
-    const files = this.obsidian_app.vault.getAllLoadedFiles().filter((file) => {
-      if (file.path.length > 200) {
-        this.smart_fs.auto_excluded_files.push(file.path);
-        return false;
-      }
-      if (rel_path !== "" && !file.path.startsWith(rel_path)) return false;
-      if (file instanceof this.obsidian.TFile) {
-        if (opts.type === "folder") return false;
-        file.type = "file";
-      } else if (file instanceof this.obsidian.TFolder) {
-        if (opts.type === "file") return false;
-        delete file.basename;
-        delete file.extension;
-        file.type = "folder";
-      }
-      if (this.smart_fs.fs_path) file.path = file.path.replace(this.smart_fs.fs_path, "").slice(1);
-      return true;
-    });
-    return files;
-  }
-  async list_files(rel_path) {
-    return await this.list(rel_path, { type: "file" });
-  }
-  async list_files_recursive(rel_path) {
-    return await this.list_recursive(rel_path, { type: "file" });
-  }
-  async list_folders(rel_path) {
-    return await this.list(rel_path, { type: "folder" });
-  }
-  async list_folders_recursive(rel_path) {
-    return await this.list_recursive(rel_path, { type: "folder" });
-  }
-  /**
-   * Read the contents of a file
-   * 
-   * @param {string} rel_path - The relative path of the file to read
-   * @returns {Promise<string>} The contents of the file
-   */
-  async read(rel_path, encoding, opts = {}) {
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    if (encoding === "utf-8") {
-      if (!opts.no_cache) {
-        const tfile = this.obsidian_app.vault.getFileByPath(rel_path);
-        if (tfile) return await this.obsidian_app.vault.cachedRead(tfile);
-      }
-      return await this.obsidian_adapter.read(rel_path);
-    }
-    if (encoding === "base64") {
-      const array_buffer2 = await this.obsidian_adapter.readBinary(rel_path, "base64");
-      const base642 = this.obsidian.arrayBufferToBase64(array_buffer2);
-      return base642;
-    }
-    const array_buffer = await this.obsidian_adapter.readBinary(rel_path);
-    return array_buffer;
-  }
-  /**
-   * Rename a file or directory
-   * 
-   * @param {string} old_path - The current path of the file or directory
-   * @param {string} new_path - The new path for the file or directory
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async rename(old_path, new_path) {
-    if (!old_path.startsWith(this.fs_path)) old_path = this.fs_path + "/" + old_path;
-    if (!new_path.startsWith(this.fs_path)) new_path = this.fs_path + "/" + new_path;
-    return await this.obsidian_adapter.rename(old_path, new_path);
-  }
-  /**
-   * Remove a file
-   * 
-   * @param {string} rel_path - The relative path of the file to remove
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async remove(rel_path) {
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    try {
-      return await this.obsidian_adapter.remove(rel_path);
-    } catch (error) {
-      console.warn(`Error removing file: ${rel_path}`, error);
-    }
-  }
-  /**
-   * Remove a directory
-   * 
-   * @param {string} rel_path - The relative path of the directory to remove
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async remove_dir(rel_path, recursive = false) {
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    return await this.obsidian_adapter.rmdir(rel_path, recursive);
-  }
-  /**
-   * Get file or directory information
-   * 
-   * @param {string} rel_path - The relative path of the file or directory
-   * @returns {Promise<Object>} An object containing file or directory information
-   */
-  async stat(rel_path) {
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    return await this.obsidian_adapter.stat(rel_path);
-  }
-  /**
-   * Write content to a file
-   * 
-   * @param {string} rel_path - The relative path of the file to write to
-   * @param {string} data - The content to write
-   * @returns {Promise<void>} A promise that resolves when the operation is complete
-   */
-  async write(rel_path, data) {
-    if (!data) data = "";
-    if (!rel_path.startsWith(this.fs_path)) rel_path = this.fs_path + "/" + rel_path;
-    const folder_path = rel_path.split("/").slice(0, -1).join("/");
-    if (!await this.exists(folder_path)) {
-      await this.mkdir(folder_path);
-      console.log(`Created folder: ${folder_path}`);
-    }
-    return await this.obsidian_adapter.write(rel_path, data);
-  }
-  get_link_target_path(link_path, file_path) {
-    return this.obsidian_app.metadataCache.getFirstLinkpathDest(link_path, file_path)?.path;
-  }
-  get_base_path() {
-    return this.obsidian_adapter.basePath;
-  }
-  get_full_path(rel_path = "") {
-    const sep = rel_path.includes("/") ? "/" : "\\";
-    return this.get_base_path() + sep + rel_path;
+      })
+    );
+    plugin.registerEvent(
+      app.vault.on("modify", (file) => {
+        emit_event("sources:modified", {
+          path: file.path,
+          event_source: "obsidian:vault.modify"
+        });
+      })
+    );
+    plugin.registerEvent(
+      app.vault.on("rename", (file, old_path) => {
+        emit_event("sources:renamed", {
+          path: file.path,
+          old_path,
+          event_source: "obsidian:vault.rename"
+        });
+      })
+    );
+    plugin.registerEvent(
+      app.vault.on("delete", (file) => {
+        emit_event("sources:deleted", {
+          path: file.path,
+          event_source: "obsidian:vault.delete"
+        });
+      })
+    );
+    plugin.registerEvent(
+      app.workspace.on("editor-change", (_editor, info) => {
+        const file = info?.file;
+        if (!file) return;
+        emit_event("sources:modified", {
+          path: file.path,
+          event_source: "obsidian:workspace.editor-change"
+        });
+      })
+    );
+    this._source_watchers_registered = true;
+    return true;
   }
 };
 
@@ -2480,8 +2291,218 @@ var safe_inner_html = (container, html_snippet) => {
   (restricted_re.test(trimmed) ? replace_with_fragment : replace_html)(container, trimmed);
 };
 
+// node_modules/obsidian-smart-env/node_modules/smart-utils/escape_html.js
+function escape_html(str = "") {
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/create_hash.js
+function murmur_hash_32(input_string, seed = 0) {
+  let remainder = input_string.length & 3;
+  let bytes = input_string.length - remainder;
+  let h1 = seed;
+  let c1 = 3432918353;
+  let c2 = 461845907;
+  let i = 0;
+  let k1 = 0;
+  let chunk = 0;
+  while (i < bytes) {
+    chunk = input_string.charCodeAt(i) & 255 | (input_string.charCodeAt(i + 1) & 255) << 8 | (input_string.charCodeAt(i + 2) & 255) << 16 | (input_string.charCodeAt(i + 3) & 255) << 24;
+    i += 4;
+    k1 = chunk;
+    k1 = multiply_32(k1, c1);
+    k1 = rotate_left_32(k1, 15);
+    k1 = multiply_32(k1, c2);
+    h1 ^= k1;
+    h1 = rotate_left_32(h1, 13);
+    h1 = h1 * 5 + 3864292196 | 0;
+  }
+  k1 = 0;
+  switch (remainder) {
+    case 3:
+      k1 ^= (input_string.charCodeAt(i + 2) & 255) << 16;
+    // falls through
+    case 2:
+      k1 ^= (input_string.charCodeAt(i + 1) & 255) << 8;
+    // falls through
+    case 1:
+      k1 ^= input_string.charCodeAt(i) & 255;
+      k1 = multiply_32(k1, c1);
+      k1 = rotate_left_32(k1, 15);
+      k1 = multiply_32(k1, c2);
+      h1 ^= k1;
+      break;
+  }
+  h1 ^= input_string.length;
+  h1 = fmix_32(h1);
+  return h1 | 0;
+}
+function murmur_hash_32_alphanumeric(input_string, seed = 0) {
+  const signed_hash = murmur_hash_32(input_string, seed);
+  const unsigned_hash = signed_hash >>> 0;
+  return unsigned_hash.toString(36);
+}
+function multiply_32(a, b) {
+  return (a & 65535) * b + ((a >>> 16) * b << 16) | 0;
+}
+function rotate_left_32(value, shift) {
+  return value << shift | value >>> 32 - shift;
+}
+function fmix_32(h) {
+  h ^= h >>> 16;
+  h = multiply_32(h, 2246822507);
+  h ^= h >>> 13;
+  h = multiply_32(h, 3266489909);
+  h ^= h >>> 16;
+  return h | 0;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/convert_to_time_ago.js
+function convert_to_time_ago(timestamp) {
+  const now = Date.now();
+  const ms = timestamp < 1e12 ? timestamp * 1e3 : timestamp;
+  const diff_ms = now - ms;
+  const seconds = Math.floor(diff_ms / 1e3);
+  const intervals = [
+    { label: "year", seconds: 31536e3 },
+    { label: "month", seconds: 2592e3 },
+    { label: "day", seconds: 86400 },
+    { label: "hour", seconds: 3600 },
+    { label: "minute", seconds: 60 },
+    { label: "second", seconds: 1 }
+  ];
+  for (const interval of intervals) {
+    const count = Math.floor(seconds / interval.seconds);
+    if (count >= 1) {
+      return `${count} ${interval.label}${count > 1 ? "s" : ""} ago`;
+    }
+  }
+  return "just now";
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/cos_sim.js
+function cos_sim(vector1 = [], vector2 = []) {
+  if (vector1.length !== vector2.length) {
+    throw new Error("Vectors must have the same length");
+  }
+  let dot_product = 0;
+  let magnitude1 = 0;
+  let magnitude2 = 0;
+  const epsilon = 1e-8;
+  for (let i = 0; i < vector1.length; i++) {
+    dot_product += vector1[i] * vector2[i];
+    magnitude1 += vector1[i] * vector1[i];
+    magnitude2 += vector2[i] * vector2[i];
+  }
+  magnitude1 = Math.sqrt(magnitude1);
+  magnitude2 = Math.sqrt(magnitude2);
+  if (magnitude1 < epsilon || magnitude2 < epsilon) return 0;
+  return dot_product / (magnitude1 * magnitude2);
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/get_by_path.js
+function get_by_path(obj, path, scope = null) {
+  if (!path) return "";
+  const keys = path.split(".");
+  if (scope) {
+    keys.unshift(scope);
+  }
+  const final_key = keys.pop();
+  const instance = keys.reduce((acc, key) => acc && acc[key], obj);
+  if (instance && typeof instance[final_key] === "function") {
+    return instance[final_key].bind(instance);
+  }
+  return instance ? instance[final_key] : void 0;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/set_by_path.js
+function set_by_path(obj, path, value, scope = null) {
+  const keys = path.split(".");
+  if (scope) {
+    keys.unshift(scope);
+  }
+  const final_key = keys.pop();
+  const target = keys.reduce((acc, key) => {
+    if (!acc[key] || typeof acc[key] !== "object") {
+      acc[key] = {};
+    }
+    return acc[key];
+  }, obj);
+  target[final_key] = value;
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/delete_by_path.js
+function delete_by_path(obj, path, scope = null) {
+  const keys = path.split(".");
+  if (scope) {
+    keys.unshift(scope);
+  }
+  const final_key = keys.pop();
+  const instance = keys.reduce((acc, key) => acc && acc[key], obj);
+  if (instance) {
+    delete instance[final_key];
+  }
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/geom.js
+function compute_centroid(points) {
+  if (!points || points.length === 0) {
+    return null;
+  }
+  const n = points.length;
+  const dim = points[0].length;
+  const sums = new Float64Array(dim);
+  for (let i = 0; i < n; i++) {
+    const p = points[i];
+    for (let d = 0; d < dim; d++) {
+      sums[d] += p[d];
+    }
+  }
+  for (let d = 0; d < dim; d++) {
+    sums[d] /= n;
+  }
+  return Array.from(sums);
+}
+function compute_medoid(points) {
+  if (!points || points.length === 0) {
+    return null;
+  }
+  if (points.length === 1) {
+    return points[0];
+  }
+  const n = points.length;
+  const dim = points[0].length;
+  const sum_of_distances = new Float64Array(n);
+  for (let i = 0; i < n - 1; i++) {
+    const p_i = points[i];
+    for (let j = i + 1; j < n; j++) {
+      const p_j = points[j];
+      let dist_sq = 0;
+      for (let d = 0; d < dim; d++) {
+        const diff = p_i[d] - p_j[d];
+        dist_sq += diff * diff;
+      }
+      const dist = Math.sqrt(dist_sq);
+      sum_of_distances[i] += dist;
+      sum_of_distances[j] += dist;
+    }
+  }
+  let min_index = 0;
+  let min_sum = sum_of_distances[0];
+  for (let i = 1; i < n; i++) {
+    if (sum_of_distances[i] < min_sum) {
+      min_sum = sum_of_distances[i];
+      min_index = i;
+    }
+  }
+  return points[min_index];
+}
+
 // node_modules/obsidian-smart-env/node_modules/smart-view/smart_view.js
+var element_disposers = /* @__PURE__ */ new WeakMap();
+var smart_setting_listeners = /* @__PURE__ */ new WeakMap();
 var SmartView = class {
+  static version = 0.1;
   /**
    * @constructor
    * @param {object} opts - Additional options or overrides for rendering.
@@ -2493,7 +2514,7 @@ var SmartView = class {
   /**
    * Renders all setting components within a container.
    * @async
-   * @param {HTMLElement} container - The container element.
+   * @param {HTMLElement|DocumentFragment} container - The container element.
    * @param {Object} opts - Additional options for rendering.
    * @returns {Promise<void>}
    */
@@ -2576,7 +2597,7 @@ var SmartView = class {
   /**
    * Deletes a value from an object by path.
    * @param {Object} obj - The object to modify.
-   * @param {string} path - The path to delete.
+   * @param {string} path - The path to delete the value.
    */
   delete_by_path(obj, path, settings_scope = null) {
     delete_by_path(obj, path, settings_scope);
@@ -2587,8 +2608,7 @@ var SmartView = class {
    * @returns {string} The escaped string.
    */
   escape_html(str) {
-    if (typeof str !== "string") return str;
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    return escape_html(str);
   }
   /**
    * A convenience method to build a setting HTML snippet from a config object.
@@ -2614,10 +2634,12 @@ ${attributes}
    * @async
    * @param {Object} settings_config
    * @param {Object} opts
+   * @param {Object} [opts.scope={}] - The scope to use when rendering settings (should have settings property).
    * @returns {Promise<DocumentFragment>}
    */
-  async render_settings(settings_config3, opts = {}) {
-    const html = Object.entries(settings_config3).map(([setting_key, setting_config]) => {
+  async render_settings(settings_config10, opts = {}) {
+    const is_fx = typeof settings_config10 === "function";
+    const html = Object.entries(is_fx ? await settings_config10(opts.scope) : settings_config10).map(([setting_key, setting_config]) => {
       if (!setting_config.setting) {
         setting_config.setting = setting_key;
       }
@@ -2627,46 +2649,70 @@ ${attributes}
     return await this.render_setting_components(frag, opts);
   }
   /**
-   * @function add_settings_listeners
-   * @description
    * Scans the given container for elements that have `data-smart-setting` and attaches
-   * a 'change' event listener. On change, it updates the corresponding path in `scope.settings`.
+   * a 'change' event listener that updates the corresponding path in `scope.settings`.
+   *
+   * Listener bookkeeping is done via WeakMap, not DOM attributes, to avoid
+   * clone/attribute-related bugs on re-render.
    * 
    * @param {Object} scope - An object containing a `settings` property, where new values will be stored.
-   * @param {HTMLElement} [container=document] - The DOM element to scan. Defaults to the entire document.
+   * @param {HTMLElement|Document} [container=document] - The DOM element to scan. Defaults to the entire document.
    */
   add_settings_listeners(scope, container = document) {
+    if (!container || typeof container.querySelectorAll !== "function") return;
     const elements = container.querySelectorAll("[data-smart-setting]");
     elements.forEach((elm) => {
       const path = elm.dataset.smartSetting;
       if (!path) return;
-      if (!elm.dataset.listenerAttached) {
-        elm.dataset.listenerAttached = "true";
-        elm.addEventListener("change", () => {
-          let newValue;
-          if (elm instanceof HTMLInputElement) {
-            if (elm.type === "checkbox") {
-              newValue = elm.checked;
-            } else if (elm.type === "radio") {
-              if (elm.checked) {
-                newValue = elm.value;
-              } else {
-                return;
-              }
+      if (smart_setting_listeners.has(elm)) {
+        return;
+      }
+      const handler = () => {
+        let new_value;
+        if (elm instanceof HTMLInputElement) {
+          if (elm.type === "checkbox") {
+            new_value = elm.checked;
+          } else if (elm.type === "radio") {
+            if (elm.checked) {
+              new_value = elm.value;
             } else {
-              newValue = elm.value;
+              return;
             }
-          } else if (elm instanceof HTMLSelectElement || elm instanceof HTMLTextAreaElement) {
-            newValue = elm.value;
           } else {
-            newValue = elm.value ?? elm.textContent;
+            new_value = elm.value;
           }
-          this.set_by_path(scope.settings, path, newValue);
+        } else if (elm instanceof HTMLSelectElement || elm instanceof HTMLTextAreaElement) {
+          new_value = elm.value;
+        } else {
+          new_value = elm.value ?? elm.textContent;
+        }
+        this.set_by_path(scope.settings, path, new_value);
+      };
+      smart_setting_listeners.set(elm, handler);
+      elm.addEventListener("change", handler);
+      if (elm instanceof HTMLElement) {
+        this.attach_disposer(elm, () => {
+          const existing = smart_setting_listeners.get(elm);
+          if (existing) {
+            elm.removeEventListener("change", existing);
+            smart_setting_listeners.delete(elm);
+          }
         });
       }
     });
   }
   apply_style_sheet(sheet) {
+    if (typeof sheet === "string") {
+      const css_hash = murmur_hash_32_alphanumeric(sheet);
+      if (document.getElementById(`style-sheet-${css_hash}`)) {
+        return;
+      }
+      const styleEl = document.createElement("style");
+      styleEl.id = `style-sheet-${css_hash}`;
+      styleEl.textContent = sheet;
+      document.head.appendChild(styleEl);
+      return;
+    }
     if ("adoptedStyleSheets" in Document.prototype) {
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
     } else {
@@ -2683,45 +2729,89 @@ ${attributes}
   safe_inner_html(elm, html) {
     safe_inner_html(elm, html);
   }
-};
-function get_by_path(obj, path, settings_scope = null) {
-  if (!path) return "";
-  const keys = path.split(".");
-  if (settings_scope) {
-    keys.unshift(settings_scope);
-  }
-  const finalKey = keys.pop();
-  const instance = keys.reduce((acc, key) => acc && acc[key], obj);
-  if (instance && typeof instance[finalKey] === "function") {
-    return instance[finalKey].bind(instance);
-  }
-  return instance ? instance[finalKey] : void 0;
-}
-function set_by_path(obj, path, value, settings_scope = null) {
-  const keys = path.split(".");
-  if (settings_scope) {
-    keys.unshift(settings_scope);
-  }
-  const final_key = keys.pop();
-  const target = keys.reduce((acc, key) => {
-    if (!acc[key] || typeof acc[key] !== "object") {
-      acc[key] = {};
+  /**
+   * Attaches one or more disposer functions to an element that will be called
+   * when that element has been observed in the DOM and is later removed.
+   *
+   * - Multiple calls for the same element accumulate disposer functions.
+   * - Disposers are only invoked once, on the first removal after the
+   *   element has been in the DOM.
+   * - No DOM attributes or properties are used for bookkeeping; everything
+   *   is tracked via WeakMap.
+   *
+   * @param {HTMLElement} el - The element to monitor.
+   * @param {Function|Function[]} dispose - The disposer function or array of functions to call on removal.
+   */
+  attach_disposer(el, dispose) {
+    if (!el) return;
+    const doc = el.ownerDocument;
+    const win = doc && doc.defaultView;
+    const MutationObserverCtor = win && win.MutationObserver;
+    if (!doc || !win || !MutationObserverCtor || !doc.body) return;
+    let dispose_fns;
+    if (typeof dispose === "function") {
+      dispose_fns = [dispose];
+    } else if (Array.isArray(dispose)) {
+      dispose_fns = dispose.filter((fn) => typeof fn === "function");
+    } else {
+      console.warn("[smart-view] attach_disposer called with invalid disposer");
+      return;
     }
-    return acc[key];
-  }, obj);
-  target[final_key] = value;
-}
-function delete_by_path(obj, path, settings_scope = null) {
-  const keys = path.split(".");
-  if (settings_scope) {
-    keys.unshift(settings_scope);
+    if (!dispose_fns.length) {
+      console.warn("[smart-view] attach_disposer called with no valid disposer functions");
+      return;
+    }
+    let entry = element_disposers.get(el);
+    if (!entry) {
+      entry = {
+        dispose_fns: /* @__PURE__ */ new Set(),
+        observer: null,
+        has_been_in_dom: false,
+        disposed: false
+      };
+      element_disposers.set(el, entry);
+    }
+    if (entry.disposed) {
+      entry.disposed = false;
+      entry.has_been_in_dom = false;
+    }
+    for (const fn of dispose_fns) {
+      entry.dispose_fns.add(fn);
+    }
+    if (!entry.observer) {
+      const observer = new MutationObserverCtor(() => {
+        const in_dom = doc.body.contains(el);
+        if (in_dom) {
+          entry.has_been_in_dom = true;
+          return;
+        }
+        if (!entry.has_been_in_dom || entry.disposed) {
+          return;
+        }
+        entry.disposed = true;
+        try {
+          for (const fn of entry.dispose_fns) {
+            try {
+              fn();
+            } catch (err) {
+              console.error("[smart-view] disposer error", err);
+            }
+          }
+        } finally {
+          try {
+            observer.disconnect();
+          } catch (e) {
+          }
+          if (element_disposers.get(el) === entry) {
+            element_disposers.delete(el);
+          }
+        }
+      });
+      entry.observer = observer;
+      observer.observe(doc.body, { childList: true, subtree: true });
+    }
   }
-  const finalKey = keys.pop();
-  const instance = keys.reduce((acc, key) => acc && acc[key], obj);
-  if (instance) {
-    delete instance[finalKey];
-  }
-}
+};
 
 // node_modules/obsidian-smart-env/node_modules/smart-view/adapters/_adapter.js
 var SmartViewAdapter = class {
@@ -2841,7 +2931,9 @@ var SmartViewAdapter = class {
       file: this.render_file_select_component,
       slider: this.render_slider_component,
       html: this.render_html_component,
-      button_with_confirm: this.render_button_with_confirm_component
+      button_with_confirm: this.render_button_with_confirm_component,
+      json: this.render_json_component,
+      array: this.render_array_component
     };
   }
   async render_setting_component(elm, opts = {}) {
@@ -2879,25 +2971,33 @@ var SmartViewAdapter = class {
   render_dropdown_component(elm, path, value, scope, settings_scope) {
     const smart_setting = new this.setting_class(elm);
     let options;
-    if (elm.dataset.optionsCallback) {
-      console.log(`getting options callback: ${elm.dataset.optionsCallback}`);
-      const opts_callback = this.main.get_by_path(scope, elm.dataset.optionsCallback);
-      if (typeof opts_callback === "function") options = opts_callback();
-      else console.warn(`optionsCallback is not a function: ${elm.dataset.optionsCallback}`, scope);
-    }
-    if (!options || !options.length) {
-      options = this.get_dropdown_options(elm);
-    }
     smart_setting.addDropdown((dropdown) => {
-      if (elm.dataset.required) dropdown.inputEl.setAttribute("required", true);
-      options.forEach((option) => {
-        const opt = dropdown.addOption(option.value, option.name ?? option.value);
-        opt.selected = option.value === value;
-      });
+      if (elm.dataset.required) dropdown.selectEl.setAttribute("required", true);
+      const opts_callback = elm.dataset.optionsCallback ? this.main.get_by_path(scope, elm.dataset.optionsCallback) : null;
+      if (typeof opts_callback === "function") {
+        console.log(`getting options callback: ${elm.dataset.optionsCallback}`);
+        Promise.resolve(opts_callback()).then((opts) => {
+          opts.forEach((option) => {
+            const opt = dropdown.addOption(option.value, option.label ?? option.name ?? option.value);
+            opt.selected = option.value === value;
+            if (opts.length === 1 && opt.selected) dropdown.selectEl.classList.add("dropdown-no-options");
+          });
+          dropdown.setValue(value);
+        });
+      } else {
+        if (!options || !options.length) {
+          options = this.get_dropdown_options(elm);
+        }
+        options.forEach((option) => {
+          const opt = dropdown.addOption(option.value, option.label ?? option.name ?? option.value);
+          opt.selected = option.value === value;
+          if (options.length === 1 && opt.selected) dropdown.selectEl.classList.add("dropdown-no-options");
+        });
+        dropdown.setValue(value);
+      }
       dropdown.onChange((value2) => {
         this.handle_on_change(path, value2, elm, scope, settings_scope);
       });
-      dropdown.setValue(value);
     });
     return smart_setting;
   }
@@ -3065,24 +3165,175 @@ var SmartViewAdapter = class {
     this.safe_inner_html(elm, value);
     return elm;
   }
+  /**
+   * Renders an array setting component for managing a list of strings.
+   * @param {HTMLElement} elm - Container element for the setting.
+   * @param {string} path - Dot-notation path to store the array.
+   * @param {Array<string>} value - Initial array value.
+   * @param {object} scope - Scope containing settings and actions.
+   * @param {object|null} settings_scope - Optional nested settings scope.
+   * @returns {object} smart_setting instance.
+   */
+  render_array_component(elm, path, value, scope, settings_scope) {
+    const smart_setting = new this.setting_class(elm);
+    let arr = Array.isArray(value) ? [...value] : [];
+    const items_container = document.createElement("div");
+    items_container.className = "array-items-container";
+    const render_items = () => {
+      items_container.innerHTML = "";
+      arr.forEach((val, idx) => {
+        const row = document.createElement("div");
+        row.className = "array-item-row";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = val;
+        input.placeholder = "Value";
+        const remove_btn = document.createElement("button");
+        remove_btn.textContent = "\u2715";
+        remove_btn.title = "Remove";
+        input.addEventListener("change", () => {
+          arr[idx] = input.value;
+          trigger_change();
+        });
+        remove_btn.addEventListener("click", () => {
+          arr.splice(idx, 1);
+          render_items();
+          trigger_change();
+        });
+        row.appendChild(input);
+        row.appendChild(remove_btn);
+        items_container.appendChild(row);
+      });
+    };
+    const add_row = document.createElement("div");
+    add_row.className = "array-add-row";
+    const new_input = document.createElement("input");
+    new_input.type = "text";
+    new_input.placeholder = "Value";
+    const add_btn = document.createElement("button");
+    add_btn.textContent = "+";
+    add_btn.title = "Add value";
+    add_btn.addEventListener("click", () => {
+      const v = new_input.value.trim();
+      if (!v) return;
+      arr.push(v);
+      new_input.value = "";
+      render_items();
+      trigger_change();
+    });
+    add_row.appendChild(new_input);
+    add_row.appendChild(add_btn);
+    smart_setting.controlEl.appendChild(items_container);
+    smart_setting.controlEl.appendChild(add_row);
+    const trigger_change = () => {
+      this.handle_on_change(path, [...arr], elm, scope, settings_scope);
+    };
+    render_items();
+    elm.appendChild(smart_setting.settingEl);
+    return smart_setting;
+  }
+  render_json_component(elm, path, value, scope, settings_scope) {
+    try {
+      const smart_setting = new this.setting_class(elm);
+      let obj = typeof value === "object" && value !== null ? { ...value } : {};
+      const pairs_container = document.createElement("div");
+      pairs_container.className = "json-pairs-container";
+      const renderPairs = () => {
+        pairs_container.innerHTML = "";
+        Object.entries(obj).forEach(([key, val], idx) => {
+          const pair_div = document.createElement("div");
+          pair_div.className = "json-pair-row";
+          const key_i = document.createElement("input");
+          key_i.type = "text";
+          key_i.value = key;
+          key_i.placeholder = "Property";
+          const value_i = document.createElement("input");
+          value_i.type = "text";
+          value_i.value = val;
+          value_i.placeholder = "Value";
+          const remove_btn = document.createElement("button");
+          remove_btn.textContent = "\u2715";
+          remove_btn.title = "Remove";
+          key_i.addEventListener("change", () => {
+            const newKey = key_i.value.trim();
+            if (!newKey) return;
+            if (newKey !== key) {
+              obj[newKey] = obj[key];
+              delete obj[key];
+              renderPairs();
+              triggerChange();
+            }
+          });
+          value_i.addEventListener("change", () => {
+            obj[key_i.value] = value_i.value;
+            triggerChange();
+          });
+          remove_btn.addEventListener("click", () => {
+            delete obj[key_i.value];
+            renderPairs();
+            triggerChange();
+          });
+          pair_div.appendChild(key_i);
+          pair_div.appendChild(value_i);
+          pair_div.appendChild(remove_btn);
+          pairs_container.appendChild(pair_div);
+        });
+      };
+      const add_div = document.createElement("div");
+      add_div.className = "json-add-row";
+      const new_key_i = document.createElement("input");
+      new_key_i.type = "text";
+      new_key_i.placeholder = "Property";
+      const new_val_i = document.createElement("input");
+      new_val_i.type = "text";
+      new_val_i.placeholder = "Value";
+      const add_btn = document.createElement("button");
+      add_btn.textContent = "+";
+      add_btn.title = "Add property";
+      add_btn.addEventListener("click", () => {
+        const k = new_key_i.value.trim();
+        if (!k || k in obj) return;
+        obj[k] = new_val_i.value;
+        new_key_i.value = "";
+        new_val_i.value = "";
+        renderPairs();
+        triggerChange();
+      });
+      add_div.appendChild(new_key_i);
+      add_div.appendChild(new_val_i);
+      add_div.appendChild(add_btn);
+      smart_setting.controlEl.appendChild(pairs_container);
+      smart_setting.controlEl.appendChild(add_div);
+      const triggerChange = () => {
+        this.handle_on_change(path, { ...obj }, elm, scope, settings_scope);
+      };
+      renderPairs();
+      elm.appendChild(smart_setting.settingEl);
+      return smart_setting;
+    } catch (e) {
+      console.error(e);
+    }
+  }
   add_button_if_needed(smart_setting, elm, path, scope) {
     if (elm.dataset.btn) {
       smart_setting.addButton((button) => {
         button.setButtonText(elm.dataset.btn);
-        button.inputEl.addEventListener("click", (e) => {
-          if (elm.dataset.btnCallback && typeof scope[elm.dataset.btnCallback] === "function") {
-            if (elm.dataset.btnCallbackArg) scope[elm.dataset.btnCallback](elm.dataset.btnCallbackArg);
-            else scope[elm.dataset.btnCallback](path, null, smart_setting, scope);
-          } else if (elm.dataset.btnHref) {
-            this.open_url(elm.dataset.btnHref);
-          } else if (elm.dataset.callback && typeof this.main.get_by_path(scope, elm.dataset.callback) === "function") {
-            this.main.get_by_path(scope, elm.dataset.callback)(path, null, smart_setting, scope);
-          } else if (elm.dataset.href) {
-            this.open_url(elm.dataset.href);
-          } else {
-            console.error("No callback or href found for button.");
-          }
-        });
+        if (elm.dataset.btnCallback || elm.dataset.btnHref || elm.dataset.callback || elm.dataset.href) {
+          button.inputEl.addEventListener("click", (e) => {
+            if (elm.dataset.btnCallback && typeof scope[elm.dataset.btnCallback] === "function") {
+              if (elm.dataset.btnCallbackArg) scope[elm.dataset.btnCallback](elm.dataset.btnCallbackArg);
+              else scope[elm.dataset.btnCallback](path, null, smart_setting, scope);
+            } else if (elm.dataset.btnHref) {
+              this.open_url(elm.dataset.btnHref);
+            } else if (elm.dataset.callback && typeof this.main.get_by_path(scope, elm.dataset.callback) === "function") {
+              this.main.get_by_path(scope, elm.dataset.callback)(path, null, smart_setting, scope);
+            } else if (elm.dataset.href) {
+              this.open_url(elm.dataset.href);
+            } else {
+              console.error("No callback or href found for button.");
+            }
+          });
+        }
         if (elm.dataset.btnDisabled || elm.dataset.disabled && elm.dataset.btnDisabled !== "false") {
           button.inputEl.disabled = true;
         }
@@ -3172,10 +3423,10 @@ var SmartViewAdapter = class {
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-view/adapters/obsidian.js
-var import_obsidian = require("obsidian");
+var import_obsidian2 = require("obsidian");
 var SmartViewObsidianAdapter = class extends SmartViewAdapter {
   get setting_class() {
-    return import_obsidian.Setting;
+    return import_obsidian2.Setting;
   }
   open_url(url) {
     window.open(url);
@@ -3184,12 +3435,12 @@ var SmartViewObsidianAdapter = class extends SmartViewAdapter {
     return super.render_text_component(elm, path, value);
   }
   async render_markdown(markdown, scope) {
-    const component = scope.env.smart_connections_plugin?.connections_view || new import_obsidian.Component();
+    const component = scope.env.smart_connections_plugin?.connections_view || new import_obsidian2.Component();
     if (!scope) return console.warn("Scope required for rendering markdown in Obsidian adapter");
     const frag = this.main.create_doc_fragment("<div><div class='inner'></div></div>");
     const container = frag.querySelector(".inner");
     try {
-      await import_obsidian.MarkdownRenderer.render(
+      await import_obsidian2.MarkdownRenderer.render(
         scope.env.plugin.app,
         markdown,
         container,
@@ -3202,11 +3453,11 @@ var SmartViewObsidianAdapter = class extends SmartViewAdapter {
     return frag;
   }
   get_icon_html(name) {
-    return (0, import_obsidian.getIcon)(name).outerHTML;
+    return (0, import_obsidian2.getIcon)(name).outerHTML;
   }
   // Obsidian Specific
   is_mod_event(event) {
-    return import_obsidian.Keymap.isModEvent(event);
+    return import_obsidian2.Keymap.isModEvent(event);
   }
   render_folder_select_component(elm, path, value, scope, settings_scope) {
     const smart_setting = new this.setting_class(elm);
@@ -3229,7 +3480,7 @@ var SmartViewObsidianAdapter = class extends SmartViewAdapter {
 // node_modules/obsidian-smart-env/node_modules/smart-collections/utils/collection_instance_name_from.js
 function collection_instance_name_from(class_name) {
   if (class_name.endsWith("Item")) {
-    return class_name.replace(/Item$/, "").toLowerCase();
+    return class_name.replace(/Item$/, "").replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
   }
   return class_name.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/y$/, "ie") + "s";
 }
@@ -3246,18 +3497,6 @@ function create_uid(data) {
     if (hash < 0) hash = hash * -1;
   }
   return hash.toString() + str.length;
-}
-function deep_merge2(target, source2) {
-  for (const key in source2) {
-    if (source2.hasOwnProperty(key)) {
-      if (is_obj(source2[key]) && is_obj(target[key])) deep_merge2(target[key], source2[key]);
-      else target[key] = source2[key];
-    }
-  }
-  return target;
-  function is_obj(item) {
-    return item && typeof item === "object" && !Array.isArray(item);
-  }
 }
 
 // node_modules/obsidian-smart-env/node_modules/smart-collections/utils/deep_equal.js
@@ -3280,8 +3519,236 @@ function deep_equal(obj1, obj2, visited = /* @__PURE__ */ new WeakMap()) {
   return obj1 === obj2;
 }
 
+// node_modules/obsidian-smart-env/node_modules/smart-collections/utils/get_item_display_name.js
+function get_item_display_name(key, show_full_path) {
+  if (show_full_path) {
+    return key.split("/").join(" > ").replace(".md", "");
+  }
+  return key.split("/").pop().replace(".md", "");
+}
+
+// node_modules/obsidian-smart-env/node_modules/smart-collections/utils/create_actions_proxy.js
+function create_actions_proxy(ctx, actions_source) {
+  const input = actions_source || {};
+  const is_plain_object5 = (val) => typeof val === "object" && val !== null && !Array.isArray(val);
+  const is_function = (val) => typeof val === "function";
+  const is_class_export = (val) => is_function(val) && /^class\s/.test(Function.prototype.toString.call(val));
+  const is_action_object = (val) => is_plain_object5(val) && is_function(val.action);
+  const is_action_candidate = (val) => is_function(val) || is_action_object(val) || is_class_export(val);
+  const ignored_meta_keys = /* @__PURE__ */ new Set(["length", "name", "prototype"]);
+  const clone_with_descriptors = (obj) => {
+    if (!is_plain_object5(obj)) return obj;
+    const out = Object.create(Object.getPrototypeOf(obj) || null);
+    for (const key of Reflect.ownKeys(obj)) {
+      const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+      if (!descriptor) continue;
+      const next = { ...descriptor };
+      if ("value" in next && is_plain_object5(next.value)) {
+        next.value = clone_with_descriptors(next.value);
+      }
+      try {
+        Object.defineProperty(out, key, next);
+      } catch {
+        out[key] = next.value;
+      }
+    }
+    return out;
+  };
+  const should_bucket_actions = (val) => {
+    if (!is_plain_object5(val)) return false;
+    if (is_action_object(val)) return false;
+    const keys = Reflect.ownKeys(val);
+    if (keys.length === 0) return false;
+    let found_candidate = false;
+    for (const key of keys) {
+      const descriptor = Object.getOwnPropertyDescriptor(val, key);
+      if (!descriptor) continue;
+      if ("value" in descriptor) {
+        const entry = descriptor.value;
+        if (is_action_candidate(entry)) {
+          found_candidate = true;
+          continue;
+        }
+        if (is_plain_object5(entry)) {
+          if (should_bucket_actions(entry)) {
+            found_candidate = true;
+            continue;
+          }
+          return false;
+        }
+        if (typeof entry === "undefined") continue;
+        return false;
+      }
+      return false;
+    }
+    return found_candidate;
+  };
+  const clone_descriptor = (descriptor) => {
+    if (!descriptor) return descriptor;
+    if (!("value" in descriptor)) return { ...descriptor };
+    const cloned = is_plain_object5(descriptor.value) ? clone_with_descriptors(descriptor.value) : descriptor.value;
+    return { ...descriptor, value: cloned };
+  };
+  const build_sources = (src) => {
+    const global_source2 = /* @__PURE__ */ Object.create(null);
+    const scoped_sources2 = /* @__PURE__ */ new Map();
+    for (const key of Reflect.ownKeys(src)) {
+      const descriptor = Object.getOwnPropertyDescriptor(src, key);
+      if (!descriptor) continue;
+      if ("value" in descriptor && should_bucket_actions(descriptor.value)) {
+        scoped_sources2.set(key, clone_with_descriptors(descriptor.value));
+        continue;
+      }
+      try {
+        Object.defineProperty(global_source2, key, clone_descriptor(descriptor));
+      } catch {
+        global_source2[key] = descriptor.value;
+      }
+    }
+    return { global_source: global_source2, scoped_sources: scoped_sources2 };
+  };
+  const { global_source, scoped_sources } = build_sources(input);
+  const has_own = (obj, prop) => Object.prototype.hasOwnProperty.call(obj, prop);
+  const cache = /* @__PURE__ */ Object.create(null);
+  const copy_metadata = (source, target, omit = []) => {
+    if (!source || !target) return;
+    const skips = /* @__PURE__ */ new Set([...ignored_meta_keys, ...omit]);
+    for (const key of Reflect.ownKeys(source)) {
+      if (skips.has(key)) continue;
+      const descriptor = Object.getOwnPropertyDescriptor(source, key);
+      if (!descriptor) continue;
+      try {
+        Object.defineProperty(target, key, descriptor);
+      } catch {
+        target[key] = descriptor.value;
+      }
+    }
+  };
+  const instantiate_class = (Ctor) => {
+    const instance = new Ctor(ctx);
+    const candidate = instance.action || instance.run || instance.execute || instance.call;
+    if (is_function(candidate)) {
+      const bound = candidate.bind(instance);
+      copy_metadata(Ctor, bound);
+      copy_metadata(instance, bound);
+      bound.instance = instance;
+      return bound;
+    }
+    copy_metadata(Ctor, instance);
+    return instance;
+  };
+  const bind_or_clone = (val) => {
+    if (is_class_export(val)) {
+      return instantiate_class(val);
+    }
+    if (is_action_object(val)) {
+      const bound = val.action.bind(ctx);
+      copy_metadata(val, bound, ["action"]);
+      return bound;
+    }
+    if (is_function(val)) {
+      const bound = val.bind(ctx);
+      copy_metadata(val, bound);
+      return bound;
+    }
+    if (is_plain_object5(val)) {
+      return clone_with_descriptors(val);
+    }
+    return val;
+  };
+  const scope_actions_for = () => {
+    const scope_key = ctx?.constructor?.key;
+    if (typeof scope_key === "undefined" || scope_key === null) return null;
+    const bucket = scoped_sources.get(scope_key);
+    return bucket && is_plain_object5(bucket) ? bucket : null;
+  };
+  const cache_result = (target, prop, value) => {
+    target[prop] = value;
+    return value;
+  };
+  const compute_and_cache = (target, prop) => {
+    const scoped = scope_actions_for();
+    if (scoped && has_own(scoped, prop)) {
+      return cache_result(target, prop, bind_or_clone(scoped[prop]));
+    }
+    if (has_own(global_source, prop)) {
+      return cache_result(target, prop, bind_or_clone(global_source[prop]));
+    }
+    return cache_result(target, prop, void 0);
+  };
+  const union_keys = () => {
+    const scoped = scope_actions_for();
+    const keys = new Set(Reflect.ownKeys(cache));
+    for (const key of Reflect.ownKeys(global_source)) {
+      keys.add(key);
+    }
+    if (scoped) {
+      for (const key of Reflect.ownKeys(scoped)) {
+        keys.add(key);
+      }
+    }
+    return Array.from(keys);
+  };
+  const descriptor_for = (target, prop) => ({
+    configurable: true,
+    enumerable: true,
+    value: target[prop]
+  });
+  return new Proxy(cache, {
+    get: (target, prop) => {
+      if (prop === Symbol.toStringTag) return "ActionsProxy";
+      if (prop in target) return target[prop];
+      return compute_and_cache(target, prop);
+    },
+    has: (target, prop) => {
+      if (prop in target) return true;
+      const scoped = scope_actions_for();
+      if (scoped && has_own(scoped, prop)) return true;
+      return has_own(global_source, prop);
+    },
+    ownKeys: () => union_keys(),
+    getOwnPropertyDescriptor: (target, prop) => {
+      if (has_own(target, prop)) {
+        return descriptor_for(target, prop);
+      }
+      const scoped = scope_actions_for();
+      if (scoped && has_own(scoped, prop)) {
+        if (!has_own(target, prop)) {
+          compute_and_cache(target, prop);
+        }
+        return descriptor_for(target, prop);
+      }
+      if (has_own(global_source, prop)) {
+        if (!has_own(target, prop)) {
+          compute_and_cache(target, prop);
+        }
+        return descriptor_for(target, prop);
+      }
+      return void 0;
+    },
+    defineProperty: (target, prop, descriptor) => {
+      if ("value" in descriptor) {
+        target[prop] = descriptor.value;
+        return true;
+      }
+      return false;
+    },
+    set: (target, prop, value) => {
+      target[prop] = value;
+      return true;
+    },
+    deleteProperty: (target, prop) => {
+      if (has_own(target, prop)) {
+        delete target[prop];
+      }
+      return true;
+    }
+  });
+}
+
 // node_modules/obsidian-smart-env/node_modules/smart-collections/item.js
 var CollectionItem = class _CollectionItem {
+  static version = 2e-3;
   /**
    * Default properties for an instance of CollectionItem.
    * Override in subclasses to define different defaults.
@@ -3300,7 +3767,7 @@ var CollectionItem = class _CollectionItem {
     env.create_env_getter(this);
     this.config = this.env?.config;
     this.merge_defaults();
-    if (data) deep_merge2(this.data, data);
+    if (data) deep_merge(this.data, data);
     if (!this.data.class_name) this.data.class_name = this.collection.item_class_name;
   }
   /**
@@ -3351,7 +3818,7 @@ var CollectionItem = class _CollectionItem {
   update_data(data) {
     const sanitized_data = this.sanitize_data(data);
     const current_data = { ...this.data };
-    deep_merge2(current_data, sanitized_data);
+    deep_merge(current_data, sanitized_data);
     const changed = !deep_equal(this.data, current_data);
     if (!changed) return false;
     this.data = current_data;
@@ -3452,6 +3919,9 @@ var CollectionItem = class _CollectionItem {
    * @param {string} [filter_opts.exclude_key_starts_with] - Exclude keys starting with this string.
    * @param {string[]} [filter_opts.exclude_key_starts_with_any] - Exclude keys starting with any of these strings.
    * @param {string} [filter_opts.exclude_key_includes] - Exclude keys that include this string.
+   * @param {string[]} [filter_opts.exclude_key_includes_any] - Exclude keys that include any of these strings.
+   * @param {string} [filter_opts.exclude_key_ends_with] - Exclude keys ending with this string.
+   * @param {string[]} [filter_opts.exclude_key_ends_with_any] - Exclude keys ending with any of these strings.
    * @param {string} [filter_opts.key_ends_with] - Include only keys ending with this string.
    * @param {string} [filter_opts.key_starts_with] - Include only keys starting with this string.
    * @param {string[]} [filter_opts.key_starts_with_any] - Include only keys starting with any of these strings.
@@ -3467,6 +3937,7 @@ var CollectionItem = class _CollectionItem {
       exclude_key_includes,
       exclude_key_includes_any,
       exclude_key_ends_with,
+      exclude_key_ends_with_any,
       key_ends_with,
       key_starts_with,
       key_starts_with_any,
@@ -3479,6 +3950,7 @@ var CollectionItem = class _CollectionItem {
     if (exclude_key_includes && this.key.includes(exclude_key_includes)) return false;
     if (exclude_key_includes_any && exclude_key_includes_any.some((include) => this.key.includes(include))) return false;
     if (exclude_key_ends_with && this.key.endsWith(exclude_key_ends_with)) return false;
+    if (exclude_key_ends_with_any && exclude_key_ends_with_any.some((suffix) => this.key.endsWith(suffix))) return false;
     if (key_ends_with && !this.key.endsWith(key_ends_with)) return false;
     if (key_starts_with && !this.key.startsWith(key_starts_with)) return false;
     if (key_starts_with_any && !key_starts_with_any.some((prefix) => this.key.startsWith(prefix))) return false;
@@ -3486,17 +3958,32 @@ var CollectionItem = class _CollectionItem {
     if (key_includes_any && !key_includes_any.some((include) => this.key.includes(include))) return false;
     return true;
   }
+  filter_and_score(params = {}) {
+    if (this.filter(params.filter) === false) return null;
+    return this.score(params);
+  }
+  score(params = {}) {
+    const score_action = this.actions[params.score_algo_key];
+    if (typeof score_action !== "function") throw new Error(`Missing score action: ${params.score_algo_key}`);
+    return {
+      ...score_action(params) || {},
+      item: this
+    };
+  }
   /**
    * Parses item data for additional processing. Override as needed.
+   * @deprecated is this used anywhere?
    */
   parse() {
   }
   get actions() {
     if (!this._actions) {
-      this._actions = Object.entries(this.env.opts.items[this.item_type_key].actions || {}).reduce((acc, [k, v]) => {
-        acc[k] = v.bind(this);
-        return acc;
-      }, {});
+      this._actions = create_actions_proxy(this, {
+        ...this.env.config.actions || {},
+        // main actions scope for actions/ exports
+        ...this.env.opts.items?.[this.item_type_key]?.actions || {}
+        // DEPRECATED OR KEEP?
+      });
     }
     return this._actions;
   }
@@ -3533,14 +4020,29 @@ var CollectionItem = class _CollectionItem {
   get item_type_key() {
     let name = this.constructor.name;
     if (name.match(/\d$/)) name = name.slice(0, -1);
-    return camel_case_to_snake_case2(name);
+    return camel_case_to_snake_case(name);
   }
   /**
-   * A simple reference object for this item.
-   * @returns {{collection_key: string, key: string}}
+   * Emits an event with item metadata.
+   *
+   * @param {string} event_key
+   * @param {Object} [payload={}]
+   * @returns {void}
    */
-  get ref() {
-    return { collection_key: this.collection_key, key: this.key };
+  emit_event(event_key, payload = {}) {
+    this.env.events?.emit(event_key, { collection_key: this.collection_key, item_key: this.key, ...payload });
+  }
+  on_event(event_key, callback) {
+    return this.env.events?.on(event_key, (payload) => {
+      if (payload?.item_key && payload.item_key !== this.key) return;
+      callback(payload);
+    });
+  }
+  once_event(event_key, callback) {
+    return this.env.events?.once(event_key, (payload) => {
+      if (payload?.item_key && payload.item_key !== this.key) return;
+      callback(payload);
+    });
   }
   /**
    * @returns {Object} The data adapter for this item's collection.
@@ -3566,43 +4068,40 @@ var CollectionItem = class _CollectionItem {
     this.env.settings[this.collection_key] = settings;
     this.env.smart_settings.save();
   }
-  // /**
-  //  * Render this item into a container using the item's component.
-  //  * @deprecated 2024-12-02 Use explicit component pattern from environment
-  //  * @param {HTMLElement} container
-  //  * @param {Object} opts
-  //  * @returns {Promise<HTMLElement>}
-  //  */
-  // async render_item(container, opts = {}) {
-  //   const frag = await this.component.call(this.smart_view, this, opts);
-  //   this.env.smart_view.empty(container);
-  //   container.appendChild(frag);
-  //   return container;
-  // }
   /**
-   * @deprecated use env.smart_view
-   * @returns {Object}
+   * A simple reference object for this item.
+   * @deprecated 2025-11-11 lacks adoption
+   * @returns {{collection_key: string, key: string}}
+   */
+  get ref() {
+    return { collection_key: this.collection_key, key: this.key };
+  }
+  /**
+   * @deprecated use env.smart_components~~env.smart_view~~ instead
    */
   get smart_view() {
     if (!this._smart_view) this._smart_view = this.env.init_module("smart_view");
     return this._smart_view;
   }
-  // /**
-  //  * Override in child classes to set the component for this item
-  //  * @deprecated 2024-12-02
-  //  * @returns {Function} The render function for this component
-  //  */
-  // get component() { return item_component; }
+  /**
+   * Retrieves the display name of the collection item.
+   * @readonly
+   * @deprecated Use `get_item_display_name(key, show_full_path)` instead (keep UI logic out of collections).
+   * @returns {string} The display name.
+   */
+  get name() {
+    return get_item_display_name(
+      this.key,
+      this.env.settings.smart_view_filter?.show_full_path
+    );
+  }
 };
-function camel_case_to_snake_case2(str) {
-  const result = str.replace(/([A-Z])/g, (match) => `_${match.toLowerCase()}`).replace(/^_/, "").replace(/2$/, "");
-  return result;
-}
 
 // node_modules/obsidian-smart-env/node_modules/smart-collections/collection.js
 var AsyncFunction = Object.getPrototypeOf(async function() {
 }).constructor;
 var Collection = class {
+  static version = 1e-3;
   /**
    * Constructs a new Collection instance.
    *
@@ -3610,7 +4109,6 @@ var Collection = class {
    * @param {Object} [opts={}] - Optional configuration.
    * @param {string} [opts.collection_key] - Custom key to override default collection name.
    * @param {string} [opts.data_dir] - Custom data directory path.
-   * @param {boolean} [opts.prevent_load_on_init] - Whether to prevent loading items on initialization.
    */
   constructor(env, opts = {}) {
     env.create_env_getter(this);
@@ -3659,6 +4157,8 @@ var Collection = class {
    * If validation succeeds for a new item, it is added to the collection and marked for saving.
    *
    * If the item’s `init()` method is async, a promise is returned that resolves once init completes.
+   * 
+   * NOTE: wrapping in try/catch seems to fail to catch errors thrown in async init functions when awaiting create_or_update
    *
    * @param {Object} [data={}] - Data for creating/updating an item.
    * @returns {Promise<Item>|Item} The created or updated item. May return a promise if `init()` is async.
@@ -3694,7 +4194,7 @@ var Collection = class {
     if (data.key) return this.get(data.key);
     const temp = new this.item_type(this.env);
     const temp_data = JSON.parse(JSON.stringify(data, temp.sanitize_data(data)));
-    deep_merge2(temp.data, temp_data);
+    deep_merge(temp.data, temp_data);
     return temp.key ? this.get(temp.key) : null;
   }
   /**
@@ -3707,7 +4207,6 @@ var Collection = class {
     if (typeof filter_opts === "function") {
       return Object.values(this.items).filter(filter_opts);
     }
-    filter_opts = this.prepare_filter(filter_opts);
     const results = [];
     const { first_n } = filter_opts;
     for (const item of Object.values(this.items)) {
@@ -3723,15 +4222,6 @@ var Collection = class {
    */
   list(filter_opts) {
     return this.filter(filter_opts);
-  }
-  /**
-   * Prepares filter options. Can be overridden by subclasses to normalize filter options.
-   *
-   * @param {Object} filter_opts
-   * @returns {Object} Prepared filter options.
-   */
-  prepare_filter(filter_opts) {
-    return filter_opts;
   }
   /**
    * Retrieves an item by key.
@@ -3818,6 +4308,7 @@ var Collection = class {
   }
   /**
    * Data directory strategy for this collection. Defaults to 'multi'.
+   * @deprecated should be handled in adapters (2025-12-09)
    * @returns {string}
    */
   get data_dir() {
@@ -3850,11 +4341,28 @@ var Collection = class {
   }
   /**
    * Retrieves the item type (constructor) from the environment.
+   * @deprecated replace with item_class with strict adherence to conventions (2025-10-28)
    * @returns {Function} Item constructor.
    */
   get item_type() {
-    if (this.opts.item_type) return this.opts.item_type;
-    return this.env.item_types[this.item_class_name];
+    if (!this._item_type) this._item_type = this.resolve_item_type();
+    return this._item_type;
+  }
+  // TEMP resolver (2025-11-03): until better handled on merging configs at obsidian-smart-env startup
+  resolve_item_type() {
+    const available = [
+      this.env.config?.items?.[this.item_name],
+      this.opts.item_type,
+      this.env.item_types?.[this.item_class_name]
+    ].filter(Boolean).sort((a, b) => {
+      const a_version = a?.class?.version || a.version || 0;
+      const b_version = b?.class?.version || b.version || 0;
+      return b_version - a_version;
+    });
+    if (available.length === 0) {
+      throw new Error(`No item_type found for collection '${this.collection_key}' with item_name '${this.item_name}' or class_name '${this.item_class_name}'`);
+    }
+    return available[0].class || available[0];
   }
   /**
    * Returns an array of all keys in the collection.
@@ -3907,6 +4415,7 @@ var Collection = class {
   }
   /**
    * Processes given settings config, adding prefixes and handling conditionals.
+   * @deprecated removing settings_config from collections (2025-11-24)
    *
    * @private
    * @param {Object} _settings_config
@@ -3956,7 +4465,85 @@ var Collection = class {
     return this.env.settings[this.collection_key];
   }
   /**
-   * @deprecated use env.smart_view instead
+   * Unloads collection data from memory.
+   */
+  unload() {
+    this.clear();
+    this.unloaded = true;
+    this.env.collections[this.collection_key] = null;
+  }
+  /**
+   * Displays a process notice if the operation exceeds one second.
+   *
+   * @param {string} process - Identifier for the ongoing process.
+   * @param {Object} [opts={}] - Additional options passed to the notice.
+   */
+  show_process_notice(process, opts = {}) {
+    if (!this.debounce_process_notice) this.debounce_process_notice = {};
+    this.debounce_process_notice[process] = setTimeout(() => {
+      this.debounce_process_notice[process] = null;
+      this.env.notices?.show(process, { collection_key: this.collection_key, ...opts });
+    }, 1e3);
+  }
+  /**
+   * Clears any pending process notice timers and removes active notices.
+   *
+   * @param {string} process - Identifier for the process notice to clear.
+   */
+  clear_process_notice(process) {
+    if (this.debounce_process_notice?.[process]) {
+      clearTimeout(this.debounce_process_notice[process]);
+      this.debounce_process_notice[process] = null;
+    } else {
+      this.env.notices?.remove(process);
+    }
+  }
+  /**
+   * Emits an event with collection metadata.
+   *
+   * @param {string} event_key
+   * @param {Object} [payload={}]
+   * @returns {void}
+   */
+  emit_event(event_key, payload = {}) {
+    this.env.events?.emit(event_key, { collection_key: this.collection_key, ...payload });
+  }
+  /**
+   * Lazily binds action functions to the collection instance.
+   *
+   * @returns {Object} Bound action functions keyed by name.
+   */
+  get actions() {
+    if (!this.constructor.key) this.constructor.key = this.collection_key;
+    if (!this._actions) {
+      const actions_modules = {
+        ...this.env?.config?.actions || {},
+        ...this.env?.config?.collections?.[this.collection_key]?.actions || {},
+        ...this.env?.opts?.collections?.[this.collection_key]?.actions || {},
+        ...this.opts?.actions || {}
+      };
+      this._actions = create_actions_proxy(this, actions_modules);
+    }
+    return this._actions;
+  }
+  /**
+   * Clears cached actions proxy and rebuilds on next access.
+   * @returns {Object} Rebuilt proxy with latest source snapshot.
+   */
+  refresh_actions() {
+    this._actions = null;
+    return this.actions;
+  }
+  // debounce running process save queue
+  queue_save() {
+    if (this._debounce_queue_save) clearTimeout(this._debounce_queue_save);
+    this._debounce_queue_save = setTimeout(() => {
+      this.process_save_queue();
+    }, 750);
+  }
+  // BEGIN DEPRECATED
+  /**
+   * @deprecated use env.smart_components~~env.smart_view~~ instead
    * @returns {Object} smart_view instance
    */
   get smart_view() {
@@ -3992,30 +4579,6 @@ var Collection = class {
     container.appendChild(frag);
     return container;
   }
-  /**
-   * Unloads collection data from memory.
-   */
-  unload() {
-    this.clear();
-    this.unloaded = true;
-    this.env.collections[this.collection_key] = null;
-  }
-  // only show process notice if taking longer than 1 second
-  show_process_notice(process2, opts = {}) {
-    if (!this.debounce_process_notice) this.debounce_process_notice = {};
-    this.debounce_process_notice[process2] = setTimeout(() => {
-      this.debounce_process_notice[process2] = null;
-      this.env.notices?.show(process2, { collection_key: this.collection_key, ...opts });
-    }, 1e3);
-  }
-  clear_process_notice(process2) {
-    if (this.debounce_process_notice?.[process2]) {
-      clearTimeout(this.debounce_process_notice[process2]);
-      this.debounce_process_notice[process2] = null;
-    } else {
-      this.env.notices?.remove(process2);
-    }
-  }
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-entities/adapters/_adapter.js
@@ -4033,6 +4596,7 @@ var EntitiesVectorAdapter = class {
    * @param {number[]} vec - The reference vector.
    * @param {Object} [filter={}] - Optional filters (limit, exclude, etc.)
    * @returns {Promise<Array<{item:Object, score:number}>>} Array of results sorted by score descending.
+   * @abstract
    * @throws {Error} Not implemented by default.
    */
   async nearest(vec, filter = {}) {
@@ -4044,6 +4608,7 @@ var EntitiesVectorAdapter = class {
    * @param {number[]} vec - The reference vector.
    * @param {Object} [filter={}] - Optional filters (limit, exclude, etc.)
    * @returns {Promise<Array<{item:Object, score:number}>>} Array of results sorted by score ascending (furthest).
+   * @abstract
    * @throws {Error} Not implemented by default.
    */
   async furthest(vec, filter = {}) {
@@ -4054,6 +4619,7 @@ var EntitiesVectorAdapter = class {
    * @async
    * @param {Object[]} entities - Array of entity instances to embed.
    * @returns {Promise<void>}
+   * @abstract
    * @throws {Error} Not implemented by default.
    */
   async embed_batch(entities) {
@@ -4065,6 +4631,7 @@ var EntitiesVectorAdapter = class {
    * @async
    * @param {Object[]} embed_queue - Array of entities to embed.
    * @returns {Promise<void>}
+   * @abstract
    * @throws {Error} Not implemented by default.
    */
   async process_embed_queue(embed_queue) {
@@ -4083,6 +4650,7 @@ var EntityVectorAdapter = class {
    * Retrieve the current vector embedding for this entity.
    * @async
    * @returns {Promise<number[]|undefined>} The entity's vector or undefined if not set.
+   * @abstract
    * @throws {Error} Not implemented by default.
    */
   async get_vec() {
@@ -4093,6 +4661,7 @@ var EntityVectorAdapter = class {
    * @async
    * @param {number[]} vec - The vector to set.
    * @returns {Promise<void>}
+   * @abstract
    * @throws {Error} Not implemented by default.
    */
   async set_vec(vec) {
@@ -4102,6 +4671,7 @@ var EntityVectorAdapter = class {
    * Delete/remove the vector embedding for this entity.
    * @async
    * @returns {Promise<void>}
+   * @abstract
    * @throws {Error} Not implemented by default.
    */
   async delete_vec() {
@@ -4109,29 +4679,7 @@ var EntityVectorAdapter = class {
   }
 };
 
-// node_modules/obsidian-smart-env/node_modules/smart-entities/utils/cos_sim.js
-function cos_sim(vector1, vector2) {
-  if (vector1.length !== vector2.length) {
-    throw new Error("Vectors must have the same length");
-  }
-  let dot_product = 0;
-  let magnitude1 = 0;
-  let magnitude2 = 0;
-  const epsilon = 1e-8;
-  for (let i = 0; i < vector1.length; i++) {
-    dot_product += vector1[i] * vector2[i];
-    magnitude1 += vector1[i] * vector1[i];
-    magnitude2 += vector2[i] * vector2[i];
-  }
-  magnitude1 = Math.sqrt(magnitude1);
-  magnitude2 = Math.sqrt(magnitude2);
-  if (magnitude1 < epsilon || magnitude2 < epsilon) {
-    return 0;
-  }
-  return dot_product / (magnitude1 * magnitude2);
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-entities/utils/results_acc.js
+// node_modules/obsidian-smart-env/node_modules/smart-utils/results_acc.js
 function results_acc(_acc, result, ct = 10) {
   if (_acc.results.size < ct) {
     _acc.results.add(result);
@@ -4187,7 +4735,7 @@ function find_max(results) {
   return { maxScore, maxObj };
 }
 
-// node_modules/obsidian-smart-env/node_modules/smart-entities/utils/sort_by_score.js
+// node_modules/obsidian-smart-env/node_modules/smart-utils/sort_by_score.js
 function sort_by_score(a, b) {
   const epsilon = 1e-9;
   const score_diff = a.score - b.score;
@@ -4271,6 +4819,7 @@ var DefaultEntitiesVectorAdapter = class extends EntitiesVectorAdapter {
       entity.vec = emb.vec;
       entity.data.last_embed = entity.data.last_read;
       if (emb.tokens !== void 0) entity.tokens = emb.tokens;
+      entity.emit_event("item:embedded");
     });
   }
   /**
@@ -4290,10 +4839,14 @@ var DefaultEntitiesVectorAdapter = class extends EntitiesVectorAdapter {
         await this.collection.embed_model.load();
       }
     } catch (e) {
+      this.collection.emit_event("embed_model:load_failed");
       this.notices?.show("Failed to load embed_model");
       return;
     }
     try {
+      const datetime_start = Date.now();
+      console.log(`Getting embed queue for ${this.collection.collection_key}...`);
+      await new Promise((resolve) => setTimeout(resolve, 1));
       const embed_queue = this.collection.embed_queue;
       this._reset_embed_queue_stats();
       if (this.collection.embed_model_key === "None") {
@@ -4304,12 +4857,11 @@ var DefaultEntitiesVectorAdapter = class extends EntitiesVectorAdapter {
         console.log(`Smart Connections: No active embedding model for ${this.collection.collection_key}, skipping embedding`);
         return;
       }
-      const datetime_start = /* @__PURE__ */ new Date();
       if (!embed_queue.length) {
         console.log(`Smart Connections: No items in ${this.collection.collection_key} embed queue`);
         return;
       }
-      console.log(`Time spent getting embed queue: ${(/* @__PURE__ */ new Date()).getTime() - datetime_start.getTime()}ms`);
+      console.log(`Time spent getting embed queue: ${Date.now() - datetime_start}ms`);
       console.log(`Processing ${this.collection.collection_key} embed queue: ${embed_queue.length} items`);
       for (let i = 0; i < embed_queue.length; i += this.collection.embed_model.batch_size) {
         if (this.is_queue_halted) {
@@ -4367,9 +4919,16 @@ Please set the API key in the settings.`);
    * @returns {void}
    */
   _show_embed_progress_notice(embed_queue_length) {
+    if (embed_queue_length < 100) return;
     if (!this.should_show_embed_progress_notice) return;
     this.last_notice_time = Date.now();
     this.last_notice_embedded_total = this.embedded_total;
+    this.collection.emit_event("embedding:progress_reported", {
+      progress: this.embedded_total,
+      total: embed_queue_length,
+      tokens_per_second: this._calculate_embed_tokens_per_second(),
+      model_name: this.collection.embed_model_key
+    });
     this.notices?.show("embedding_progress", {
       progress: this.embedded_total,
       total: embed_queue_length,
@@ -4384,11 +4943,18 @@ Please set the API key in the settings.`);
    */
   _show_embed_completion_notice() {
     this.notices?.remove("embedding_progress");
-    this.notices?.show("embedding_complete", {
-      total_embeddings: this.embedded_total,
-      tokens_per_second: this._calculate_embed_tokens_per_second(),
-      model_name: this.collection.embed_model_key
-    });
+    if (this.embedded_total > 100) {
+      this.collection.emit_event("embedding:completed", {
+        total_embeddings: this.embedded_total,
+        tokens_per_second: this._calculate_embed_tokens_per_second(),
+        model_name: this.collection.embed_model_key
+      });
+      this.notices?.show("embedding_complete", {
+        total_embeddings: this.embedded_total,
+        tokens_per_second: this._calculate_embed_tokens_per_second(),
+        model_name: this.collection.embed_model_key
+      });
+    }
   }
   /**
    * Halts the embed queue processing.
@@ -4398,6 +4964,12 @@ Please set the API key in the settings.`);
     this.is_queue_halted = true;
     console.log("Embed queue processing halted");
     this.notices?.remove("embedding_progress");
+    this.collection.emit_event("embedding:paused", {
+      progress: this.embedded_total,
+      total: this.collection._embed_queue.length,
+      tokens_per_second: this._calculate_embed_tokens_per_second(),
+      model_name: this.collection.embed_model_key
+    });
     this.notices?.show("embedding_paused", {
       progress: this.embedded_total,
       total: this.collection._embed_queue.length,
@@ -4442,7 +5014,7 @@ Please set the API key in the settings.`);
     this.total_time = 0;
   }
   get notices() {
-    return this.collection.notices;
+    return this.collection.env.notices;
   }
 };
 var DefaultEntityVectorAdapter = class extends EntityVectorAdapter {
@@ -4492,10 +5064,80 @@ var DefaultEntityVectorAdapter = class extends EntityVectorAdapter {
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-entities/actions/find_connections.js
+var FRONTMATTER_SUFFIX = "---frontmatter---";
+var to_array = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => typeof entry === "string" ? entry.trim() : "").filter((entry) => entry.length > 0);
+  }
+  if (typeof value === "string") {
+    const parts = value.includes(",") ? value.split(",") : [value];
+    return parts.map((part) => part.trim()).filter((part) => part.length > 0);
+  }
+  return [];
+};
+var merge_settings_with_params = (entity, params = {}) => ({
+  ...entity.env.settings.smart_view_filter || {},
+  ...params,
+  entity
+});
+var remove_limit_fields = (filter_opts) => {
+  const next = { ...filter_opts };
+  if (typeof next.limit !== "undefined") delete next.limit;
+  if (next.filter) {
+    next.filter = { ...next.filter };
+    if (typeof next.filter.limit !== "undefined") delete next.filter.limit;
+  }
+  return next;
+};
+var apply_frontmatter_exclusion = (filter_opts) => {
+  if (!filter_opts.exclude_frontmatter_blocks) return filter_opts;
+  const next = { ...filter_opts };
+  const suffixes = Array.isArray(next.exclude_key_ends_with_any) ? [...next.exclude_key_ends_with_any] : [];
+  suffixes.push(FRONTMATTER_SUFFIX);
+  next.exclude_key_ends_with_any = suffixes;
+  return next;
+};
+var append_entity_filters = (filter_opts, entity) => {
+  if (!entity) return filter_opts;
+  const next = { ...filter_opts };
+  let exclude_starts = Array.isArray(next.exclude_key_starts_with_any) ? [...next.exclude_key_starts_with_any] : [];
+  if (typeof next.exclude_key_starts_with === "string") {
+    exclude_starts.push(next.exclude_key_starts_with);
+    delete next.exclude_key_starts_with;
+  }
+  const entity_key = entity.source_key || entity.key;
+  if (entity_key) exclude_starts.push(entity_key);
+  if (next.exclude_inlinks && Array.isArray(entity.inlinks) && entity.inlinks.length) {
+    exclude_starts = [...exclude_starts, ...entity.inlinks];
+  }
+  if (next.exclude_outlinks && Array.isArray(entity.outlinks) && entity.outlinks.length) {
+    exclude_starts = [...exclude_starts, ...entity.outlinks];
+  }
+  if (exclude_starts.length) next.exclude_key_starts_with_any = exclude_starts;
+  if (next.exclude_filter) {
+    const exclude_values = to_array(next.exclude_filter);
+    const current = Array.isArray(next.exclude_key_includes_any) ? [...next.exclude_key_includes_any] : [];
+    next.exclude_key_includes_any = [...current, ...exclude_values];
+  }
+  if (next.include_filter) {
+    const include_values = to_array(next.include_filter);
+    const current = Array.isArray(next.key_includes_any) ? [...next.key_includes_any] : [];
+    next.key_includes_any = [...current, ...include_values];
+  }
+  return next;
+};
+var create_find_connections_filter_opts = (entity, params = {}) => {
+  const merged = merge_settings_with_params(entity, params);
+  const without_limits = remove_limit_fields(merged);
+  const with_frontmatter = apply_frontmatter_exclusion(without_limits);
+  return append_entity_filters(with_frontmatter, entity);
+};
 async function find_connections(params = {}) {
-  const filter_opts = this.prepare_find_connections_filter_opts(params);
   const limit = params.filter?.limit || params.limit || this.env.settings.smart_view_filter?.results_limit || 10;
-  const cache_key = this.key + JSON.stringify(params);
+  const filter_opts = create_find_connections_filter_opts(this, params);
+  if (params.filter?.limit) delete params.filter.limit;
+  if (params.limit) delete params.limit;
+  const cache_key = this.key + murmur_hash_32_alphanumeric(JSON.stringify({ ...filter_opts, entity: null }));
   if (!this.env.connections_cache) this.env.connections_cache = {};
   if (!this.env.connections_cache[cache_key]) {
     const connections = (await this.nearest(filter_opts)).sort(sort_by_score).slice(0, limit);
@@ -4503,6 +5145,7 @@ async function find_connections(params = {}) {
   }
   return this.connections_from_cache(cache_key);
 }
+find_connections.action_type = "connections";
 
 // node_modules/obsidian-smart-env/node_modules/smart-entities/smart_entity.js
 var SmartEntity = class extends CollectionItem {
@@ -4569,6 +5212,7 @@ var SmartEntity = class extends CollectionItem {
   /**
    * Finds the nearest entities to this entity.
    * @param {Object} [filter={}] - Optional filters to apply.
+   * @deprecated use actions (getter) instead
    * @returns {Array<{item:Object, score:number}>} An array of result objects with score and item.
    */
   async nearest(filter = {}) {
@@ -4592,24 +5236,10 @@ var SmartEntity = class extends CollectionItem {
     return this._embed_input ? this._embed_input : this.get_embed_input();
   }
   /**
-   * Prepares filter options for finding connections based on parameters.
-   * @param {Object} [params={}] - Parameters for finding connections.
-   * @returns {Object} The prepared filter options.
-   */
-  prepare_find_connections_filter_opts(params = {}) {
-    const opts = {
-      ...this.env.settings.smart_view_filter || {},
-      ...params,
-      entity: this
-    };
-    if (opts.filter?.limit) delete opts.filter.limit;
-    if (opts.limit) delete opts.limit;
-    return opts;
-  }
-  /**
    * Finds connections relevant to this entity based on provided parameters.
    * @async
    * @param {Object} [params={}] - Parameters for finding connections.
+   * @deprecated should be in actions (getter) but also see ConnectionsLists (smart-lists)
    * @returns {Array<{item:Object, score:number}>} An array of result objects with score and item.
    */
   async find_connections(params = {}) {
@@ -4618,6 +5248,7 @@ var SmartEntity = class extends CollectionItem {
   /**
    * Retrieves connections from the cache based on the cache key.
    * @param {string} cache_key - The cache key.
+   * @deprecated migrating to ConnectionsLists (smart-lists)
    * @returns {Array<{item:Object, score:number}>} The cached connections.
    */
   connections_from_cache(cache_key) {
@@ -4626,6 +5257,7 @@ var SmartEntity = class extends CollectionItem {
   /**
    * Stores connections in the cache with the provided cache key.
    * @param {string} cache_key - The cache key.
+   * @deprecated migrating to ConnectionsLists (smart-lists)
    * @param {Array<{item:Object, score:number}>} connections - The connections to cache.
    * @returns {void}
    */
@@ -4680,30 +5312,6 @@ var SmartEntity = class extends CollectionItem {
     return this.collection.embed_model_key;
   }
   /**
-   * Gets the name of the entity, formatted based on settings.
-   * @readonly
-   * @returns {string} The entity name.
-   */
-  get name() {
-    return (!this.should_show_full_path ? this.path.split("/").pop() : this.path.split("/").join(" > ")).split("#").join(" > ").replace(".md", "");
-  }
-  /**
-   * Determines whether to show the full path of the entity.
-   * @readonly
-   * @returns {boolean} True if the full path should be shown, false otherwise.
-   */
-  get should_show_full_path() {
-    return this.env.settings.smart_view_filter?.show_full_path;
-  }
-  /**
-   * @deprecated Use embed_model instead.
-   * @readonly
-   * @returns {Object} The smart embedding model.
-   */
-  get smart_embed() {
-    return this.embed_model;
-  }
-  /**
    * Gets the embedding model instance from the collection.
    * @readonly
    * @returns {Object} The embedding model instance.
@@ -4712,12 +5320,12 @@ var SmartEntity = class extends CollectionItem {
     return this.collection.embed_model;
   }
   /**
-   * Determines if the entity should be embedded.
+   * Determines if the entity should be embedded if unembedded. NOT the same as is_unembedded.
    * @readonly
    * @returns {boolean} True if no vector is set, false otherwise.
    */
   get should_embed() {
-    return !this.vec && this.size > (this.settings?.min_chars || 300);
+    return this.size > (this.settings?.min_chars || 300);
   }
   /**
    * Sets the error for the embedding model.
@@ -4804,36 +5412,6 @@ var SmartEntities = class extends Collection {
     this._embed_queue = [];
   }
   /**
-   * Initializes the SmartEntities instance by loading embeddings.
-   * @async
-   * @returns {Promise<void>}
-   */
-  async init() {
-    await super.init();
-    await this.load_smart_embed();
-    if (!this.embed_model) {
-      console.log(`SmartEmbed not loaded for **${this.collection_key}**. Continuing without embedding capabilities.`);
-    }
-  }
-  /**
-   * Loads the smart embedding model.
-   * @async
-   * @returns {Promise<void>}
-   */
-  async load_smart_embed() {
-    if (this.embed_model_key === "None") return;
-    if (!this.embed_model) return;
-    if (this.embed_model.is_loading) return console.log(`SmartEmbedModel already loading for ${this.embed_model_key}`);
-    if (this.embed_model.is_loaded) return console.log(`SmartEmbedModel already loaded for ${this.embed_model_key}`);
-    try {
-      console.log(`Loading SmartEmbedModel in ${this.collection_key}, current state: ${this.embed_model.state}`);
-      await this.embed_model.load();
-    } catch (e) {
-      console.error(`Error loading SmartEmbedModel for ${this.embed_model.model_key}`);
-      console.error(e);
-    }
-  }
-  /**
    * Unloads the smart embedding model.
    * @async
    * @returns {Promise<void>}
@@ -4853,41 +5431,15 @@ var SmartEntities = class extends Collection {
     return this.embed_model?.model_key;
   }
   /**
-   * Gets or creates the container for smart embeddings in the DOM.
-   * @readonly
-   * @returns {HTMLElement|undefined} The container element or undefined if not available.
-   */
-  get smart_embed_container() {
-    if (!this.model_instance_id) return console.log("model_key not set");
-    const id = this.model_instance_id.replace(/[^a-zA-Z0-9]/g, "_");
-    if (!window.document) return console.log("window.document not available");
-    if (window.document.querySelector(`#${id}`)) return window.document.querySelector(`#${id}`);
-    const container = window.document.createElement("div");
-    container.id = id;
-    window.document.body.appendChild(container);
-    return container;
-  }
-  /**
-   * @deprecated Use embed_model instead.
-   * @readonly
-   * @returns {Object} The smart embedding model.
-   */
-  get smart_embed() {
-    return this.embed_model;
-  }
-  /**
    * Gets the embedding model instance.
    * @readonly
    * @returns {Object|null} The embedding model instance or null if none.
    */
   get embed_model() {
-    if (!this.env._embed_model && this.env.opts.modules.smart_embed_model?.class) this.env._embed_model = new this.env.opts.modules.smart_embed_model.class({
-      settings: this.settings.embed_model,
-      adapters: this.env.opts.modules.smart_embed_model?.adapters,
-      re_render_settings: () => this.env.render_component("collection_settings", this, { settings_container: this.settings_container }),
-      reload_model: this.reload_embed_model.bind(this)
-    });
-    return this.env._embed_model;
+    if (this.env.embedding_models.default) {
+      return this.env.embedding_models.default.instance;
+    }
+    throw new Error("DEPRECATED SMART ENVIRONMENT LOADED: UPDATE SMART PLUGINS.");
   }
   set embed_model(embed_model) {
     this.env._embed_model = embed_model;
@@ -4901,6 +5453,7 @@ var SmartEntities = class extends Collection {
    * Finds the nearest entities to a given entity.
    * @async
    * @param {Object} entity - The reference entity.
+   * @deprecated moved to action (type=score) and retrieve using filter_and_score()/get_results() patterns 
    * @param {Object} [filter={}] - Optional filters to apply.
    * @returns {Promise<Array<{item:Object, score:number}>>} An array of result objects with score and item.
    */
@@ -4910,6 +5463,7 @@ var SmartEntities = class extends Collection {
   /**
    * Finds the nearest entities to a vector using the default adapter.
    * @async
+   * @deprecated moved to action (type=score) and retrieve using filter_and_score()/get_results() patterns 
    * @param {Array<number>} vec - The vector to compare against.
    * @param {Object} [filter={}] - Optional filters to apply.
    * @returns {Promise<Array<{item:Object, score:number}>>} An array of result objects with score and item.
@@ -4924,6 +5478,7 @@ var SmartEntities = class extends Collection {
   /**
    * Finds the furthest entities from a vector using the default adapter.
    * @async
+   * @deprecated moved to action (type=score) and retrieve using filter_and_score()/get_results() patterns 
    * @param {Array<number>} vec - The vector to compare against.
    * @param {Object} [filter={}] - Optional filters to apply.
    * @returns {Promise<Array<{item:Object, score:number}>>} An array of result objects with score and item.
@@ -4935,83 +5490,15 @@ var SmartEntities = class extends Collection {
   /**
    * Gets the file name based on collection key and embedding model key.
    * @readonly
+   * @deprecated likely unused (2025-09-29)
    * @returns {string} The constructed file name.
    */
   get file_name() {
     return this.collection_key + "-" + this.embed_model_key.split("/").pop();
   }
   /**
-   * Calculates the relevance of an item based on the search filter.
-   * @param {Object} item - The item to calculate relevance for.
-   * @param {Object} search_filter - The search filter containing keywords.
-   * @returns {number} The relevance score:
-   *                   1 if any keyword is found in the item's path,
-   *                   0 otherwise (default relevance for keyword in content).
-   */
-  calculate_relevance(item, search_filter) {
-    if (search_filter.keywords.some((keyword) => item.path?.includes(keyword))) return 1;
-    return 0;
-  }
-  /**
-   * Prepares the filter options by incorporating entity-based filters.
-   * @param {Object} [opts={}] - The filter options.
-   * @param {Object} [opts.entity] - The entity to base the filters on.
-   * @param {string|string[]} [opts.exclude_filter] - Keys or prefixes to exclude.
-   * @param {string|string[]} [opts.include_filter] - Keys or prefixes to include.
-   * @param {boolean} [opts.exclude_inlinks] - Whether to exclude inlinks of the entity.
-   * @param {boolean} [opts.exclude_outlinks] - Whether to exclude outlinks of the entity.
-   * @returns {Object} The modified filter options.
-   */
-  prepare_filter(opts = {}) {
-    const {
-      entity,
-      exclude_filter,
-      include_filter,
-      exclude_inlinks,
-      exclude_outlinks
-    } = opts;
-    if (entity) {
-      if (typeof opts.exclude_key_starts_with_any === "undefined") opts.exclude_key_starts_with_any = [];
-      if (opts.exclude_key_starts_with) {
-        opts.exclude_key_starts_with_any = [
-          opts.exclude_key_starts_with
-        ];
-        delete opts.exclude_key_starts_with;
-      }
-      opts.exclude_key_starts_with_any.push(entity.source_key || entity.key);
-      if (exclude_filter) {
-        if (!Array.isArray(opts.exclude_key_includes_any)) opts.exclude_key_includes_any = [];
-        if (typeof exclude_filter === "string") {
-          if (exclude_filter.includes(",")) {
-            opts.exclude_key_includes_any.push(...exclude_filter.split(","));
-          } else {
-            opts.exclude_key_includes_any.push(exclude_filter);
-          }
-        }
-      }
-      if (include_filter) {
-        if (!Array.isArray(opts.key_includes_any)) opts.key_includes_any = [];
-        if (typeof include_filter === "string") {
-          if (include_filter.includes(",")) {
-            opts.key_includes_any.push(...include_filter.split(","));
-          } else {
-            opts.key_includes_any.push(include_filter);
-          }
-        }
-      }
-      if (exclude_inlinks && entity?.inlinks?.length) {
-        if (!Array.isArray(opts.exclude_key_starts_with_any)) opts.exclude_key_starts_with_any = [];
-        opts.exclude_key_starts_with_any.push(...entity.inlinks);
-      }
-      if (exclude_outlinks && entity?.outlinks?.length) {
-        if (!Array.isArray(opts.exclude_key_starts_with_any)) opts.exclude_key_starts_with_any = [];
-        opts.exclude_key_starts_with_any.push(...entity.outlinks);
-      }
-    }
-    return opts;
-  }
-  /**
    * Looks up entities based on hypothetical content.
+   * @deprecated moved to action (type=score) and retrieve using get_results() (pre-process generates hypothetical vecs)
    * @async
    * @param {Object} [params={}] - The parameters for the lookup.
    * @param {Array<string>} [params.hypotheticals=[]] - The hypothetical content to lookup.
@@ -5083,7 +5570,11 @@ var SmartEntities = class extends Collection {
    * @returns {Array<Object>} The embed queue.
    */
   get embed_queue() {
-    if (!this._embed_queue?.length) this._embed_queue = Object.values(this.items).filter((item) => item._queue_embed && item.should_embed);
+    if (!this._embed_queue?.length) {
+      console.time(`Building embed queue`);
+      this._embed_queue = Object.values(this.items).filter((item) => item._queue_embed || item.is_unembedded && item.should_embed);
+      console.timeEnd(`Building embed queue`);
+    }
     return this._embed_queue;
   }
   /**
@@ -5105,6 +5596,9 @@ var SmartEntities = class extends Collection {
     this.render_settings();
     await this.process_load_queue();
   }
+  /**
+   * @deprecated since v4 2025-11-28
+   */
   get connections_filter_config() {
     return connections_filter_config;
   }
@@ -5124,11 +5618,11 @@ var connections_filter_config = {
     "type": "toggle",
     "description": "Turning on will include the folder path in the connections results."
   },
-  "smart_view_filter.render_markdown": {
-    "name": "Render markdown",
-    "type": "toggle",
-    "description": "Turn off to prevent rendering markdown and display connection results as plain text."
-  },
+  // "smart_view_filter.render_markdown": {
+  //   "name": "Render markdown",
+  //   "type": "toggle",
+  //   "description": "Turn off to prevent rendering markdown and display connection results as plain text.",
+  // },
   "smart_view_filter.results_limit": {
     "name": "Results limit",
     "type": "number",
@@ -5154,100 +5648,34 @@ var connections_filter_config = {
     "name": "Exclude filter",
     "type": "text",
     "description": "Notes must *not* match this value in their file/folder path. Matching notes will be *excluded* from the connections results. Separate multiple values with commas."
+  },
+  // should be better scoped at source-level (leaving here for now since connections_filter_config needs larger refactor)
+  "smart_view_filter.exclude_blocks_from_source_connections": {
+    "name": "Hide blocks in results",
+    "type": "toggle",
+    "description": "Show only sources in the connections results (no blocks)."
   }
+  // // hide frontmatter blocks from connections results
+  // "smart_view_filter.exclude_frontmatter_blocks": {
+  //   "name": "Hide frontmatter blocks in results",
+  //   "type": "toggle",
+  //   "description": "Show only sources in the connections results (no frontmatter blocks).",
+  // },
 };
-
-// node_modules/obsidian-smart-env/node_modules/smart-sources/components/source.js
-async function render2(entity, opts = {}) {
-  let markdown;
-  if (should_render_embed(entity)) markdown = `${entity.embed_link}
-
-${await entity.read()}`;
-  else markdown = process_for_rendering(await entity.read());
-  let frag;
-  if (source.env.settings.smart_view_filter.render_markdown) frag = await this.render_markdown(markdown, source);
-  else frag = this.create_doc_fragment(`<span>${markdown}</span>`);
-  return await post_process2.call(this, source, frag, opts);
-}
-function process_for_rendering(content) {
-  if (content.includes("```dataview")) content = content.replace(/```dataview/g, "```\\dataview");
-  if (content.includes("![[")) content = content.replace(/\!\[\[/g, "! [[");
-  return content;
-}
-async function post_process2(scope, frag, opts = {}) {
-  return frag;
-}
-function should_render_embed(entity) {
-  if (!entity) return false;
-  if (entity.is_media) return true;
-  return false;
-}
-
-// node_modules/smart-utils/geom.js
-function compute_centroid(points) {
-  if (!points || points.length === 0) {
-    return null;
-  }
-  const n = points.length;
-  const dim = points[0].length;
-  const sums = new Float64Array(dim);
-  for (let i = 0; i < n; i++) {
-    const p = points[i];
-    for (let d = 0; d < dim; d++) {
-      sums[d] += p[d];
-    }
-  }
-  for (let d = 0; d < dim; d++) {
-    sums[d] /= n;
-  }
-  return Array.from(sums);
-}
-function compute_medoid(points) {
-  if (!points || points.length === 0) {
-    return null;
-  }
-  if (points.length === 1) {
-    return points[0];
-  }
-  const n = points.length;
-  const dim = points[0].length;
-  const sum_of_distances = new Float64Array(n);
-  for (let i = 0; i < n - 1; i++) {
-    const p_i = points[i];
-    for (let j = i + 1; j < n; j++) {
-      const p_j = points[j];
-      let dist_sq = 0;
-      for (let d = 0; d < dim; d++) {
-        const diff = p_i[d] - p_j[d];
-        dist_sq += diff * diff;
-      }
-      const dist = Math.sqrt(dist_sq);
-      sum_of_distances[i] += dist;
-      sum_of_distances[j] += dist;
-    }
-  }
-  let min_index = 0;
-  let min_sum = sum_of_distances[0];
-  for (let i = 1; i < n; i++) {
-    if (sum_of_distances[i] < min_sum) {
-      min_sum = sum_of_distances[i];
-      min_index = i;
-    }
-  }
-  return points[min_index];
-}
 
 // node_modules/obsidian-smart-env/node_modules/smart-sources/actions/find_connections.js
 async function find_connections2(params = {}) {
-  let connections;
-  if (this.block_collection.settings.embed_blocks && params.exclude_source_connections) connections = [];
-  else connections = await find_connections.call(this, params);
-  const filter_opts = this.prepare_find_connections_filter_opts(params);
+  const filter_settings = this.env.settings.smart_view_filter;
+  const exclude_blocks_from_source_connections = params.exclude_blocks_from_source_connections ?? filter_settings?.exclude_blocks_from_source_connections ?? false;
   const limit = params.filter?.limit || params.limit || this.env.settings.smart_view_filter?.results_limit || 20;
+  let connections;
+  if (this.block_collection.settings.embed_blocks && !exclude_blocks_from_source_connections) connections = [];
+  else connections = await find_connections.call(this, params);
+  const filter_opts = create_find_connections_filter_opts(this, params);
   if (params.filter?.limit) delete params.filter.limit;
   if (params.limit) delete params.limit;
-  if (!params.exclude_blocks_from_source_connections) {
-    const cache_key = this.key + JSON.stringify(params) + "_blocks";
+  if (!exclude_blocks_from_source_connections) {
+    const cache_key = this.key + murmur_hash_32_alphanumeric(JSON.stringify({ ...filter_opts, entity: null })) + "_blocks";
     if (!this.env.connections_cache) this.env.connections_cache = {};
     if (!this.env.connections_cache[cache_key]) {
       const nearest = (await this.env.smart_blocks.nearest(this.vec, filter_opts)).sort(sort_by_score).slice(0, limit);
@@ -5260,6 +5688,7 @@ async function find_connections2(params = {}) {
   }
   return connections;
 }
+find_connections2.action_type = "connections";
 
 // node_modules/obsidian-smart-env/node_modules/smart-sources/smart_source.js
 var SmartSource = class extends SmartEntity {
@@ -5306,7 +5735,8 @@ var SmartSource = class extends SmartEntity {
   async import() {
     this._queue_import = false;
     try {
-      await this.source_adapter.import();
+      await this.source_adapter?.import();
+      this.emit_event("sources:imported");
     } catch (err) {
       if (err.code === "ENOENT") {
         console.log(`Smart Connections: Deleting ${this.path} data because it no longer exists on disk`);
@@ -5332,9 +5762,10 @@ var SmartSource = class extends SmartEntity {
   /**
    * Finds connections relevant to this SmartSource based on provided parameters.
    * @async
+   * @deprecated use ConnectionsLists
    * @param {Object} [params={}] - Parameters for finding connections.
-   * @param {boolean} [params.exclude_source_connections=false] - Whether to exclude source connections.
    * @param {boolean} [params.exclude_blocks_from_source_connections=false] - Whether to exclude block connections from source connections.
+   * @param {Object} [params.exclude_frontmatter_blocks=true] - Whether to exclude frontmatter blocks from source connections.
    * @returns {Array<SmartSource>} An array of relevant SmartSource entities.
    */
   async find_connections(params = {}) {
@@ -5348,6 +5779,10 @@ var SmartSource = class extends SmartEntity {
   async get_embed_input(content = null) {
     if (typeof this._embed_input === "string" && this._embed_input.length) return this._embed_input;
     if (!content) content = await this.read();
+    if (!content) {
+      console.warn("SmartSource.get_embed_input: No content available for embedding: " + this.path);
+      return "";
+    }
     if (this.excluded_lines.length) {
       const content_lines = content.split("\n");
       this.excluded_lines.forEach((lines) => {
@@ -5359,7 +5794,7 @@ var SmartSource = class extends SmartEntity {
       content = content_lines.filter((line) => line.length).join("\n");
     }
     const breadcrumbs = this.path.split("/").join(" > ").replace(".md", "");
-    const max_tokens = this.collection.embed_model.model_config.max_tokens || 500;
+    const max_tokens = this.collection.embed_model.model.data.max_tokens || 500;
     const max_chars = Math.floor(max_tokens * 3.7);
     this._embed_input = `${breadcrumbs}:
 ${content}`.substring(0, max_chars);
@@ -5416,6 +5851,14 @@ ${content}`.substring(0, max_chars);
     if (limit && this.collection.search_results_ct >= limit) return 0;
     const lowercased_keywords = keywords.map((keyword) => keyword.toLowerCase());
     const content = await this.read();
+    if (!content || typeof content !== "string" || !content.length) {
+      if (content.mime_type) {
+        console.warn(`Entity.search: No content available for searching: ${this.path}, mime_type: ${content.mime_type}`);
+      } else {
+        console.warn(`Entity.search: No content available for searching: ${this.path}, content: ${content ? JSON.stringify(content) : "empty"}`);
+      }
+      return 0;
+    }
     const lowercased_content = content.toLowerCase();
     const lowercased_path = this.path.toLowerCase();
     const matching_keywords = lowercased_keywords.filter(
@@ -5430,6 +5873,17 @@ ${content}`.substring(0, max_chars);
   /**
    * ADAPTER METHODS
    */
+  use_source_adapter(method, ...args) {
+    if (!this.source_adapter) {
+      console.warn(`No source adapter available for ${this.key}. Cannot use method ${method}.`);
+      return;
+    }
+    if (typeof this.source_adapter[method] !== "function") {
+      console.warn(`Source adapter for ${this.key} does not implement method ${method}.`);
+      return;
+    }
+    return this.source_adapter[method](...args);
+  }
   /**
    * Appends content to the end of the source file.
    * @async
@@ -5437,7 +5891,7 @@ ${content}`.substring(0, max_chars);
    * @returns {Promise<void>} A promise that resolves when the operation is complete.
    */
   async append(content) {
-    await this.source_adapter.append(content);
+    await this.use_source_adapter("append", content);
     await this.import();
   }
   /**
@@ -5449,11 +5903,10 @@ ${content}`.substring(0, max_chars);
    */
   async update(full_content, opts = {}) {
     try {
-      await this.source_adapter.update(full_content, opts);
+      await this.use_source_adapter("update", full_content, opts);
       await this.import();
     } catch (error) {
-      console.error("Error during update:", error);
-      throw error;
+      console.error(`Error during update for ${this.key}:`, error);
     }
   }
   /**
@@ -5464,11 +5917,10 @@ ${content}`.substring(0, max_chars);
    */
   async read(opts = {}) {
     try {
-      const content = await this.source_adapter.read(opts);
-      return content;
+      return await this.use_source_adapter("read", opts) || "";
     } catch (error) {
-      console.error("Error during read:", error);
-      throw error;
+      console.error(`Error during reading ${this.key} (returning empty string)`, error);
+      return "";
     }
   }
   /**
@@ -5479,10 +5931,9 @@ ${content}`.substring(0, max_chars);
    */
   async remove() {
     try {
-      await this.source_adapter.remove();
+      await this.use_source_adapter("remove");
     } catch (error) {
-      console.error("Error during remove:", error);
-      throw error;
+      console.error(`Error during remove for ${this.key}:`, error);
     }
   }
   /**
@@ -5496,10 +5947,9 @@ ${content}`.substring(0, max_chars);
    */
   async move_to(entity_ref) {
     try {
-      await this.source_adapter.move_to(entity_ref);
+      await this.use_source_adapter("move_to", entity_ref);
     } catch (error) {
-      console.error("error_during_move:", error);
-      throw error;
+      console.error(`Error during move for ${this.key}:`, error);
     }
   }
   /**
@@ -5514,11 +5964,10 @@ ${content}`.substring(0, max_chars);
    */
   async merge(content, opts = {}) {
     try {
-      await this.source_adapter.merge(content, opts);
+      await this.use_source_adapter("merge", content, opts);
       await this.import();
     } catch (error) {
-      console.error("Error during merge:", error);
-      throw error;
+      console.error(`Error during merge for ${this.key}:`, error);
     }
   }
   /**
@@ -5587,6 +6036,7 @@ ${content}`.substring(0, max_chars);
   }
   /**
    * Retrieves the file object associated with the SmartSource.
+   * @deprecated should be replaced with adapter methods
    * @readonly
    * @returns {Object} The file object.
    */
@@ -5622,6 +6072,7 @@ ${content}`.substring(0, max_chars);
   }
   /**
    * Retrieves the modification time of the SmartSource.
+   * @deprecated should be replaced with adapter methods (see get size)
    * @readonly
    * @returns {number} The modification time.
    */
@@ -5634,7 +6085,7 @@ ${content}`.substring(0, max_chars);
    * @returns {number} The size.
    */
   get size() {
-    return this.file?.stat?.size || 0;
+    return this.source_adapter?.size || 0;
   }
   /**
    * Retrieves the last import stat of the SmartSource.
@@ -5690,15 +6141,6 @@ ${content}`.substring(0, max_chars);
   get metadata() {
     return this.data.metadata;
   }
-  /**
-   * Retrieves the display name of the SmartSource.
-   * @readonly
-   * @returns {string} The display name.
-   */
-  get name() {
-    if (this.should_show_full_path) return this.path.split("/").join(" > ").replace(".md", "");
-    return this.path.split("/").pop().replace(".md", "");
-  }
   get outdated() {
     return this.source_adapter.outdated;
   }
@@ -5716,11 +6158,11 @@ ${content}`.substring(0, max_chars);
       return link_path;
     }).filter((link_path) => link_path);
   }
+  /**
+   * @deprecated path should be derived from key (stable key principle)
+   */
   get path() {
     return this.data.path || this.data.key;
-  }
-  get should_embed() {
-    return !this.vec || !this.embed_hash || this.embed_hash !== this.read_hash;
   }
   get source_adapters() {
     return this.collection.source_adapters;
@@ -5729,21 +6171,17 @@ ${content}`.substring(0, max_chars);
     if (this._source_adapter) return this._source_adapter;
     if (this.source_adapters[this.file_type]) this._source_adapter = new this.source_adapters[this.file_type](this);
     else {
-      console.log("No source adapter found for " + this.file_type);
+      for (const Adapter of Object.values(this.source_adapters)) {
+        if (typeof Adapter.detect_type !== "function") continue;
+        if (Adapter.detect_type(this)) {
+          this._source_adapter = new Adapter(this);
+          break;
+        }
+      }
     }
     return this._source_adapter;
   }
   // COMPONENTS
-  /**
-   * Retrieves the component responsible for rendering the SmartSource.
-   * @deprecated
-   * @readonly
-   * @returns {Function} The render function for the source component.
-   */
-  get component() {
-    return render2;
-  }
-  // Currently unused, but useful for later
   /**
    * Calculates the mean vector of all blocks within the SmartSource.
    * @readonly
@@ -5820,6 +6258,10 @@ var SmartSources = class extends SmartEntities {
     super(env, opts);
     this.search_results_ct = 0;
     this._excluded_headings = null;
+    this.env_event_unsubscribers = [];
+    this.sources_re_import_queue = {};
+    this.sources_re_import_timeout = null;
+    this.sources_re_import_halted = false;
   }
   /**
    * Initializes the SmartSources instance by performing an initial scan of sources.
@@ -5829,6 +6271,212 @@ var SmartSources = class extends SmartEntities {
   async init() {
     await super.init();
     await this.init_items();
+    this.register_env_event_listeners();
+    this.register_source_watchers();
+  }
+  /**
+   * Registers env.events listeners for source lifecycle events emitted by filesystem adapters.
+   * @returns {void}
+   */
+  register_env_event_listeners() {
+    this.unregister_env_event_listeners();
+    if (!this.env?.events) return;
+    const listeners = [
+      ["sources:created", (event) => this.handle_source_created(event)],
+      ["sources:modified", (event) => this.handle_source_modified(event)],
+      ["sources:renamed", (event) => this.handle_source_renamed(event)],
+      ["sources:deleted", (event) => this.handle_source_deleted(event)]
+    ];
+    this.env_event_unsubscribers = listeners.map(([event_key, handler]) => this.env.events.on(event_key, handler)).filter(Boolean);
+  }
+  /**
+   * Unregisters env.events listeners that were previously attached by this collection.
+   * @returns {void}
+   */
+  unregister_env_event_listeners() {
+    if (!Array.isArray(this.env_event_unsubscribers)) return;
+    while (this.env_event_unsubscribers.length) {
+      const unsub = this.env_event_unsubscribers.pop();
+      try {
+        unsub?.();
+      } catch (error) {
+        console.warn("SmartSources: Failed to unregister env event listener", error);
+      }
+    }
+  }
+  /**
+   * Determines whether the incoming event should be handled by this collection instance.
+   * @param {Object} event
+   * @returns {boolean}
+   */
+  should_handle_event(event = {}) {
+    const { collection_key } = event;
+    if (collection_key && collection_key !== this.collection_key) return false;
+    return true;
+  }
+  /**
+   * Normalizes event payload keys into a canonical source path.
+   * @param {Object} event
+   * @returns {string|undefined}
+   */
+  get_event_path(event = {}) {
+    return event.item_key || event.path || event.new_path;
+  }
+  /**
+   * Handles create events emitted by filesystem adapters.
+   * @param {Object} event
+   * @returns {void}
+   */
+  handle_source_created(event = {}) {
+    if (!this.should_handle_event(event)) return;
+    const key = this.get_event_path(event);
+    if (!key) return;
+    const source = this.init_file_path(key) || this.get(key);
+    if (!source) {
+      console.warn("SmartSources: Unable to initialize source on create event", event);
+      return;
+    }
+    this.queue_source_re_import(source, { event_source: event.event_source });
+  }
+  /**
+   * Handles modify events emitted by filesystem adapters.
+   * @param {Object} event
+   * @returns {void}
+   */
+  handle_source_modified(event = {}) {
+    if (!this.should_handle_event(event)) return;
+    const key = this.get_event_path(event);
+    if (!key) return;
+    if (this.fs.is_excluded(key)) return;
+    let source = this.get(key);
+    if (!source) source = this.init_file_path(key);
+    if (!source) {
+      console.warn("SmartSources: Unable to resolve source on modify event", { key, event });
+      return;
+    }
+    this.queue_source_re_import(source, { event_source: event.event_source });
+  }
+  /**
+   * Handles rename events emitted by filesystem adapters.
+   * @param {Object} event
+   * @returns {void}
+   */
+  handle_source_renamed(event = {}) {
+    if (!this.should_handle_event(event)) return;
+    const new_key = this.get_event_path(event);
+    const old_key = event.old_path || event.from;
+    if (!new_key && !old_key) return;
+    if (old_key && this.items[old_key]) {
+      const old_source = this.items[old_key];
+      old_source?.delete?.();
+      delete this.items[old_key];
+      if (this.rename_debounce_timeout) clearTimeout(this.rename_debounce_timeout);
+      this.rename_debounce_timeout = setTimeout(() => {
+        this.process_save_queue();
+        this.rename_debounce_timeout = null;
+      }, 1e3);
+    }
+    if (!new_key) return;
+    let source = this.get(new_key);
+    if (!source) source = this.init_file_path(new_key);
+    if (!source) {
+      console.warn("SmartSources: Unable to initialize source on rename event", event);
+      return;
+    }
+    this.queue_source_re_import(source, { event_source: event.event_source });
+  }
+  /**
+   * Handles delete events emitted by filesystem adapters.
+   * @param {Object} event
+   * @returns {void}
+   */
+  handle_source_deleted(event = {}) {
+    if (!this.should_handle_event(event)) return;
+    const key = this.get_event_path(event);
+    if (!key) return;
+    delete this.items[key];
+    if (this.sources_re_import_queue[key]) {
+      delete this.sources_re_import_queue[key];
+    }
+  }
+  /**
+   * Requests filesystem adapters to register source watchers for this collection.
+   * @returns {void}
+   */
+  register_source_watchers() {
+    const adapter = this.fs?.adapter;
+    if (!adapter || typeof adapter.register_source_watchers !== "function") return;
+    if (this._source_watchers_registered) return;
+    this._source_watchers_registered = adapter.register_source_watchers(this);
+  }
+  /**
+   * Queues a SmartSource for re-import and schedules processing.
+   * @param {import('./smart_source.js').SmartSource} source
+   * @param {Object} [event_meta]
+   * @returns {void}
+   */
+  queue_source_re_import(source, event_meta = {}) {
+    if (!source?.key) return;
+    if (this.sources_re_import_queue[source.key]) return;
+    source.data.last_import = { at: 0, hash: null, mtime: 0, size: 0 };
+    this.sources_re_import_queue[source.key] = { source, event_meta };
+    this.debounce_re_import_queue();
+  }
+  /**
+   * Debounces re-import processing to respect the configured wait time.
+   * @returns {void}
+   */
+  debounce_re_import_queue() {
+    this.sources_re_import_halted = true;
+    if (this.sources_re_import_timeout) clearTimeout(this.sources_re_import_timeout);
+    const queue_keys = Object.keys(this.sources_re_import_queue || {});
+    if (!queue_keys.length) {
+      this.sources_re_import_timeout = null;
+      return;
+    }
+    const wait_seconds = typeof this.env?.settings?.re_import_wait_time === "number" ? this.env.settings.re_import_wait_time : 13;
+    this.sources_re_import_timeout = setTimeout(
+      () => this.run_re_import(),
+      wait_seconds * 1e3
+    );
+  }
+  /**
+   * Processes the queued re-import tasks.
+   * @returns {Promise<void>}
+   */
+  async run_re_import() {
+    this.sources_re_import_halted = false;
+    const queue_entries = Object.entries(this.sources_re_import_queue || {});
+    if (!queue_entries.length) {
+      if (this.sources_re_import_timeout) clearTimeout(this.sources_re_import_timeout);
+      this.sources_re_import_timeout = null;
+      return;
+    }
+    for (const [key, { source }] of queue_entries) {
+      await source.import();
+      if (!this._embed_queue) this._embed_queue = [];
+      if (source.should_embed) this._embed_queue.push(source);
+      if (this.block_collection?.settings?.embed_blocks) {
+        for (const block of source.blocks || []) {
+          if (block._queue_embed || block.should_embed && block.is_unembedded) {
+            this._embed_queue.push(block);
+            block._queue_embed = true;
+          }
+        }
+      }
+      delete this.sources_re_import_queue[key];
+      if (this.sources_re_import_halted) {
+        this.debounce_re_import_queue();
+        break;
+      }
+    }
+    if (this._embed_queue?.length) {
+      const embed_start_at = Date.now();
+      await this.process_embed_queue();
+      console.log(`Processed embed queue in ${Date.now() - embed_start_at}ms`);
+    }
+    if (this.sources_re_import_timeout) clearTimeout(this.sources_re_import_timeout);
+    this.sources_re_import_timeout = null;
   }
   /**
    * Initializes items by letting each adapter do any necessary file-based scanning.
@@ -5837,6 +6485,7 @@ var SmartSources = class extends SmartEntities {
    * @returns {Promise<void>}
    */
   async init_items() {
+    this.emit_event("source:initial_scan_started");
     this.show_process_notice("initial_scan");
     for (const AdapterClass of Object.values(this.source_adapters)) {
       if (typeof AdapterClass.init_items === "function") {
@@ -5844,6 +6493,7 @@ var SmartSources = class extends SmartEntities {
       }
     }
     this.clear_process_notice("initial_scan");
+    this.emit_event("source:initial_scan_completed");
     this.notices?.show("done_initial_scan", { collection_key: this.collection_key });
   }
   /**
@@ -5855,6 +6505,13 @@ var SmartSources = class extends SmartEntities {
     const ext = this.get_extension_for_path(file_path);
     if (!ext) {
       return;
+    }
+    if (this.fs.is_excluded(file_path)) {
+      console.warn(`File ${file_path} is excluded from processing.`);
+      return;
+    }
+    if (!this.fs.files[file_path]) {
+      this.fs.include_file(file_path);
     }
     if (this.items[file_path]) return this.items[file_path];
     const item = new this.item_type(this.env, { path: file_path });
@@ -5875,15 +6532,16 @@ var SmartSources = class extends SmartEntities {
     if (!file_path) return void 0;
     const pcs = file_path.split(".");
     if (pcs.length < 2) return void 0;
+    let last_ext;
     pcs.shift();
     while (pcs.length) {
-      const test_ext = pcs.join(".").toLowerCase();
-      if (this.source_adapters[test_ext]) {
-        return test_ext;
+      const supported_ext = pcs.join(".").toLowerCase();
+      if (this.source_adapters[supported_ext]) {
+        return supported_ext;
       }
-      pcs.shift();
+      last_ext = pcs.shift();
     }
-    return void 0;
+    return last_ext;
   }
   /**
    * Builds a map of links between sources.
@@ -5892,10 +6550,10 @@ var SmartSources = class extends SmartEntities {
   build_links_map() {
     const start_time = Date.now();
     this.links = {};
-    for (const source2 of Object.values(this.items)) {
-      for (const link of source2.outlinks) {
+    for (const source of Object.values(this.items)) {
+      for (const link of source.outlinks) {
         if (!this.links[link]) this.links[link] = {};
-        this.links[link][source2.key] = true;
+        this.links[link][source.key] = true;
       }
     }
     const end_time = Date.now();
@@ -5912,13 +6570,14 @@ var SmartSources = class extends SmartEntities {
   async create(key, content) {
     await this.fs.write(key, content);
     await this.fs.refresh();
-    const source2 = await this.create_or_update({ path: key });
-    await source2.import();
-    return source2;
+    const source = await this.create_or_update({ path: key });
+    await source.import();
+    return source;
   }
   /**
    * Performs a lexical search for matching SmartSource content.
    * @async
+   * @deprecated uses this.actions 2025-12-02
    * @param {Object} search_filter - The filter criteria for the search.
    * @param {string[]} search_filter.keywords - An array of keywords to search for.
    * @param {number} [search_filter.limit] - The maximum number of results to return.
@@ -5960,6 +6619,7 @@ var SmartSources = class extends SmartEntities {
   /**
    * Looks up entities based on the provided parameters.
    * @async
+   * @deprecated uses this.actions 2025-12-02
    * @param {Object} [params={}] - Parameters for the lookup.
    * @param {Object} [params.filter] - Filter options.
    * @param {number} [params.k] - Deprecated. Use `params.filter.limit` instead.
@@ -5986,7 +6646,7 @@ var SmartSources = class extends SmartEntities {
       console.warn(results.error);
       return [];
     }
-    if (this.block_collection?.settings?.embed_block && !params.skip_blocks) {
+    if (this.block_collection?.settings?.embed_blocks && !params.skip_blocks) {
       results = [
         ...results,
         ...await this.block_collection.lookup(params)
@@ -6012,6 +6672,7 @@ var SmartSources = class extends SmartEntities {
       await this.process_source_import_queue(this.opts);
     }
     this.build_links_map();
+    this.block_collection.cleanup_blocks();
   }
   /**
    * @method process_source_import_queue
@@ -6055,9 +6716,10 @@ var SmartSources = class extends SmartEntities {
    */
   get source_adapters() {
     if (!this._source_adapters) {
-      const source_adapters = Object.values(this.env.opts.collections?.[this.collection_key]?.source_adapters || {});
-      const _source_adapters = source_adapters.reduce((acc, adapter) => {
-        adapter.extensions?.forEach((ext) => acc[ext] = adapter);
+      const source_adapters = Object.entries(this.env.opts.collections?.[this.collection_key]?.source_adapters || {});
+      const _source_adapters = source_adapters.reduce((acc, [key, Adapter]) => {
+        if (Adapter.extensions) Adapter.extensions?.forEach((ext) => acc[ext] = Adapter);
+        else if (typeof Adapter.detect_type === "function") acc[key] = Adapter;
         return acc;
       }, {});
       if (Object.keys(_source_adapters).length) {
@@ -6106,7 +6768,7 @@ var SmartSources = class extends SmartEntities {
     const _settings_config = {
       ...super.settings_config,
       ...this.process_settings_config(settings_config2),
-      ...this.process_settings_config(this.embed_model.settings_config, "embed_model"),
+      // ...this.process_settings_config(this.embed_model.settings_config, 'embed_model'),
       ...Object.entries(this.source_adapters).reduce((acc, [file_extension, adapter_constructor]) => {
         if (acc[adapter_constructor]) return acc;
         const item = this.items[Object.keys(this.items).find((i) => i.endsWith(file_extension))];
@@ -6160,7 +6822,7 @@ var SmartSources = class extends SmartEntities {
    */
   async run_clear_all() {
     this.notices?.show("clearing_all");
-    await this.data_fs.remove_dir(this.data_dir, true);
+    await this.data_adapter.clear_all();
     this.clear();
     this.block_collection.clear();
     this._fs = null;
@@ -6191,35 +6853,38 @@ var SmartSources = class extends SmartEntities {
       return acc;
     }, {});
   }
-  /**
-   * Deletes all *.ajson files in the "multi/" data_dir, then re-saves all sources (opts.force=true).
-   */
-  async run_clean_up_data() {
-    this.notices?.show("pruning_collection", { collection_key: this.block_collection.collection_key });
-    const remove_smart_blocks = this.block_collection.filter((item) => {
-      if (!item.vec) return false;
-      if (item.is_gone) {
-        item.reason = "is_gone";
-        return true;
-      }
-      if (!item.should_embed) {
-        item.reason = "should not embed";
-        return true;
-      }
-      return false;
-    });
-    for (let i = 0; i < remove_smart_blocks.length; i++) {
-      const item = remove_smart_blocks[i];
-      if (item.is_gone) item.delete();
-      else item.remove_embeddings();
-    }
-    this.notices?.remove("pruning_collection");
-    this.notices?.show("done_pruning_collection", { collection_key: this.block_collection.collection_key, count: remove_smart_blocks.length });
-    console.log(`Pruned ${remove_smart_blocks.length} blocks:
-${remove_smart_blocks.map((item) => `${item.reason} - ${item.key}`).join("\n")}`);
-    await this.data_fs.remove_dir(this.data_dir, true);
-    await this.process_save_queue({ force: true });
-  }
+  // /**
+  //  * Deletes all *.ajson files in the "multi/" data_dir, then re-saves all sources (opts.force=true).
+  //  */
+  // async run_clean_up_data() {
+  //   this.notices?.show('pruning_collection', { collection_key: this.block_collection.collection_key });
+  //   // Identify blocks to remove
+  //   const remove_smart_blocks = this.block_collection.filter(item => {
+  //     if(!item.vec) return false; // skip blocks that have no vec?
+  //     if(item.is_gone) {
+  //       item.reason = "is_gone";
+  //       return true;
+  //     }
+  //     if(!item.should_embed){
+  //       item.reason = "should not embed";
+  //       return true;
+  //     }
+  //     return false;
+  //   });
+  //   // Remove identified blocks
+  //   for(let i = 0; i < remove_smart_blocks.length; i++){
+  //     const item = remove_smart_blocks[i];
+  //     if(item.is_gone) item.delete();
+  //     else item.remove_embeddings();
+  //   }
+  //   this.notices?.remove('pruning_collection');
+  //   this.notices?.show('done_pruning_collection', { collection_key: this.block_collection.collection_key, count: remove_smart_blocks.length });
+  //   console.log(`Pruned ${remove_smart_blocks.length} blocks:\n${remove_smart_blocks.map(item => `${item.reason} - ${item.key}`).join("\n")}`);
+  //   // 1) remove all .ajson files in `this.data_dir` ("multi" by default)
+  //   await this.data_fs.remove_dir(this.data_dir, true);
+  //   // 2) forcibly re-save all items
+  //   await this.process_save_queue({ force: true });
+  // }
   /**
    * Retrieves patterns for excluding files/folders from processing.
    * @readonly
@@ -6238,7 +6903,8 @@ ${remove_smart_blocks.map((item) => `${item.reason} - ${item.key}`).join("\n")}`
    * @returns {Array<string>} An array of file exclusion patterns.
    */
   get file_exclusions() {
-    return this.env.settings?.file_exclusions?.length ? this.env.settings.file_exclusions.split(",").map((file) => file.trim()) : [];
+    const csv = this.env.settings?.smart_sources?.file_exclusions;
+    return csv?.length ? csv.split(",").map((file) => file.trim()) : [];
   }
   /**
    * Retrieves the folder exclusion patterns from settings.
@@ -6246,7 +6912,8 @@ ${remove_smart_blocks.map((item) => `${item.reason} - ${item.key}`).join("\n")}`
    * @returns {Array<string>} An array of folder exclusion patterns.
    */
   get folder_exclusions() {
-    return this.env.settings?.folder_exclusions?.length ? this.env.settings.folder_exclusions.split(",").map((folder) => {
+    const csv = this.env.settings?.smart_sources?.folder_exclusions;
+    return csv?.length ? csv.split(",").map((folder) => {
       folder = folder.trim();
       if (folder === "") return false;
       if (folder === "/") return false;
@@ -6261,7 +6928,8 @@ ${remove_smart_blocks.map((item) => `${item.reason} - ${item.key}`).join("\n")}`
    */
   get excluded_headings() {
     if (!this._excluded_headings) {
-      this._excluded_headings = this.env.settings?.excluded_headings?.length ? this.env.settings.excluded_headings.split(",").map((heading) => heading.trim()) : [];
+      const csv = this.env.settings?.smart_sources?.excluded_headings;
+      this._excluded_headings = csv?.length ? csv.split(",").map((heading) => heading.trim()) : [];
     }
     return this._excluded_headings;
   }
@@ -6285,16 +6953,41 @@ ${remove_smart_blocks.map((item) => `${item.reason} - ${item.key}`).join("\n")}`
   get total_files() {
     return this.fs.file_paths.filter((file) => file.endsWith(".md") || file.endsWith(".canvas")).length;
   }
+  /**
+   * Unloads the collection and clears registered listeners and timers.
+   * @returns {void}
+   */
+  unload() {
+    this.unregister_env_event_listeners();
+    if (this.sources_re_import_timeout) clearTimeout(this.sources_re_import_timeout);
+    this.sources_re_import_timeout = null;
+    this.sources_re_import_queue = {};
+    super.unload();
+  }
   get data_dir() {
     return "multi";
   }
 };
 var settings_config2 = {
-  // "smart_change.active": {
-  //   "name": "Smart Change (change safety)",
-  //   "description": "Enable Smart Changes (prevents accidental deletions/overwrites).",
-  //   "type": "toggle",
-  //   "default": true,
+  // file_exclusions: {
+  //   name: 'File Exclusions',
+  //   description: 'Comma-separated list of files to exclude.',
+  //   type: 'text',
+  //   default: '',
+  //   callback: 'update_exclusions',
+  // },
+  // folder_exclusions: {
+  //   name: 'Folder Exclusions',
+  //   description: 'Comma-separated list of folders to exclude.',
+  //   type: 'text',
+  //   default: '',
+  //   callback: 'update_exclusions',
+  // },
+  // excluded_headings: {
+  //   name: 'Excluded Headings',
+  //   description: 'Comma-separated list of headings to exclude.',
+  //   type: 'text',
+  //   default: '',
   // },
 };
 
@@ -6328,6 +7021,7 @@ var CollectionDataAdapter = class {
   /**
    * Load a single item by its key using an `ItemDataAdapter`.
    * @async
+   * @abstract
    * @param {string} key - The key of the item to load.
    * @returns {Promise<void>} Resolves when the item is loaded.
    */
@@ -6337,6 +7031,7 @@ var CollectionDataAdapter = class {
   /**
    * Save a single item by its key using its associated `ItemDataAdapter`.
    * @async
+   * @abstract
    * @param {string} key - The key of the item to save.
    * @returns {Promise<void>} Resolves when the item is saved.
    */
@@ -6347,6 +7042,7 @@ var CollectionDataAdapter = class {
    * Delete a single item by its key. This may involve updating or removing its file,
    * as handled by the `ItemDataAdapter`.
    * @async
+   * @abstract
    * @param {string} key - The key of the item to delete.
    * @returns {Promise<void>} Resolves when the item is deleted.
    */
@@ -6354,18 +7050,20 @@ var CollectionDataAdapter = class {
     throw new Error("Not implemented");
   }
   /**
-   * Process any queued load operations. Typically orchestrates calling `load_item()` 
+   * Process any queued load operations. Typically orchestrates calling `load_item()`
    * on items that have been flagged for loading.
    * @async
+   * @abstract
    * @returns {Promise<void>}
    */
   async process_load_queue() {
     throw new Error("Not implemented");
   }
   /**
-   * Process any queued save operations. Typically orchestrates calling `save_item()` 
+   * Process any queued save operations. Typically orchestrates calling `save_item()`
    * on items that have been flagged for saving.
    * @async
+   * @abstract
    * @returns {Promise<void>}
    */
   async process_save_queue() {
@@ -6381,6 +7079,15 @@ var CollectionDataAdapter = class {
     const adapter = this.create_item_adapter(item);
     await adapter.load_if_updated();
   }
+  /**
+   * Clear all data associated with this collection.
+   * @async
+   * @abstract
+   * @returns {Promise<void>}
+   */
+  async clear_all() {
+    throw new Error("Not implemented");
+  }
 };
 var ItemDataAdapter = class {
   /**
@@ -6391,18 +7098,20 @@ var ItemDataAdapter = class {
     this.item = item;
   }
   /**
-   * Load the item's data from storage. May involve reading a file and parsing 
+   * Load the item's data from storage. May involve reading a file and parsing
    * its contents, then updating `item.data`.
    * @async
+   * @abstract
    * @returns {Promise<void>} Resolves when the item is fully loaded.
    */
   async load() {
     throw new Error("Not implemented");
   }
   /**
-   * Save the item's data to storage. May involve writing to a file or appending 
+   * Save the item's data to storage. May involve writing to a file or appending
    * lines in an append-only format.
    * @async
+   * @abstract
    * @param {string|null} [ajson=null] - An optional serialized representation of the item’s data.
    *                                     If not provided, the adapter should derive it from the item.
    * @returns {Promise<void>} Resolves when the item is saved.
@@ -6411,17 +7120,19 @@ var ItemDataAdapter = class {
     throw new Error("Not implemented");
   }
   /**
-   * Delete the item's data from storage. May involve removing a file or writing 
+   * Delete the item's data from storage. May involve removing a file or writing
    * a `null` entry in an append-only file to signify deletion.
    * @async
+   * @abstract
    * @returns {Promise<void>} Resolves when the item’s data is deleted.
    */
   async delete() {
     throw new Error("Not implemented");
   }
   /**
-   * Returns the file path or unique identifier used by this adapter to locate and store 
+   * Returns the file path or unique identifier used by this adapter to locate and store
    * the item's data. This may be a file name derived from the item's key.
+   * @abstract
    * @returns {string} The path or identifier for the item's data.
    */
   get data_path() {
@@ -6439,6 +7150,7 @@ var ItemDataAdapter = class {
   /**
    * Load the item's data from storage if it has been updated externally.
    * @async
+   * @abstract
    * @returns {Promise<void>} Resolves when the item is loaded.
    */
   async load_if_updated() {
@@ -6459,6 +7171,9 @@ var FileCollectionDataAdapter = class extends CollectionDataAdapter {
   get fs() {
     return this.collection.data_fs || this.collection.env.data_fs;
   }
+  async clear_all() {
+    await this.fs.remove_dir(this.collection.data_dir, true);
+  }
 };
 var FileItemDataAdapter = class extends ItemDataAdapter {
   /**
@@ -6467,6 +7182,11 @@ var FileItemDataAdapter = class extends ItemDataAdapter {
   get fs() {
     return this.item.collection.data_fs || this.item.collection.env.data_fs;
   }
+  /**
+   * Resolve the file path for the item's data.
+   * @abstract
+   * @returns {string} Path to the persisted item data.
+   */
   get data_path() {
     throw new Error("Not implemented");
   }
@@ -6527,6 +7247,7 @@ var AjsonMultiFileCollectionDataAdapter = class extends FileCollectionDataAdapte
    * @returns {Promise<void>}
    */
   async process_load_queue() {
+    this.collection.emit_event("collection:load_started");
     this.collection.show_process_notice("loading_collection");
     if (!await this.fs.exists(this.collection.data_dir)) {
       await this.fs.mkdir(this.collection.data_dir);
@@ -6536,7 +7257,8 @@ var AjsonMultiFileCollectionDataAdapter = class extends FileCollectionDataAdapte
       this.collection.clear_process_notice("loading_collection");
       return;
     }
-    console.log(`Loading ${this.collection.collection_key}: ${load_queue.length} items`);
+    const now = Date.now();
+    console.log(`Loading ${this.collection.collection_key}: ${load_queue.length} items from disk`);
     const batch_size = 100;
     for (let i = 0; i < load_queue.length; i += batch_size) {
       const batch = load_queue.slice(i, i + batch_size);
@@ -6548,8 +7270,10 @@ var AjsonMultiFileCollectionDataAdapter = class extends FileCollectionDataAdapte
         });
       }));
     }
+    console.log(`Loaded ${this.collection.collection_key} from disk in ${Date.now() - now}ms`);
     this.collection.loaded = load_queue.length;
     this.collection.clear_process_notice("loading_collection");
+    this.collection.emit_event("collection:load_completed");
   }
   /**
    * Process any queued save operations.
@@ -6557,6 +7281,7 @@ var AjsonMultiFileCollectionDataAdapter = class extends FileCollectionDataAdapte
    * @returns {Promise<void>}
    */
   async process_save_queue() {
+    this.collection.emit_event("collection:save_started");
     this.collection.show_process_notice("saving_collection");
     const save_queue = Object.values(this.collection.items).filter((item) => item._queue_save);
     console.log(`Saving ${this.collection.collection_key}: ${save_queue.length} items`);
@@ -6580,6 +7305,7 @@ var AjsonMultiFileCollectionDataAdapter = class extends FileCollectionDataAdapte
     }
     console.log(`Saved ${this.collection.collection_key} in ${Date.now() - time_start}ms`);
     this.collection.clear_process_notice("saving_collection");
+    this.collection.emit_event("collection:save_completed");
   }
   get_item_data_path(key) {
     return [
@@ -6753,67 +7479,6 @@ var AjsonMultiFileSourcesDataAdapter = class extends AjsonMultiFileCollectionDat
 var AjsonMultiFileSourceDataAdapter = class extends AjsonMultiFileItemDataAdapter {
 };
 
-// node_modules/smart-utils/create_hash.js
-function murmur_hash_32(input_string, seed = 0) {
-  let remainder = input_string.length & 3;
-  let bytes = input_string.length - remainder;
-  let h1 = seed;
-  let c1 = 3432918353;
-  let c2 = 461845907;
-  let i = 0;
-  let k1 = 0;
-  let chunk = 0;
-  while (i < bytes) {
-    chunk = input_string.charCodeAt(i) & 255 | (input_string.charCodeAt(i + 1) & 255) << 8 | (input_string.charCodeAt(i + 2) & 255) << 16 | (input_string.charCodeAt(i + 3) & 255) << 24;
-    i += 4;
-    k1 = chunk;
-    k1 = multiply_32(k1, c1);
-    k1 = rotate_left_32(k1, 15);
-    k1 = multiply_32(k1, c2);
-    h1 ^= k1;
-    h1 = rotate_left_32(h1, 13);
-    h1 = h1 * 5 + 3864292196 | 0;
-  }
-  k1 = 0;
-  switch (remainder) {
-    case 3:
-      k1 ^= (input_string.charCodeAt(i + 2) & 255) << 16;
-    // falls through
-    case 2:
-      k1 ^= (input_string.charCodeAt(i + 1) & 255) << 8;
-    // falls through
-    case 1:
-      k1 ^= input_string.charCodeAt(i) & 255;
-      k1 = multiply_32(k1, c1);
-      k1 = rotate_left_32(k1, 15);
-      k1 = multiply_32(k1, c2);
-      h1 ^= k1;
-      break;
-  }
-  h1 ^= input_string.length;
-  h1 = fmix_32(h1);
-  return h1 | 0;
-}
-function murmur_hash_32_alphanumeric(input_string, seed = 0) {
-  const signed_hash = murmur_hash_32(input_string, seed);
-  const unsigned_hash = signed_hash >>> 0;
-  return unsigned_hash.toString(36);
-}
-function multiply_32(a, b) {
-  return (a & 65535) * b + ((a >>> 16) * b << 16) | 0;
-}
-function rotate_left_32(value, shift) {
-  return value << shift | value >>> 32 - shift;
-}
-function fmix_32(h) {
-  h ^= h >>> 16;
-  h = multiply_32(h, 2246822507);
-  h ^= h >>> 13;
-  h = multiply_32(h, 3266489909);
-  h ^= h >>> 16;
-  return h | 0;
-}
-
 // node_modules/obsidian-smart-env/node_modules/smart-sources/adapters/_adapter.js
 var SourceContentAdapter = class {
   constructor(item) {
@@ -6872,12 +7537,16 @@ function parse_markdown_blocks(markdown, opts = {}) {
   const heading_counts = {};
   const sub_block_counts = {};
   const subheading_counts = {};
+  const task_lines = [];
+  const tasks = {};
   let current_list_item = null;
   let current_content_block = null;
   let in_frontmatter = false;
   let frontmatter_started = false;
   const root_heading_key = "#";
   let in_code_block = false;
+  const codeblock_ranges = [];
+  let codeblock_start = null;
   sub_block_counts[root_heading_key] = 0;
   for (let i = 0; i < lines.length; i++) {
     const line_number = i + start_index;
@@ -6898,8 +7567,23 @@ function parse_markdown_blocks(markdown, opts = {}) {
     if (in_frontmatter) {
       continue;
     }
+    if (!in_code_block && /^[-*+]\s+\[(?: |x|X)\]/.test(trimmed_line)) {
+      task_lines.push(line_number);
+      if (/^[-*+]\s+\[ \]/.test(trimmed_line)) {
+        if (!tasks.incomplete) tasks.incomplete = { all: [], top: [] };
+        tasks.incomplete.all.push(line_number);
+      }
+      if (/^[-*+]\s+\[ \]/.test(line)) {
+        tasks.incomplete.top.push(line_number);
+      }
+    }
     if (trimmed_line.startsWith("```")) {
       in_code_block = !in_code_block;
+      if (in_code_block && !codeblock_start) codeblock_start = line_number;
+      else if (!in_code_block && codeblock_start) {
+        codeblock_ranges.push([codeblock_start, line_number]);
+        codeblock_start = null;
+      }
       if (!current_content_block) {
         const parent_key = heading_stack.length > 0 ? heading_stack[heading_stack.length - 1].key : root_heading_key;
         if (parent_key === root_heading_key && !heading_lines[root_heading_key]) {
@@ -7007,7 +7691,8 @@ function parse_markdown_blocks(markdown, opts = {}) {
         const n = sub_block_counts[parent_key];
         let key;
         if (line_keys) {
-          const words = get_longest_words_in_order(list_match[3], 10);
+          const content_without_task = list_match[3].replace(/^\[(?: |x|X)\]\s*/, "");
+          const words = get_longest_words_in_order(content_without_task, 10);
           key = `${parent_key}#${words}`;
         } else {
           key = `${parent_key}#{${n}}`;
@@ -7076,7 +7761,7 @@ function parse_markdown_blocks(markdown, opts = {}) {
   for (const key in heading_lines) {
     result[key] = heading_lines[key];
   }
-  return result;
+  return { blocks: result, task_lines, tasks, codeblock_ranges };
 }
 function get_longest_words_in_order(line, n = 3) {
   const words = line.split(/\s+/).sort((a, b) => b.length - a.length).slice(0, n);
@@ -7194,39 +7879,6 @@ var FileSourceContentAdapter = class extends SourceContentAdapter {
     return move_to_ref;
   }
   /**
-   * TRANSFERRED FROM markdown.js (2024-12-13)
-   * TODO NEEDS REVIEW/REFACTOR
-   */
-  async move_to_v1(entity_ref) {
-    const new_path = typeof entity_ref === "string" ? entity_ref : entity_ref.key;
-    if (!new_path) {
-      throw new Error("Invalid entity reference for move_to operation");
-    }
-    const current_content = await this.read();
-    const [target_source_key, ...headings] = new_path.split("#");
-    const target_source = this.item.collection.get(target_source_key);
-    if (headings.length > 0) {
-      const new_headings_content = this.construct_headings(headings);
-      const new_content = `${new_headings_content}
-${current_content}`;
-      await this._update(new_content);
-    }
-    if (target_source) {
-      await this.merge(current_content, { mode: "append_blocks" });
-    } else {
-      await this.rename_and_import(target_source_key, current_content);
-    }
-    if (this.item.key !== target_source_key) await this.remove();
-  }
-  construct_headings(headings) {
-    return headings.map((heading, i) => `${"#".repeat(i + 1)} ${heading}`).join("\n");
-  }
-  async rename_and_import(target_source_key, content) {
-    await this.fs.rename(this.file_path, target_source_key);
-    const new_source = await this.item.collection.create_or_update({ path: target_source_key, content });
-    await new_source.import();
-  }
-  /**
    * Merge content into the source
    * @param {string} content - The content to merge into the source
    * @param {Object} opts - Options for the merge operation
@@ -7234,7 +7886,7 @@ ${current_content}`;
    */
   async merge(content, opts = {}) {
     const { mode = "append_blocks" } = opts;
-    const blocks_obj = parse_markdown_blocks(content);
+    const { blocks: blocks_obj, task_lines } = parse_markdown_blocks(content);
     if (typeof blocks_obj !== "object" || Array.isArray(blocks_obj)) {
       console.warn("merge error: Expected an object from parse_markdown_blocks, but received:", blocks_obj);
       throw new Error("merge error: parse_markdown_blocks did not return an object as expected.");
@@ -7329,6 +7981,9 @@ ${current_content}`;
     ].join("\n").trim();
     await this.update(new_content);
   }
+  get size() {
+    return this.item.file?.stat?.size || 0;
+  }
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-sources/utils/get_markdown_links.js
@@ -7345,19 +8000,29 @@ function get_markdown_links(content) {
       return trimmed.replace(/%20/gi, " ");
     }
   };
+  const is_embedded = (index) => {
+    if (index <= 0) return false;
+    return content[index - 1] === "!";
+  };
   let m;
   while ((m = markdown_link_re.exec(content)) !== null) {
     const title = m[1];
     const target = normalise_target(m[2]);
     const line_no = content.slice(0, m.index).split("\n").length;
-    result.push({ title, target, line: line_no });
+    const embedded = is_embedded(m.index);
+    const record = { title, target, line: line_no };
+    if (embedded) record.embedded = true;
+    result.push(record);
   }
   while ((m = wikilink_re.exec(content)) !== null) {
     const target_raw = m[1];
     const title = m[2] || target_raw;
     const target = normalise_target(target_raw);
     const line_no = content.slice(0, m.index).split("\n").length;
-    result.push({ title, target, line: line_no });
+    const embedded = is_embedded(m.index);
+    const record = { title, target, line: line_no };
+    if (embedded) record.embedded = true;
+    result.push(record);
   }
   return result.sort(
     (a, b) => a.line - b.line || a.target.localeCompare(b.target)
@@ -7453,6 +8118,17 @@ function parse_frontmatter(content) {
   return { frontmatter, body };
 }
 
+// node_modules/obsidian-smart-env/node_modules/smart-sources/utils/get_markdown_tags.js
+var get_markdown_tags = (content = "") => {
+  const tag_re = /(?<!\w)#([\w/-]+)/g;
+  const tags = /* @__PURE__ */ new Set();
+  let match;
+  while ((match = tag_re.exec(content)) !== null) {
+    tags.add(`#${match[1]}`);
+  }
+  return [...tags];
+};
+
 // node_modules/obsidian-smart-env/node_modules/smart-sources/adapters/markdown_source.js
 var MarkdownSourceContentAdapter = class extends FileSourceContentAdapter {
   static extensions = ["md", "txt"];
@@ -7491,7 +8167,7 @@ var MarkdownSourceContentAdapter = class extends FileSourceContentAdapter {
     };
     this.item.loaded_at = Date.now();
     this.item.queue_save();
-    this.item.queue_embed();
+    if (this.item.should_embed) this.item.queue_embed();
   }
   // // WIP: move block parsing here
   // async read() {
@@ -7499,7 +8175,7 @@ var MarkdownSourceContentAdapter = class extends FileSourceContentAdapter {
   //   const content = await super.read();
   //   if(!content) return console.warn(`MarkdownSourceContentAdapter: Skipping missing-file: ${this.file_path}`);
   //   if(current_last_read_hash === this.data.last_read?.hash) return content;
-  //   const blocks = parse_markdown_blocks(content);
+  //   const {blocks: blocks, task_lines} = parse_markdown_blocks(content);
   //   this.handle_excluded_headings(blocks);
   // }
   // Runs before configured content_parsers (for example, templates uses outlinks)
@@ -7517,7 +8193,17 @@ var MarkdownSourceContentAdapter = class extends FileSourceContentAdapter {
   async get_metadata(content = null) {
     if (!content) content = await this.read();
     if (!content) return;
-    const { frontmatter } = parse_frontmatter(content);
+    const { frontmatter, body } = parse_frontmatter(content);
+    const tag_set = /* @__PURE__ */ new Set();
+    let fm_tags = frontmatter.tags;
+    if (typeof fm_tags === "string") {
+      fm_tags = fm_tags.replace(/[\[\]]/g, "").split(",").map((t) => t.trim()).filter(Boolean);
+    }
+    if (Array.isArray(fm_tags)) {
+      fm_tags.forEach((tag) => tag_set.add(tag.startsWith("#") ? tag : `#${tag}`));
+    }
+    get_markdown_tags(body).forEach((tag) => tag_set.add(tag));
+    if (tag_set.size) frontmatter.tags = [...tag_set];
     return frontmatter;
   }
   // Erroneous reasons to skip import (logs to console)
@@ -7572,18 +8258,34 @@ var MarkdownSourceContentAdapter = class extends FileSourceContentAdapter {
   }
 };
 
-// node_modules/obsidian-smart-env/node_modules/smart-sources/adapters/obsidian_markdown.js
-var import_obsidian2 = require("obsidian");
+// node_modules/obsidian-smart-env/adapters/smart-sources/obsidian_markdown.js
+var import_obsidian3 = require("obsidian");
+function merge_tags(fm_tags, cache_tags = []) {
+  const tag_set = /* @__PURE__ */ new Set();
+  if (typeof fm_tags === "string") {
+    fm_tags = fm_tags.replace(/[\[\]]/g, "").split(",").map((t) => t.trim()).filter(Boolean);
+  }
+  if (Array.isArray(fm_tags)) {
+    fm_tags.forEach((tag) => tag_set.add(tag.startsWith("#") ? tag : `#${tag}`));
+  }
+  cache_tags.forEach(({ tag }) => tag_set.add(tag));
+  return [...tag_set];
+}
 var ObsidianMarkdownSourceContentAdapter = class extends MarkdownSourceContentAdapter {
   /**
-   * Returns the frontmatter metadata from Obsidian's metadataCache.
+   * Returns metadata using Obsidian's metadataCache, merging frontmatter and tags.
    * @async
-   * @returns {Promise<Object>} Frontmatter data if available, otherwise undefined.
+   * @returns {Promise<Object|undefined>}
    */
   async get_metadata() {
     const app = this.item.env.main.app;
-    const { frontmatter } = app.metadataCache.getFileCache(this.item.file) || {};
-    return frontmatter;
+    const cache = app.metadataCache.getFileCache(this.item.file) || {};
+    const tags = merge_tags(cache.frontmatter?.tags, cache.tags);
+    if (cache.frontmatter) {
+      if (tags.length) cache.frontmatter.tags = tags;
+      return cache.frontmatter;
+    }
+    return tags.length ? { tags } : void 0;
   }
   /**
    * Reads the file content. If opts.render_output is true, attempts to use
@@ -7600,12 +8302,12 @@ var ObsidianMarkdownSourceContentAdapter = class extends MarkdownSourceContentAd
       return content;
     }
     const app = this.item.env.main.app;
-    if (!app || !import_obsidian2.MarkdownRenderer || !import_obsidian2.htmlToMarkdown) {
+    if (!app || !import_obsidian3.MarkdownRenderer || !import_obsidian3.htmlToMarkdown) {
       console.warn("Obsidian environment not found; cannot render markdown.");
       return content;
     }
     const container = document.createElement("div");
-    await import_obsidian2.MarkdownRenderer.render(app, content, container, this.item.path, new import_obsidian2.Component());
+    await import_obsidian3.MarkdownRenderer.render(app, content, container, this.item.path, new import_obsidian3.Component());
     let last_html = container.innerHTML;
     const max_wait = 1e4;
     let wait_time = 0;
@@ -7623,10 +8325,59 @@ var ObsidianMarkdownSourceContentAdapter = class extends MarkdownSourceContentAd
         break;
       }
     }
-    const newMd = (0, import_obsidian2.htmlToMarkdown)(container);
+    const newMd = (0, import_obsidian3.htmlToMarkdown)(container);
     return newMd;
   }
 };
+
+// node_modules/obsidian-smart-env/adapters/smart-sources/bases.js
+var BasesSourceContentAdapter = class extends FileSourceContentAdapter {
+  static extensions = ["base"];
+  async import() {
+  }
+};
+
+// node_modules/obsidian-smart-env/adapters/smart-sources/excalidraw.js
+var ExcalidrawSourceContentAdapter = class extends ObsidianMarkdownSourceContentAdapter {
+  static extensions = ["excalidraw.md"];
+  is_media = true;
+  // Excalidraw files are treated as media for rendering
+  async read(opts = {}) {
+    const full_content = await super.read(opts);
+    const BEGIN_LINE_MATCHER = "# Text Elements";
+    const END_LINE_MATCHER = "# Drawing";
+    const text_elements_start = full_content.indexOf(BEGIN_LINE_MATCHER);
+    const drawing_lines_start = full_content.indexOf(END_LINE_MATCHER);
+    if (text_elements_start === -1 || drawing_lines_start === -1) {
+      console.warn("Excalidraw file does not contain expected sections. File: " + this.item.key);
+      this.item.data.last_read.size = 0;
+      return "";
+    }
+    const text_content = full_content.slice(text_elements_start + BEGIN_LINE_MATCHER.length, drawing_lines_start).trim();
+    const stripped_refs = text_content.split("\n").map((line) => {
+      if (line.trim() === "%%") return "";
+      if (line.trim() === "#") return "";
+      return line.replace(/\^[a-z0-9]+$/i, "").trim();
+    }).filter(Boolean).join("\n");
+    this.item.data.last_read.size = stripped_refs.length;
+    return stripped_refs;
+  }
+  get size() {
+    if (this.item.data?.last_read?.size) {
+      return this.item.data.last_read.size;
+    }
+    return this.file?.stat?.size || 0;
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-blocks/utils/get_block_display_name.js
+function get_block_display_name(key, show_full_path) {
+  const [source_key, ...path_parts] = key.split("#").filter(Boolean);
+  const source_name = get_item_display_name(source_key, show_full_path);
+  if (show_full_path) return [source_name, ...path_parts].join(" > ");
+  const last_heading = path_parts.findLast((part) => part && part[0] !== "{");
+  return [source_name, last_heading].join(" > ");
+}
 
 // node_modules/obsidian-smart-env/node_modules/smart-blocks/smart_block.js
 var SmartBlock = class extends SmartEntity {
@@ -7677,28 +8428,6 @@ var SmartBlock = class extends SmartEntity {
    */
   queue_import() {
     this.source?.queue_import();
-  }
-  /**
-   * Updates the block's data, clearing embeddings if necessary and preparing embed input.
-   * @param {Object} data - The new data to merge into the block.
-   * @returns {boolean} `true` if data was updated successfully.
-   */
-  update_data(data) {
-    if (this.should_clear_embeddings(data)) {
-      this.data.embeddings = {};
-    }
-    super.update_data(data);
-    return true;
-  }
-  /**
-   * Determines whether to clear embeddings based on the new data.
-   * @param {Object} data - The new data to evaluate.
-   * @returns {boolean} `true` if embeddings should be cleared, `false` otherwise.
-   */
-  should_clear_embeddings(data) {
-    if (this.is_new) return true;
-    if (this.embed_model && this.vec?.length !== this.embed_model.model_config.dims) return true;
-    return false;
   }
   /**
    * Prepares the embed input for the SmartBlock by reading content and generating a hash.
@@ -7791,7 +8520,7 @@ var SmartBlock = class extends SmartEntity {
   get excluded() {
     const block_headings = this.path.split("#").slice(1);
     if (this.source_collection.excluded_headings.some((heading) => block_headings.includes(heading))) return true;
-    return this.source.excluded;
+    return this.source?.excluded;
   }
   /**
    * Retrieves the file path of the SmartSource associated with the block.
@@ -7890,6 +8619,7 @@ var SmartBlock = class extends SmartEntity {
   /**
    * Retrieves the link associated with the block, handling page numbers if present.
    * @readonly
+   * @deprecated was specific to PDFs and removed this sort of PDF handling
    * @returns {string} The block link.
    */
   get link() {
@@ -7899,19 +8629,6 @@ var SmartBlock = class extends SmartEntity {
     } else {
       return this.source?.path || "MISSING SOURCE";
     }
-  }
-  /**
-   * Retrieves the display name of the block.
-   * @readonly
-   * @returns {string} The display name.
-   */
-  get name() {
-    const source_name = this.source?.name;
-    if (!source_name) return "MISSING SOURCE";
-    const block_path_parts = this.key.split("#").slice(1);
-    if (this.should_show_full_path) return [source_name, ...block_path_parts].join(" > ");
-    if (block_path_parts[block_path_parts.length - 1][0] === "{") block_path_parts.pop();
-    return [source_name, block_path_parts.pop()].join(" > ");
   }
   // uses data.lines to get next block
   get next_block() {
@@ -7975,7 +8692,7 @@ var SmartBlock = class extends SmartEntity {
   /**
    * Retrieves the SmartSource associated with the block.
    * @readonly
-   * @returns {SmartSource} The associated SmartSource instance.
+   * @returns {import("smart-sources").SmartSource} The associated SmartSource instance.
    */
   get source() {
     return this.source_collection.get(this.source_key);
@@ -7983,7 +8700,7 @@ var SmartBlock = class extends SmartEntity {
   /**
    * Retrieves the SmartSources collection instance.
    * @readonly
-   * @returns {SmartSources} The SmartSources collection.
+   * @returns {import("smart-sources").SmartSources} The SmartSources collection.
    */
   get source_collection() {
     return this.env.smart_sources;
@@ -8009,7 +8726,18 @@ var SmartBlock = class extends SmartEntity {
   }
   // DEPRECATED
   /**
-   * @deprecated Use `source` instead.
+   * Retrieves the display name of the block.
+   * @readonly
+   * @returns {string} The display name.
+   */
+  get name() {
+    return get_block_display_name(
+      this.key,
+      this.env.settings.smart_view_filter?.show_full_path
+    );
+  }
+  /**
+   * @deprecated Use `source` instead. Removing after 2025-09-01.
    * @readonly
    * @returns {SmartSource} The associated SmartSource instance.
    */
@@ -8017,7 +8745,7 @@ var SmartBlock = class extends SmartEntity {
     return this.source;
   }
   /**
-   * @deprecated Use `source.key` instead.
+   * @deprecated Use `source.key` instead. Removing after 2025-09-01.
    * @readonly
    * @returns {string} The source key.
    */
@@ -8083,9 +8811,9 @@ var SmartBlocks = class extends SmartEntities {
   get settings_config() {
     return this.process_settings_config({
       "embed_blocks": {
-        name: "Utilize Smart Blocks",
+        name: "Embed blocks",
         type: "toggle",
-        description: "Creates more granular embeddings by splitting sources into smaller chunks. This may improve search results especially for large documents that have well-defined sections.",
+        description: "Blocks represent parts/sections of notes. Get more granular results.",
         default: true
       },
       ...super.settings_config
@@ -8122,6 +8850,7 @@ var SmartBlocks = class extends SmartEntities {
   // TEMP: Methods in sources not implemented in blocks
   /**
    * @async
+   * @abstract
    * @throws {Error} Throws an error indicating the method is not implemented.
    * @returns {Promise<void>}
    */
@@ -8130,6 +8859,7 @@ var SmartBlocks = class extends SmartEntities {
   }
   /**
    * @throws {Error} Throws an error indicating the method is not implemented.
+   * @abstract
    * @returns {void}
    */
   build_links_map() {
@@ -8137,6 +8867,7 @@ var SmartBlocks = class extends SmartEntities {
   }
   /**
    * @async
+   * @abstract
    * @throws {Error} Throws an error indicating the method is not implemented.
    * @returns {Promise<void>}
    */
@@ -8145,6 +8876,7 @@ var SmartBlocks = class extends SmartEntities {
   }
   /**
    * @async
+   * @abstract
    * @throws {Error} Throws an error indicating the method is not implemented.
    * @returns {Promise<void>}
    */
@@ -8153,6 +8885,7 @@ var SmartBlocks = class extends SmartEntities {
   }
   /**
    * @async
+   * @abstract
    * @throws {Error} Throws an error indicating the method is not implemented.
    * @returns {Promise<void>}
    */
@@ -8161,11 +8894,24 @@ var SmartBlocks = class extends SmartEntities {
   }
   /**
    * @async
+   * @abstract
    * @throws {Error} Throws an error indicating the method is not implemented.
    * @returns {Promise<void>}
    */
   async run_force_refresh() {
     throw "Not implemented: run_force_refresh";
+  }
+  // clear expired blocks
+  // TODO/future: replaced by storing block data within source data
+  async cleanup_blocks() {
+    const expired_blocks = Object.values(this.items).filter((i) => i.is_gone);
+    console.log(`Removing ${expired_blocks.length} expired blocks`);
+    expired_blocks.forEach((i) => i.delete());
+    await this.process_save_queue();
+    expired_blocks.forEach((i) => {
+      delete this.items[i.key];
+    });
+    this.emit_event("blocks:cleaned", { expired_blocks_ct: expired_blocks.length });
   }
 };
 
@@ -8189,6 +8935,7 @@ var AjsonMultiFileBlocksDataAdapter = class extends AjsonMultiFileCollectionData
    * @returns {Promise<void>}
    */
   async process_save_queue() {
+    this.collection.emit_event("collection:save_started");
     this.collection.show_process_notice("saving_collection");
     const save_queue = Object.values(this.collection.items).filter((item) => item._queue_save);
     console.log(`Saving ${this.collection.collection_key}: ${save_queue.length} items`);
@@ -8209,6 +8956,7 @@ var AjsonMultiFileBlocksDataAdapter = class extends AjsonMultiFileCollectionData
     }
     console.log(`Saved ${this.collection.collection_key} in ${Date.now() - time_start}ms`);
     this.collection.clear_process_notice("saving_collection");
+    this.collection.emit_event("collection:save_completed");
   }
   process_load_queue() {
     console.log(`Skipping loading ${this.collection.collection_key}...`);
@@ -8329,7 +9077,11 @@ var MarkdownBlockContentAdapter = class extends BlockContentAdapter {
    * @throws {Error} If the block cannot be found.
    */
   async read() {
-    const source_content = await this.item.source.read();
+    const source_content = await this.item.source?.read();
+    if (!source_content) {
+      console.warn(`BLOCK NOT FOUND: ${this.item.key} has no source content.`);
+      return "";
+    }
     const content = this._extract_block(source_content);
     this.update_last_read(content);
     return content;
@@ -8457,88 +9209,6 @@ var MarkdownBlockContentAdapter = class extends BlockContentAdapter {
   }
 };
 
-// node_modules/obsidian-smart-env/node_modules/smart-sources/components/settings.js
-async function build_html2(collection, opts = {}) {
-  const settings_html = Object.entries(collection.settings_config).map(([setting_key, setting_config]) => {
-    if (!setting_config.setting) setting_config.setting = setting_key;
-    return this.render_setting_html(setting_config);
-  }).join("\n");
-  const html = `<div class="source-settings">
-    ${settings_header_html(collection, opts)}
-    ${settings_html}
-  </div>`;
-  return html;
-}
-function settings_header_html(collection, opts = {}) {
-  const heading_text = collection.collection_key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
-  const heading_html = collection.collection_key === "smart_sources" ? get_source_heading_html(collection) : get_block_heading_html(collection);
-  return `<div class="group-header">
-    <h2>${heading_text}</h2>
-    ${heading_html}
-  </div>`;
-}
-function get_source_heading_html(collection) {
-  const item_count = Object.keys(collection.items).length;
-  if (!collection.loaded) {
-    return `<span>${item_count} sources (embeddings not currently loaded)</span>`;
-  }
-  const total_count = collection.total_files;
-  const included_count = collection.included_files;
-  if (collection.loaded !== included_count) {
-    return `<span>${collection.loaded}/${included_count} sources (partially loaded, should refresh/reload)</span>`;
-  }
-  const embedded_items = Object.values(collection.items).filter((item) => item.vec);
-  const embedded_percentage = Math.round(embedded_items.length / item_count * 100);
-  const load_time_html = collection.load_time_ms ? `<span>Load time: ${collection.load_time_ms}ms</span>` : "";
-  return `
-    <span>${embedded_percentage}% embedded</span>
-    ${embedded_percentage === 0 ? "<span><b>Should run Re-import to re-embed</b></span>" : ""}
-    <span>${included_count} included</span>
-    <span>${total_count - included_count} excluded</span>
-    ${load_time_html}
-  `;
-}
-function get_block_heading_html(collection) {
-  const item_count = Object.keys(collection.items).length;
-  if (!collection.loaded) {
-    return `<span>${item_count} blocks (embeddings not currently loaded)</span>`;
-  }
-  if (collection.loaded !== item_count) {
-    return `<span>${collection.loaded}/${item_count} (loaded/total)</span>`;
-  }
-  const items_w_vec = Object.values(collection.items).filter((item) => item.vec).length;
-  const embedded_percentage = Math.round(items_w_vec / item_count * 100);
-  const load_time_html = collection.load_time_ms ? `<span>Load time: ${collection.load_time_ms}ms</span>` : "";
-  return `
-    <span>${embedded_percentage}% embedded (${items_w_vec}/${item_count})</span>
-    <!--<span>Loaded: ${item_count} blocks (expected ${collection.expected_blocks_ct})</span>-->
-    ${load_time_html}
-  `;
-}
-async function render3(collection, opts = {}) {
-  const html = await build_html2.call(this, collection, opts);
-  const frag = this.create_doc_fragment(html);
-  return await post_process3.call(this, collection, frag, opts);
-}
-async function post_process3(collection, frag, opts = {}) {
-  await this.render_setting_components(frag, { scope: collection });
-  return frag;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-model/components/settings.js
-async function render4(scope, opts = {}) {
-  const html = Object.entries(scope.settings_config).map(([setting_key, setting_config]) => {
-    if (!setting_config.setting) setting_config.setting = setting_key;
-    return this.render_setting_html(setting_config);
-  }).join("\n");
-  const frag = this.create_doc_fragment(html);
-  return await post_process4.call(this, scope, frag, opts);
-}
-async function post_process4(scope, frag, opts = {}) {
-  await this.render_setting_components(frag, { scope });
-  return frag;
-}
-
 // node_modules/obsidian-smart-env/node_modules/smart-model/smart_model.js
 var SmartModel = class {
   scope_name = "smart_model";
@@ -8550,8 +9220,6 @@ var SmartModel = class {
    * @param {Object} opts - Configuration options
    * @param {Object} opts.adapters - Map of adapter names to adapter classes
    * @param {Object} opts.settings - Model settings configuration
-   * @param {Object} opts.model_config - Model-specific configuration
-   * @param {string} opts.model_config.adapter - Name of the adapter to use
    * @param {string} [opts.model_key] - Optional model identifier to override settings
    * @throws {Error} If required options are missing
    */
@@ -8560,6 +9228,7 @@ var SmartModel = class {
     this.validate_opts(opts);
     this.state = "unloaded";
     this._adapter = null;
+    this.data = opts;
   }
   /**
    * Initialize the model by loading the configured adapter.
@@ -8593,28 +9262,12 @@ var SmartModel = class {
    * @returns {string} Current adapter name
    */
   get adapter_name() {
-    let adapter_key = this.opts.model_config?.adapter || this.opts.adapter || this.settings.adapter || Object.keys(this.adapters)[0];
+    let adapter_key = this.opts.adapter || this.settings.adapter || Object.keys(this.adapters)[0];
     if (!adapter_key || !this.adapters[adapter_key]) {
       console.warn(`Platform "${adapter_key}" not supported`);
       adapter_key = Object.keys(this.adapters)[0];
     }
     return adapter_key;
-  }
-  /**
-   * Get adapter-specific settings.
-   * @returns {Object} Settings for current adapter
-   */
-  get adapter_settings() {
-    if (!this.settings[this.adapter_name]) this.settings[this.adapter_name] = {};
-    return this.settings[this.adapter_name];
-  }
-  get adapter_config() {
-    const base_config = this.adapters[this.adapter_name]?.defaults || {};
-    return {
-      ...base_config,
-      ...this.adapter_settings,
-      ...this.opts.adapter_config
-    };
   }
   /**
    * Get available models.
@@ -8635,24 +9288,7 @@ var SmartModel = class {
    * @returns {string} Current model key
    */
   get model_key() {
-    return this.opts.model_key || this.adapter_config.model_key || this.settings.model_key || this.default_model_key;
-  }
-  /**
-   * Get the current model configuration
-   * @returns {Object} Combined base and custom model configuration
-   */
-  get model_config() {
-    const model_key = this.model_key;
-    const base_model_config = this.models[model_key] || {};
-    return {
-      ...this.adapter_config,
-      ...base_model_config,
-      ...this.opts.model_config
-    };
-  }
-  get model_settings() {
-    if (!this.settings[this.model_key]) this.settings[this.model_key] = {};
-    return this.settings[this.model_key];
+    return this.opts.model_key || this.settings.model_key || this.default_model_key;
   }
   /**
    * Load the current adapter and transition to loaded state.
@@ -8672,6 +9308,7 @@ var SmartModel = class {
           this.reload_model_timeout = null;
           await this.load();
           this.set_state("loaded");
+          this.env?.events?.emit("model:loaded", { model_key: this.model_key });
           this.notices?.show("Loaded model: " + this.model_key);
         }, 6e4);
       }
@@ -8877,13 +9514,7 @@ var SmartEmbedModel = class extends SmartModel {
    * Create a SmartEmbedModel instance
    * @param {Object} opts - Configuration options
    * @param {Object} [opts.adapters] - Map of available adapter implementations
-   * @param {boolean} [opts.use_gpu] - Whether to enable GPU acceleration
-   * @param {number} [opts.gpu_batch_size] - Batch size when using GPU
    * @param {number} [opts.batch_size] - Default batch size for processing
-   * @param {Object} [opts.model_config] - Model-specific configuration
-   * @param {string} [opts.model_config.adapter] - Override adapter type
-   * @param {number} [opts.model_config.dims] - Embedding dimensions
-   * @param {number} [opts.model_config.max_tokens] - Maximum tokens to process
    * @param {Object} [opts.settings] - User settings
    * @param {string} [opts.settings.api_key] - API key for remote models
    * @param {number} [opts.settings.min_chars] - Minimum text length to embed
@@ -9027,39 +9658,12 @@ var SmartModelAdapter = class {
     return this.model.model_key;
   }
   /**
-   * Get the current model configuration.
-   * @returns {Object} Model configuration
-   */
-  get model_config() {
-    return this.model.model_config;
-  }
-  /**
-   * Get model-specific settings.
-   * @returns {Object} Settings for current model
-   */
-  get model_settings() {
-    return this.model.model_settings;
-  }
-  /**
-   * Get adapter-specific configuration.
-   * @returns {Object} Adapter configuration
-   */
-  get adapter_config() {
-    return this.model.adapter_config;
-  }
-  /**
-   * Get adapter-specific settings.
-   * @returns {Object} Adapter settings
-   */
-  get adapter_settings() {
-    return this.model.adapter_settings;
-  }
-  /**
    * Get the models.
    * @returns {Object} Map of model objects
    */
   get models() {
-    if (typeof this.adapter_config.models === "object" && Object.keys(this.adapter_config.models || {}).length > 0) return this.adapter_config.models;
+    const models = this.model.data.provider_models;
+    if (typeof models === "object" && Object.keys(models || {}).length > 0) return models;
     else {
       return {};
     }
@@ -9074,20 +9678,11 @@ var SmartModelAdapter = class {
     throw new Error("get_models not implemented");
   }
   /**
-   * Validate the parameters for get_models.
-   * @returns {boolean|Array<Object>} True if parameters are valid, otherwise an array of error objects
-   */
-  validate_get_models_params() {
-    return true;
-  }
-  /**
    * Get available models as dropdown options synchronously.
    * @returns {Array<Object>} Array of model options.
    */
   get_models_as_options() {
     const models = this.models;
-    const params_valid = this.validate_get_models_params();
-    if (params_valid !== true) return params_valid;
     if (!Object.keys(models || {}).length) {
       this.get_models(true);
       return [{ value: "", name: "No models currently available" }];
@@ -9135,14 +9730,6 @@ var SmartEmbedAdapter = class extends SmartModelAdapter {
    */
   static defaults = {};
   /**
-   * Create adapter instance
-   * @param {SmartEmbedModel} model - Parent model instance
-   */
-  constructor(model) {
-    super(model);
-    this.smart_embed = model;
-  }
-  /**
    * Count tokens in input text
    * @abstract
    * @param {string} input - Text to tokenize
@@ -9163,7 +9750,8 @@ var SmartEmbedAdapter = class extends SmartModelAdapter {
    * @throws {Error} If not implemented by subclass
    */
   async embed(input) {
-    throw new Error("embed method not implemented");
+    if (typeof input === "string") input = { embed_input: input };
+    return (await this.embed_batch([input]))[0];
   }
   /**
    * Generate embeddings for multiple inputs
@@ -9190,25 +9778,13 @@ var SmartEmbedAdapter = class extends SmartModelAdapter {
     };
   }
   get dims() {
-    return this.model_config.dims;
+    return this.model.data.dims;
   }
   get max_tokens() {
-    return this.model_config.max_tokens;
-  }
-  // get batch_size() { return this.model_config.batch_size; }
-  get use_gpu() {
-    if (typeof this._use_gpu === "undefined") {
-      if (typeof this.model.opts.use_gpu !== "undefined") this._use_gpu = this.model.opts.use_gpu;
-      else this._use_gpu = typeof navigator !== "undefined" && !!navigator?.gpu && this.model_settings.gpu_batch_size !== 0;
-    }
-    return this._use_gpu;
-  }
-  set use_gpu(value) {
-    this._use_gpu = value;
+    return this.model.data.max_tokens;
   }
   get batch_size() {
-    if (this.use_gpu && this.model_config?.gpu_batch_size) return this.model_config.gpu_batch_size;
-    return this.model.opts.batch_size || this.model_config.batch_size || 1;
+    return this.model.data.batch_size || 1;
   }
 };
 
@@ -9250,6 +9826,12 @@ var SmartHttpRequestAdapter = class {
   constructor(main) {
     this.main = main;
   }
+  /**
+   * Execute an HTTP request using adapter-specific transport.
+   * @abstract
+   * @param {Object} request_params - Parameters for the outbound request.
+   * @returns {Promise<SmartHttpResponseAdapter>} Adapter-specific response wrapper.
+   */
   async request(request_params) {
     throw new Error("request not implemented");
   }
@@ -9258,15 +9840,35 @@ var SmartHttpResponseAdapter = class {
   constructor(response) {
     this.response = response;
   }
+  /**
+   * Retrieve response headers.
+   * @abstract
+   * @returns {Promise<Object>} Headers object for the response.
+   */
   async headers() {
     throw new Error("headers not implemented");
   }
+  /**
+   * Parse the response body as JSON.
+   * @abstract
+   * @returns {Promise<*>} Parsed JSON payload.
+   */
   async json() {
     throw new Error("json not implemented");
   }
+  /**
+   * Get the HTTP status code.
+   * @abstract
+   * @returns {Promise<number>} Response status code.
+   */
   async status() {
     throw new Error("status not implemented");
   }
+  /**
+   * Read the raw text body.
+   * @abstract
+   * @returns {Promise<string>} Response body as text.
+   */
   async text() {
     throw new Error("text not implemented");
   }
@@ -9333,248 +9935,6 @@ var SmartHttpResponseFetchAdapter = class extends SmartHttpResponseAdapter {
       this._text = await this.response.text();
     }
     return this._text;
-  }
-};
-
-// node_modules/obsidian-smart-env/node_modules/smart-embed-model/adapters/_api.js
-var SmartEmbedModelApiAdapter = class extends SmartEmbedAdapter {
-  /**
-   * Get the request adapter class.
-   * @returns {SmartEmbedModelRequestAdapter} The request adapter class
-   */
-  get req_adapter() {
-    return SmartEmbedModelRequestAdapter;
-  }
-  /**
-   * Get the response adapter class.
-   * @returns {SmartEmbedModelResponseAdapter} The response adapter class
-   */
-  get res_adapter() {
-    return SmartEmbedModelResponseAdapter;
-  }
-  /** @returns {string} API endpoint URL */
-  get endpoint() {
-    return this.model_config.endpoint;
-  }
-  /**
-   * Get HTTP request adapter instance
-   * @returns {SmartHttpRequest} HTTP request handler
-   */
-  get http_adapter() {
-    if (!this._http_adapter) {
-      if (this.model.opts.http_adapter)
-        this._http_adapter = this.model.opts.http_adapter;
-      else
-        this._http_adapter = new SmartHttpRequest({
-          adapter: SmartHttpRequestFetchAdapter
-        });
-    }
-    return this._http_adapter;
-  }
-  /**
-   * Get API key for authentication
-   * @returns {string} API key
-   */
-  get api_key() {
-    return this.adapter_settings.api_key || this.settings.api_key || this.model_config.api_key;
-  }
-  /**
-   * Count tokens in input text
-   * @abstract
-   * @param {string} input - Text to tokenize
-   * @returns {Promise<Object>} Token count result
-   * @throws {Error} If not implemented by subclass
-   */
-  async count_tokens(input) {
-    throw new Error("count_tokens not implemented");
-  }
-  /**
-   * Estimate token count for input text
-   * Uses character-based estimation (3.7 chars per token)
-   * @param {string|Object} input - Input to estimate tokens for
-   * @returns {number} Estimated token count
-   */
-  estimate_tokens(input) {
-    if (typeof input === "object") input = JSON.stringify(input);
-    return Math.ceil(input.length / 3.7);
-  }
-  /**
-   * Process a batch of inputs for embedding
-   * @param {Array<Object>} inputs - Array of input objects
-   * @returns {Promise<Array<Object>>} Processed inputs with embeddings
-   * @throws {Error} If API key is not set
-   */
-  async embed_batch(inputs) {
-    if (!this.api_key) throw new Error("API key not set");
-    inputs = inputs.filter((item) => item.embed_input?.length > 0);
-    if (inputs.length === 0) {
-      console.log("Empty batch (or all items have empty embed_input)");
-      return [];
-    }
-    const embed_inputs = await Promise.all(
-      inputs.map((item) => this.prepare_embed_input(item.embed_input))
-    );
-    const _req = new this.req_adapter(this, embed_inputs);
-    const request_params = _req.to_platform();
-    const resp = await this.request(request_params);
-    if (!resp) {
-      console.error("No response received for embedding request.");
-      return [];
-    }
-    const _res = new this.res_adapter(this, resp);
-    const embeddings = _res.to_openai();
-    if (!embeddings) {
-      console.error("Failed to parse embeddings.");
-      return [];
-    }
-    return inputs.map((item, i) => {
-      item.vec = embeddings[i].vec;
-      item.tokens = embeddings[i].tokens;
-      return item;
-    });
-  }
-  /**
-   * Prepare input text for embedding
-   * @abstract
-   * @param {string} embed_input - Raw input text
-   * @returns {Promise<string>} Processed input text
-   * @throws {Error} If not implemented by subclass
-   */
-  async prepare_embed_input(embed_input) {
-    throw new Error("prepare_embed_input not implemented");
-  }
-  /**
-   * Prepare request headers
-   * @returns {Object} Headers object with authorization
-   */
-  prepare_request_headers() {
-    let headers = {
-      "Content-Type": "application/json"
-    };
-    if (this.api_key) {
-      headers["Authorization"] = `Bearer ${this.api_key}`;
-    }
-    if (this.smart_embed.opts.headers) {
-      headers = { ...headers, ...this.smart_embed.opts.headers };
-    }
-    return headers;
-  }
-  /**
-   * Make API request with retry logic
-   * @param {Object} req - Request configuration
-   * @param {number} [retries=0] - Number of retries attempted
-   * @returns {Promise<Object>} API response
-   */
-  async request(req, retries = 0) {
-    try {
-      req.throw = false;
-      const resp = await this.http_adapter.request({
-        url: this.endpoint,
-        ...req
-      });
-      const resp_json = await this.get_resp_json(resp);
-      return resp_json;
-    } catch (error) {
-      return await this.handle_request_err(error, req, retries);
-    }
-  }
-  /**
-   * Handle API request errors with retry logic
-   * @param {Error|Object} error - Error object
-   * @param {Object} req - Original request
-   * @param {number} retries - Number of retries attempted
-   * @returns {Promise<Object|null>} Retry response or null
-   */
-  async handle_request_err(error, req, retries) {
-    if (error.status === 429 && retries < 3) {
-      const backoff = Math.pow(retries + 1, 2);
-      console.log(`Retrying request (429) in ${backoff} seconds...`);
-      await new Promise((r) => setTimeout(r, 1e3 * backoff));
-      return await this.request(req, retries + 1);
-    }
-    console.error(error);
-    return null;
-  }
-  /**
-   * Parse response body as JSON
-   * @param {Response} resp - Response object
-   * @returns {Promise<Object>} Parsed JSON
-   */
-  async get_resp_json(resp) {
-    return typeof resp.json === "function" ? await resp.json() : await resp.json;
-  }
-  /**
-   * Validate API key by making test request
-   * @returns {Promise<boolean>} True if API key is valid
-   */
-  async validate_api_key() {
-    const resp = await this.embed_batch([{ embed_input: "test" }]);
-    return Array.isArray(resp) && resp.length > 0 && resp[0].vec !== null;
-  }
-};
-var SmartEmbedModelRequestAdapter = class {
-  /**
-   * @constructor
-   * @param {SmartEmbedModelApiAdapter} adapter - The SmartEmbedModelApiAdapter instance
-   * @param {Array<string>} embed_inputs - The array of input texts
-   */
-  constructor(adapter, embed_inputs) {
-    this.adapter = adapter;
-    this.embed_inputs = embed_inputs;
-  }
-  /**
-   * Get request headers
-   * @returns {Object} Headers object
-   */
-  get_headers() {
-    return this.adapter.prepare_request_headers();
-  }
-  /**
-   * Convert request to platform-specific format
-   * @returns {Object} Platform-specific request parameters
-   */
-  to_platform() {
-    return {
-      method: "POST",
-      headers: this.get_headers(),
-      body: JSON.stringify(this.prepare_request_body())
-    };
-  }
-  /**
-   * Prepare request body for API call
-   * @abstract
-   * @returns {Object} Request body object
-   * @throws {Error} If not implemented by subclass
-   */
-  prepare_request_body() {
-    throw new Error("prepare_request_body not implemented");
-  }
-};
-var SmartEmbedModelResponseAdapter = class {
-  /**
-   * @constructor
-   * @param {SmartEmbedModelApiAdapter} adapter - The SmartEmbedModelApiAdapter instance
-   * @param {Object} response - The response object
-   */
-  constructor(adapter, response) {
-    this.adapter = adapter;
-    this.response = response;
-  }
-  /**
-   * Convert response to standard format
-   * @returns {Array<Object>} Array of embedding results
-   */
-  to_openai() {
-    return this.parse_response();
-  }
-  /**
-   * Parse API response
-   * @abstract
-   * @returns {Array<Object>} Parsed embedding results
-   * @throws {Error} If not implemented by subclass
-   */
-  parse_response() {
-    throw new Error("parse_response not implemented");
   }
 };
 
@@ -9764,8 +10124,273 @@ async function do_fetch(url) {
   return await resp.json();
 }
 
-// node_modules/obsidian-smart-env/node_modules/smart-embed-model/adapters/openai.js
+// node_modules/obsidian-smart-env/node_modules/smart-embed-model/adapters/_api.js
 var CL100K_URL = "https://raw.githubusercontent.com/brianpetro/jsbrains/refs/heads/main/smart-embed-model/cl100k_base.json";
+var SmartEmbedModelApiAdapter = class extends SmartEmbedAdapter {
+  /**
+   * Get the request adapter class.
+   * @returns {SmartEmbedModelRequestAdapter} The request adapter class
+   */
+  get req_adapter() {
+    return SmartEmbedModelRequestAdapter;
+  }
+  /**
+   * Get the response adapter class.
+   * @returns {SmartEmbedModelResponseAdapter} The response adapter class
+   */
+  get res_adapter() {
+    return SmartEmbedModelResponseAdapter;
+  }
+  /** @returns {string} API endpoint URL */
+  get endpoint() {
+    return this.model.data.endpoint;
+  }
+  /**
+   * Get HTTP request adapter instance
+   * @returns {SmartHttpRequest} HTTP request handler
+   */
+  get http_adapter() {
+    if (!this._http_adapter) {
+      if (this.model.opts.http_adapter)
+        this._http_adapter = this.model.opts.http_adapter;
+      else
+        this._http_adapter = new SmartHttpRequest({
+          adapter: SmartHttpRequestFetchAdapter
+        });
+    }
+    return this._http_adapter;
+  }
+  /**
+   * Get API key for authentication
+   * @returns {string} API key
+   */
+  get api_key() {
+    return this.model.data.api_key;
+  }
+  /**
+   * Count tokens in input text
+   * @abstract
+   * @param {string} input - Text to tokenize
+   * @returns {Promise<Object>} Token count result
+   * @throws {Error} If not implemented by subclass
+   */
+  async count_tokens(input) {
+    throw new Error("count_tokens not implemented");
+  }
+  /**
+   * Estimate token count for input text
+   * Uses character-based estimation (3.7 chars per token)
+   * @param {string|Object} input - Input to estimate tokens for
+   * @returns {number} Estimated token count
+   */
+  estimate_tokens(input) {
+    if (typeof input === "object") input = JSON.stringify(input);
+    return Math.ceil(input.length / 3.7);
+  }
+  /**
+   * Process a batch of inputs for embedding
+   * @param {Array<Object>} inputs - Array of input objects
+   * @returns {Promise<Array<Object>>} Processed inputs with embeddings
+   * @throws {Error} If API key is not set
+   */
+  async embed_batch(inputs) {
+    if (!this.api_key) throw new Error("API key not set");
+    inputs = inputs.filter((item) => item.embed_input?.length > 0);
+    if (inputs.length === 0) {
+      console.log("Empty batch (or all items have empty embed_input)");
+      return [];
+    }
+    const embed_inputs = await Promise.all(
+      inputs.map((item) => this.prepare_embed_input(item.embed_input))
+    );
+    const _req = new this.req_adapter(this, embed_inputs);
+    const request_params = _req.to_platform();
+    const resp = await this.request(request_params);
+    if (!resp) {
+      console.error("No response received for embedding request.");
+      return [];
+    }
+    const _res = new this.res_adapter(this, resp);
+    const embeddings = _res.to_openai();
+    if (!embeddings) {
+      console.error("Failed to parse embeddings.");
+      return [];
+    }
+    return inputs.map((item, i) => {
+      item.vec = embeddings[i].vec;
+      item.tokens = embeddings[i].tokens;
+      return item;
+    });
+  }
+  /**
+   * Prepare input text for embedding
+   * @abstract
+   * @param {string} embed_input - Raw input text
+   * @returns {Promise<string>} Processed input text
+   * @throws {Error} If not implemented by subclass
+   */
+  async prepare_embed_input(embed_input) {
+    throw new Error("prepare_embed_input not implemented");
+  }
+  /**
+   * Prepare request headers
+   * @returns {Object} Headers object with authorization
+   */
+  prepare_request_headers() {
+    let headers = {
+      "Content-Type": "application/json"
+    };
+    if (this.api_key) {
+      headers["Authorization"] = `Bearer ${this.api_key}`;
+    }
+    return headers;
+  }
+  /**
+   * Make API request with retry logic
+   * @param {Object} req - Request configuration
+   * @param {number} [retries=0] - Number of retries attempted
+   * @returns {Promise<Object>} API response
+   */
+  async request(req, retries = 0) {
+    try {
+      req.throw = false;
+      const resp = await this.http_adapter.request({
+        url: this.endpoint,
+        ...req
+      });
+      const resp_json = await this.get_resp_json(resp);
+      return resp_json;
+    } catch (error) {
+      return await this.handle_request_err(error, req, retries);
+    }
+  }
+  /**
+   * Handle API request errors with retry logic
+   * @param {Error|Object} error - Error object
+   * @param {Object} req - Original request
+   * @param {number} retries - Number of retries attempted
+   * @returns {Promise<Object|null>} Retry response or null
+   */
+  async handle_request_err(error, req, retries) {
+    if (error.status === 429 && retries < 3) {
+      const backoff = Math.pow(retries + 1, 2);
+      console.log(`Retrying request (429) in ${backoff} seconds...`);
+      await new Promise((r) => setTimeout(r, 1e3 * backoff));
+      return await this.request(req, retries + 1);
+    }
+    console.error(error);
+    return null;
+  }
+  /**
+   * Parse response body as JSON
+   * @param {Response} resp - Response object
+   * @returns {Promise<Object>} Parsed JSON
+   */
+  async get_resp_json(resp) {
+    return typeof resp.json === "function" ? await resp.json() : await resp.json;
+  }
+  /**
+   * Validate API key by making test request
+   * @returns {Promise<boolean>} True if API key is valid
+   */
+  async validate_api_key() {
+    const resp = await this.embed_batch([{ embed_input: "test" }]);
+    return Array.isArray(resp) && resp.length > 0 && resp[0].vec !== null;
+  }
+  /**
+   * Trim input text to satisfy `max_tokens`.
+   * @param {string} embed_input - Input text
+   * @param {number} tokens_ct - Existing token count
+   * @returns {Promise<string|null>} Trimmed text
+   */
+  async trim_input_to_max_tokens(embed_input, tokens_ct) {
+    const reduce_ratio = (tokens_ct - this.max_tokens) / tokens_ct;
+    const new_length = Math.floor(embed_input.length * (1 - reduce_ratio));
+    let trimmed_input = embed_input.slice(0, new_length);
+    const last_space_index = trimmed_input.lastIndexOf(" ");
+    if (last_space_index > 0) trimmed_input = trimmed_input.slice(0, last_space_index);
+    const prepared = await this.prepare_embed_input(trimmed_input);
+    if (prepared === null) return null;
+    return prepared;
+  }
+  async load_tiktoken() {
+    const cl100k_base = await fetch_json_cached(CL100K_URL, "cl100k_base.json");
+    this.tiktoken = new Tiktoken(cl100k_base);
+  }
+};
+var SmartEmbedModelRequestAdapter = class {
+  /**
+   * @constructor
+   * @param {SmartEmbedModelApiAdapter} adapter - The SmartEmbedModelApiAdapter instance
+   * @param {Array<string>} embed_inputs - The array of input texts
+   */
+  constructor(adapter, embed_inputs) {
+    this.adapter = adapter;
+    this.embed_inputs = embed_inputs;
+  }
+  get model_id() {
+    return this.adapter.model.data.model_key;
+  }
+  get model_dims() {
+    return this.adapter.model.data.dims;
+  }
+  /**
+   * Get request headers
+   * @returns {Object} Headers object
+   */
+  get_headers() {
+    return this.adapter.prepare_request_headers();
+  }
+  /**
+   * Convert request to platform-specific format
+   * @returns {Object} Platform-specific request parameters
+   */
+  to_platform() {
+    return {
+      method: "POST",
+      headers: this.get_headers(),
+      body: JSON.stringify(this.prepare_request_body())
+    };
+  }
+  /**
+   * Prepare request body for API call
+   * @abstract
+   * @returns {Object} Request body object
+   * @throws {Error} If not implemented by subclass
+   */
+  prepare_request_body() {
+    throw new Error("prepare_request_body not implemented");
+  }
+};
+var SmartEmbedModelResponseAdapter = class {
+  /**
+   * @constructor
+   * @param {SmartEmbedModelApiAdapter} adapter - The SmartEmbedModelApiAdapter instance
+   * @param {Object} response - The response object
+   */
+  constructor(adapter, response) {
+    this.adapter = adapter;
+    this.response = response;
+  }
+  /**
+   * Convert response to standard format
+   * @returns {Array<Object>} Array of embedding results
+   */
+  to_openai() {
+    return this.parse_response();
+  }
+  /**
+   * Parse API response
+   * @abstract
+   * @returns {Array<Object>} Parsed embedding results
+   * @throws {Error} If not implemented by subclass
+   */
+  parse_response() {
+    throw new Error("parse_response not implemented");
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-embed-model/adapters/openai.js
 var SmartEmbedOpenAIAdapter = class extends SmartEmbedModelApiAdapter {
   static defaults = {
     adapter: "openai",
@@ -9774,29 +10399,13 @@ var SmartEmbedOpenAIAdapter = class extends SmartEmbedModelApiAdapter {
     endpoint: "https://api.openai.com/v1/embeddings"
   };
   /**
-   * Create OpenAI adapter instance
-   * @param {SmartEmbedModel} smart_embed - Parent model instance
-   */
-  constructor(smart_embed) {
-    super(smart_embed);
-    this.enc = null;
-  }
-  /**
-   * Initialize tokenizer
-   * @returns {Promise<void>}
-   */
-  async load() {
-    const cl100k_base = await fetch_json_cached(CL100K_URL, "cl100k_base.json");
-    this.enc = new Tiktoken(cl100k_base);
-  }
-  /**
    * Count tokens in input text using OpenAI's tokenizer
    * @param {string} input - Text to tokenize
    * @returns {Promise<Object>} Token count result
    */
   async count_tokens(input) {
-    if (!this.enc) await this.load();
-    return { tokens: this.enc.encode(input).length };
+    if (!this.tiktoken) await this.load_tiktoken();
+    return { tokens: this.tiktoken.encode(input).length };
   }
   /**
    * Prepare input text for embedding
@@ -9858,7 +10467,7 @@ var SmartEmbedOpenAIAdapter = class extends SmartEmbedModelApiAdapter {
   }
   /** @returns {number} Maximum tokens per input */
   get max_tokens() {
-    return this.model_config.max_tokens || 8191;
+    return this.model.data.max_tokens || 8191;
   }
   /** @returns {Object} Settings configuration for OpenAI adapter */
   get settings_config() {
@@ -9901,26 +10510,26 @@ var SmartEmbedOpenAIAdapter = class extends SmartEmbedModelApiAdapter {
         "endpoint": "https://api.openai.com/v1/embeddings",
         "adapter": "openai"
       },
-      "text-embedding-3-small-512": {
-        "id": "text-embedding-3-small",
-        "batch_size": 50,
-        "dims": 512,
-        "max_tokens": 8191,
-        "name": "OpenAI Text-3 Small - 512",
-        "description": "API, 8,191 tokens, 512 dim",
-        "endpoint": "https://api.openai.com/v1/embeddings",
-        "adapter": "openai"
-      },
-      "text-embedding-3-large-256": {
-        "id": "text-embedding-3-large",
-        "batch_size": 50,
-        "dims": 256,
-        "max_tokens": 8191,
-        "name": "OpenAI Text-3 Large - 256",
-        "description": "API, 8,191 tokens, 256 dim",
-        "endpoint": "https://api.openai.com/v1/embeddings",
-        "adapter": "openai"
-      },
+      // "text-embedding-3-small-512": {
+      //   "id": "text-embedding-3-small",
+      //   "batch_size": 50,
+      //   "dims": 512,
+      //   "max_tokens": 8191,
+      //   "name": "OpenAI Text-3 Small - 512",
+      //   "description": "API, 8,191 tokens, 512 dim",
+      //   "endpoint": "https://api.openai.com/v1/embeddings",
+      //   "adapter": "openai"
+      // },
+      // "text-embedding-3-large-256": {
+      //   "id": "text-embedding-3-large",
+      //   "batch_size": 50,
+      //   "dims": 256,
+      //   "max_tokens": 8191,
+      //   "name": "OpenAI Text-3 Large - 256",
+      //   "description": "API, 8,191 tokens, 256 dim",
+      //   "endpoint": "https://api.openai.com/v1/embeddings",
+      //   "adapter": "openai"
+      // },
       "text-embedding-ada-002": {
         "id": "text-embedding-ada-002",
         "batch_size": 50,
@@ -9941,11 +10550,11 @@ var SmartEmbedOpenAIRequestAdapter = class extends SmartEmbedModelRequestAdapter
    */
   prepare_request_body() {
     const body = {
-      model: this.adapter.model_config.id,
+      model: this.model_id,
       input: this.embed_inputs
     };
-    if (this.adapter.model_key.startsWith("text-embedding-3")) {
-      body.dimensions = this.adapter.model_config.dims;
+    if (this.model_id.startsWith("text-embedding-3")) {
+      body.dimensions = this.model_dims;
     }
     return body;
   }
@@ -9974,7 +10583,6 @@ var SmartEmbedOpenAIResponseAdapter = class extends SmartEmbedModelResponseAdapt
 var SmartEmbedMessageAdapter = class extends SmartEmbedAdapter {
   /**
    * Create message adapter instance
-   * @param {SmartEmbedModel} model - Parent model instance
    */
   constructor(model) {
     super(model);
@@ -10008,7 +10616,9 @@ var SmartEmbedMessageAdapter = class extends SmartEmbedAdapter {
     if (!id.startsWith(this.message_prefix)) return;
     if (result?.model_loaded) {
       console.log("model loaded");
+      this.state = "loaded";
       this.model.model_loaded = true;
+      this.model.load_result = result;
     }
     if (this.message_queue[id]) {
       if (error) {
@@ -10059,7 +10669,6 @@ var SmartEmbedMessageAdapter = class extends SmartEmbedAdapter {
 var SmartEmbedIframeAdapter = class extends SmartEmbedMessageAdapter {
   /**
    * Create iframe adapter instance
-   * @param {SmartEmbedModel} model - Parent model instance
    */
   constructor(model) {
     super(model);
@@ -10140,13 +10749,14 @@ var SmartEmbedIframeAdapter = class extends SmartEmbedMessageAdapter {
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-embed-model/connectors/transformers_iframe.js
-var transformers_connector = 'var __defProp = Object.defineProperty;\nvar __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;\nvar __publicField = (obj, key, value) => {\n  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);\n  return value;\n};\n\n// ../smart-model/smart_model.js\nvar SmartModel = class {\n  /**\n   * Create a SmartModel instance.\n   * @param {Object} opts - Configuration options\n   * @param {Object} opts.adapters - Map of adapter names to adapter classes\n   * @param {Object} opts.settings - Model settings configuration\n   * @param {Object} opts.model_config - Model-specific configuration\n   * @param {string} opts.model_config.adapter - Name of the adapter to use\n   * @param {string} [opts.model_key] - Optional model identifier to override settings\n   * @throws {Error} If required options are missing\n   */\n  constructor(opts = {}) {\n    __publicField(this, "scope_name", "smart_model");\n    this.opts = opts;\n    this.validate_opts(opts);\n    this.state = "unloaded";\n    this._adapter = null;\n  }\n  /**\n   * Initialize the model by loading the configured adapter.\n   * @async\n   * @returns {Promise<void>}\n   */\n  async initialize() {\n    this.load_adapter(this.adapter_name);\n    await this.load();\n  }\n  /**\n   * Validate required options.\n   * @param {Object} opts - Configuration options\n   */\n  validate_opts(opts) {\n    if (!opts.adapters)\n      throw new Error("opts.adapters is required");\n    if (!opts.settings)\n      throw new Error("opts.settings is required");\n  }\n  /**\n   * Get the current settings\n   * @returns {Object} Current settings\n   */\n  get settings() {\n    if (!this.opts.settings)\n      this.opts.settings = {\n        ...this.constructor.defaults\n      };\n    return this.opts.settings;\n  }\n  /**\n   * Get the current adapter name\n   * @returns {string} Current adapter name\n   */\n  get adapter_name() {\n    let adapter_key = this.opts.model_config?.adapter || this.opts.adapter || this.settings.adapter || Object.keys(this.adapters)[0];\n    if (!adapter_key || !this.adapters[adapter_key]) {\n      console.warn(`Platform "${adapter_key}" not supported`);\n      adapter_key = Object.keys(this.adapters)[0];\n    }\n    return adapter_key;\n  }\n  /**\n   * Get adapter-specific settings.\n   * @returns {Object} Settings for current adapter\n   */\n  get adapter_settings() {\n    if (!this.settings[this.adapter_name])\n      this.settings[this.adapter_name] = {};\n    return this.settings[this.adapter_name];\n  }\n  get adapter_config() {\n    const base_config = this.adapters[this.adapter_name]?.defaults || {};\n    return {\n      ...base_config,\n      ...this.adapter_settings,\n      ...this.opts.adapter_config\n    };\n  }\n  /**\n   * Get available models.\n   * @returns {Object} Map of model objects\n   */\n  get models() {\n    return this.adapter.models;\n  }\n  /**\n   * Get default model key.\n   * @returns {string} Default model key\n   */\n  get default_model_key() {\n    return this.adapter.constructor.defaults.default_model;\n  }\n  /**\n   * Get the current model key\n   * @returns {string} Current model key\n   */\n  get model_key() {\n    return this.opts.model_key || this.adapter_config.model_key || this.settings.model_key || this.default_model_key;\n  }\n  /**\n   * Get the current model configuration\n   * @returns {Object} Combined base and custom model configuration\n   */\n  get model_config() {\n    const model_key = this.model_key;\n    const base_model_config = this.models[model_key] || {};\n    return {\n      ...this.adapter_config,\n      ...base_model_config,\n      ...this.opts.model_config\n    };\n  }\n  get model_settings() {\n    if (!this.settings[this.model_key])\n      this.settings[this.model_key] = {};\n    return this.settings[this.model_key];\n  }\n  /**\n   * Load the current adapter and transition to loaded state.\n   * @async\n   * @returns {Promise<void>}\n   */\n  async load() {\n    this.set_state("loading");\n    try {\n      if (!this.adapter?.is_loaded) {\n        await this.invoke_adapter_method("load");\n      }\n    } catch (err) {\n      this.set_state("unloaded");\n      if (!this.reload_model_timeout) {\n        this.reload_model_timeout = setTimeout(async () => {\n          this.reload_model_timeout = null;\n          await this.load();\n          this.set_state("loaded");\n          this.notices?.show("Loaded model: " + this.model_key);\n        }, 6e4);\n      }\n      throw new Error(`Failed to load model: ${err.message}`);\n    }\n    this.set_state("loaded");\n  }\n  /**\n   * Unload the current adapter and transition to unloaded state.\n   * @async\n   * @returns {Promise<void>}\n   */\n  async unload() {\n    if (this.adapter?.is_loaded) {\n      this.set_state("unloading");\n      await this.invoke_adapter_method("unload");\n      this.set_state("unloaded");\n    }\n  }\n  /**\n   * Set the model\'s state.\n   * @param {(\'unloaded\'|\'loading\'|\'loaded\'|\'unloading\')} new_state - The new state\n   * @throws {Error} If the state is invalid\n   */\n  set_state(new_state) {\n    const valid_states = ["unloaded", "loading", "loaded", "unloading"];\n    if (!valid_states.includes(new_state)) {\n      throw new Error(`Invalid state: ${new_state}`);\n    }\n    this.state = new_state;\n  }\n  get is_loading() {\n    return this.state === "loading";\n  }\n  get is_loaded() {\n    return this.state === "loaded";\n  }\n  get is_unloading() {\n    return this.state === "unloading";\n  }\n  get is_unloaded() {\n    return this.state === "unloaded";\n  }\n  // ADAPTERS\n  /**\n   * Get the map of available adapters\n   * @returns {Object} Map of adapter names to adapter classes\n   */\n  get adapters() {\n    return this.opts.adapters || {};\n  }\n  /**\n   * Load a specific adapter by name.\n   * @async\n   * @param {string} adapter_name - Name of the adapter to load\n   * @throws {Error} If adapter not found or loading fails\n   * @returns {Promise<void>}\n   */\n  async load_adapter(adapter_name) {\n    this.set_adapter(adapter_name);\n    if (!this._adapter.loaded) {\n      this.set_state("loading");\n      try {\n        await this.invoke_adapter_method("load");\n        this.set_state("loaded");\n      } catch (err) {\n        this.set_state("unloaded");\n        throw new Error(`Failed to load adapter: ${err.message}`);\n      }\n    }\n  }\n  /**\n   * Set an adapter instance by name without loading it.\n   * @param {string} adapter_name - Name of the adapter to set\n   * @throws {Error} If adapter not found\n   */\n  set_adapter(adapter_name) {\n    const AdapterClass = this.adapters[adapter_name];\n    if (!AdapterClass) {\n      throw new Error(`Adapter "${adapter_name}" not found.`);\n    }\n    if (this._adapter?.constructor.name.toLowerCase() === adapter_name.toLowerCase()) {\n      return;\n    }\n    this._adapter = new AdapterClass(this);\n  }\n  /**\n   * Get the current active adapter instance\n   * @returns {Object} The active adapter instance\n   * @throws {Error} If adapter not found\n   */\n  get adapter() {\n    const adapter_name = this.adapter_name;\n    if (!adapter_name) {\n      throw new Error(`Adapter not set for model.`);\n    }\n    if (!this._adapter) {\n      this.load_adapter(adapter_name);\n    }\n    return this._adapter;\n  }\n  /**\n   * Ensure the adapter is ready to execute a method.\n   * @param {string} method - Name of the method to check\n   * @throws {Error} If adapter not loaded or method not implemented\n   */\n  ensure_adapter_ready(method) {\n    if (!this.adapter) {\n      throw new Error("No adapter loaded.");\n    }\n    if (typeof this.adapter[method] !== "function") {\n      throw new Error(`Adapter does not implement method: ${method}`);\n    }\n  }\n  /**\n   * Invoke a method on the current adapter.\n   * @async\n   * @param {string} method - Name of the method to call\n   * @param {...any} args - Arguments to pass to the method\n   * @returns {Promise<any>} Result from the adapter method\n   * @throws {Error} If adapter not ready or method fails\n   */\n  async invoke_adapter_method(method, ...args) {\n    this.ensure_adapter_ready(method);\n    return await this.adapter[method](...args);\n  }\n  /**\n   * Get platforms as dropdown options.\n   * @returns {Array<Object>} Array of {value, name} option objects\n   */\n  get_platforms_as_options() {\n    return Object.entries(this.adapters).map(([key, AdapterClass]) => ({ value: key, name: AdapterClass.defaults.description || key }));\n  }\n  // SETTINGS\n  /**\n   * Get the settings configuration schema\n   * @returns {Object} Settings configuration object\n   */\n  get settings_config() {\n    return this.process_settings_config({\n      adapter: {\n        name: "Model Platform",\n        type: "dropdown",\n        description: "Select a model platform to use with Smart Model.",\n        options_callback: "get_platforms_as_options",\n        is_scope: true,\n        // trigger re-render of settings when changed\n        callback: "adapter_changed",\n        default: "default"\n      }\n    });\n  }\n  /**\n   * Process settings configuration with conditionals and prefixes.\n   * @param {Object} _settings_config - Raw settings configuration\n   * @param {string} [prefix] - Optional prefix for setting keys\n   * @returns {Object} Processed settings configuration\n   */\n  process_settings_config(_settings_config, prefix = null) {\n    return Object.entries(_settings_config).reduce((acc, [key, val]) => {\n      const new_key = (prefix ? prefix + "." : "") + this.process_setting_key(key);\n      acc[new_key] = val;\n      return acc;\n    }, {});\n  }\n  /**\n   * Process an individual setting key.\n   * Example: replace placeholders with actual adapter names.\n   * @param {string} key - The setting key with placeholders.\n   * @returns {string} Processed setting key.\n   */\n  process_setting_key(key) {\n    return key.replace(/\\[ADAPTER\\]/g, this.adapter_name);\n  }\n  re_render_settings() {\n    if (typeof this.opts.re_render_settings === "function")\n      this.opts.re_render_settings();\n    else\n      console.warn("re_render_settings is not a function (must be passed in model opts)");\n  }\n  /**\n   * Reload model.\n   */\n  reload_model() {\n    if (typeof this.opts.reload_model === "function")\n      this.opts.reload_model();\n    else\n      console.warn("reload_model is not a function (must be passed in model opts)");\n  }\n  adapter_changed() {\n    this.reload_model();\n    this.re_render_settings();\n  }\n  model_changed() {\n    this.reload_model();\n    this.re_render_settings();\n  }\n};\n__publicField(SmartModel, "defaults", {\n  // override in sub-class if needed\n});\n\n// smart_embed_model.js\nvar SmartEmbedModel = class extends SmartModel {\n  /**\n   * Create a SmartEmbedModel instance\n   * @param {Object} opts - Configuration options\n   * @param {Object} [opts.adapters] - Map of available adapter implementations\n   * @param {boolean} [opts.use_gpu] - Whether to enable GPU acceleration\n   * @param {number} [opts.gpu_batch_size] - Batch size when using GPU\n   * @param {number} [opts.batch_size] - Default batch size for processing\n   * @param {Object} [opts.model_config] - Model-specific configuration\n   * @param {string} [opts.model_config.adapter] - Override adapter type\n   * @param {number} [opts.model_config.dims] - Embedding dimensions\n   * @param {number} [opts.model_config.max_tokens] - Maximum tokens to process\n   * @param {Object} [opts.settings] - User settings\n   * @param {string} [opts.settings.api_key] - API key for remote models\n   * @param {number} [opts.settings.min_chars] - Minimum text length to embed\n   */\n  constructor(opts = {}) {\n    super(opts);\n    __publicField(this, "scope_name", "smart_embed_model");\n  }\n  /**\n   * Count tokens in an input string\n   * @param {string} input - Text to tokenize\n   * @returns {Promise<Object>} Token count result\n   * @property {number} tokens - Number of tokens in input\n   * \n   * @example\n   * ```javascript\n   * const result = await model.count_tokens("Hello world");\n   * console.log(result.tokens); // 2\n   * ```\n   */\n  async count_tokens(input) {\n    return await this.invoke_adapter_method("count_tokens", input);\n  }\n  /**\n   * Generate embeddings for a single input\n   * @param {string|Object} input - Text or object with embed_input property\n   * @returns {Promise<Object>} Embedding result\n   * @property {number[]} vec - Embedding vector\n   * @property {number} tokens - Token count\n   * \n   * @example\n   * ```javascript\n   * const result = await model.embed("Hello world");\n   * console.log(result.vec); // [0.1, 0.2, ...]\n   * ```\n   */\n  async embed(input) {\n    if (typeof input === "string")\n      input = { embed_input: input };\n    return (await this.embed_batch([input]))[0];\n  }\n  /**\n   * Generate embeddings for multiple inputs in batch\n   * @param {Array<string|Object>} inputs - Array of texts or objects with embed_input\n   * @returns {Promise<Array<Object>>} Array of embedding results\n   * @property {number[]} vec - Embedding vector for each input\n   * @property {number} tokens - Token count for each input\n   * \n   * @example\n   * ```javascript\n   * const results = await model.embed_batch([\n   *   { embed_input: "First text" },\n   *   { embed_input: "Second text" }\n   * ]);\n   * ```\n   */\n  async embed_batch(inputs) {\n    return await this.invoke_adapter_method("embed_batch", inputs);\n  }\n  /**\n   * Get the current batch size based on GPU settings\n   * @returns {number} Current batch size for processing\n   */\n  get batch_size() {\n    return this.adapter.batch_size || 1;\n  }\n  /**\n   * Get settings configuration schema\n   * @returns {Object} Settings configuration object\n   */\n  get settings_config() {\n    const _settings_config = {\n      adapter: {\n        name: "Embedding model platform",\n        type: "dropdown",\n        description: "Select an embedding model platform. The default \'transformers\' utilizes built-in local models.",\n        options_callback: "get_platforms_as_options",\n        callback: "adapter_changed",\n        default: this.constructor.defaults.adapter\n      },\n      ...this.adapter.settings_config || {}\n    };\n    return this.process_settings_config(_settings_config);\n  }\n  process_setting_key(key) {\n    return key.replace(/\\[ADAPTER\\]/g, this.adapter_name);\n  }\n  /**\n   * Get available embedding model options\n   * @returns {Array<Object>} Array of model options with value and name\n   */\n  get_embedding_model_options() {\n    return Object.entries(this.models).map(([key, model2]) => ({ value: key, name: key }));\n  }\n  // /**\n  //  * Get embedding model options including \'None\' option\n  //  * @returns {Array<Object>} Array of model options with value and name\n  //  */\n  // get_block_embedding_model_options() {\n  //   const options = this.get_embedding_model_options();\n  //   options.unshift({ value: \'None\', name: \'None\' });\n  //   return options;\n  // }\n};\n__publicField(SmartEmbedModel, "defaults", {\n  adapter: "transformers"\n});\n\n// ../smart-model/adapters/_adapter.js\nvar SmartModelAdapter = class {\n  /**\n   * Create a SmartModelAdapter instance.\n   * @param {SmartModel} model - The parent SmartModel instance\n   */\n  constructor(model2) {\n    this.model = model2;\n    this.state = "unloaded";\n  }\n  /**\n   * Load the adapter.\n   * @async\n   * @returns {Promise<void>}\n   */\n  async load() {\n    this.set_state("loaded");\n  }\n  /**\n   * Unload the adapter.\n   * @returns {void}\n   */\n  unload() {\n    this.set_state("unloaded");\n  }\n  /**\n   * Get all settings.\n   * @returns {Object} All settings\n   */\n  get settings() {\n    return this.model.settings;\n  }\n  /**\n   * Get the current model key.\n   * @returns {string} Current model identifier\n   */\n  get model_key() {\n    return this.model.model_key;\n  }\n  /**\n   * Get the current model configuration.\n   * @returns {Object} Model configuration\n   */\n  get model_config() {\n    return this.model.model_config;\n  }\n  /**\n   * Get model-specific settings.\n   * @returns {Object} Settings for current model\n   */\n  get model_settings() {\n    return this.model.model_settings;\n  }\n  /**\n   * Get adapter-specific configuration.\n   * @returns {Object} Adapter configuration\n   */\n  get adapter_config() {\n    return this.model.adapter_config;\n  }\n  /**\n   * Get adapter-specific settings.\n   * @returns {Object} Adapter settings\n   */\n  get adapter_settings() {\n    return this.model.adapter_settings;\n  }\n  /**\n   * Get the models.\n   * @returns {Object} Map of model objects\n   */\n  get models() {\n    if (typeof this.adapter_config.models === "object" && Object.keys(this.adapter_config.models || {}).length > 0)\n      return this.adapter_config.models;\n    else {\n      return {};\n    }\n  }\n  /**\n   * Get available models from the API.\n   * @abstract\n   * @param {boolean} [refresh=false] - Whether to refresh cached models\n   * @returns {Promise<Object>} Map of model objects\n   */\n  async get_models(refresh = false) {\n    throw new Error("get_models not implemented");\n  }\n  /**\n   * Validate the parameters for get_models.\n   * @returns {boolean|Array<Object>} True if parameters are valid, otherwise an array of error objects\n   */\n  validate_get_models_params() {\n    return true;\n  }\n  /**\n   * Get available models as dropdown options synchronously.\n   * @returns {Array<Object>} Array of model options.\n   */\n  get_models_as_options() {\n    const models = this.models;\n    const params_valid = this.validate_get_models_params();\n    if (params_valid !== true)\n      return params_valid;\n    if (!Object.keys(models || {}).length) {\n      this.get_models(true);\n      return [{ value: "", name: "No models currently available" }];\n    }\n    return Object.entries(models).map(([id, model2]) => ({ value: id, name: model2.name || id })).sort((a, b) => a.name.localeCompare(b.name));\n  }\n  /**\n   * Set the adapter\'s state.\n   * @deprecated should be handled in SmartModel (only handle once)\n   * @param {(\'unloaded\'|\'loading\'|\'loaded\'|\'unloading\')} new_state - The new state\n   * @throws {Error} If the state is invalid\n   */\n  set_state(new_state) {\n    const valid_states = ["unloaded", "loading", "loaded", "unloading"];\n    if (!valid_states.includes(new_state)) {\n      throw new Error(`Invalid state: ${new_state}`);\n    }\n    this.state = new_state;\n  }\n  // Replace individual state getters/setters with a unified state management\n  get is_loading() {\n    return this.state === "loading";\n  }\n  get is_loaded() {\n    return this.state === "loaded";\n  }\n  get is_unloading() {\n    return this.state === "unloading";\n  }\n  get is_unloaded() {\n    return this.state === "unloaded";\n  }\n};\n\n// adapters/_adapter.js\nvar SmartEmbedAdapter = class extends SmartModelAdapter {\n  /**\n   * Create adapter instance\n   * @param {SmartEmbedModel} model - Parent model instance\n   */\n  constructor(model2) {\n    super(model2);\n    this.smart_embed = model2;\n  }\n  /**\n   * Count tokens in input text\n   * @abstract\n   * @param {string} input - Text to tokenize\n   * @returns {Promise<Object>} Token count result\n   * @property {number} tokens - Number of tokens in input\n   * @throws {Error} If not implemented by subclass\n   */\n  async count_tokens(input) {\n    throw new Error("count_tokens method not implemented");\n  }\n  /**\n   * Generate embeddings for single input\n   * @abstract\n   * @param {string|Object} input - Text to embed\n   * @returns {Promise<Object>} Embedding result\n   * @property {number[]} vec - Embedding vector\n   * @property {number} tokens - Number of tokens in input\n   * @throws {Error} If not implemented by subclass\n   */\n  async embed(input) {\n    throw new Error("embed method not implemented");\n  }\n  /**\n   * Generate embeddings for multiple inputs\n   * @abstract\n   * @param {Array<string|Object>} inputs - Texts to embed\n   * @returns {Promise<Array<Object>>} Array of embedding results\n   * @property {number[]} vec - Embedding vector for each input\n   * @property {number} tokens - Number of tokens in each input\n   * @throws {Error} If not implemented by subclass\n   */\n  async embed_batch(inputs) {\n    throw new Error("embed_batch method not implemented");\n  }\n  get settings_config() {\n    return {\n      "[ADAPTER].model_key": {\n        name: "Embedding model",\n        type: "dropdown",\n        description: "Select an embedding model.",\n        options_callback: "adapter.get_models_as_options",\n        callback: "model_changed",\n        default: this.constructor.defaults.default_model\n      }\n    };\n  }\n  get dims() {\n    return this.model_config.dims;\n  }\n  get max_tokens() {\n    return this.model_config.max_tokens;\n  }\n  // get batch_size() { return this.model_config.batch_size; }\n  get use_gpu() {\n    if (typeof this._use_gpu === "undefined") {\n      if (typeof this.model.opts.use_gpu !== "undefined")\n        this._use_gpu = this.model.opts.use_gpu;\n      else\n        this._use_gpu = typeof navigator !== "undefined" && !!navigator?.gpu && this.model_settings.gpu_batch_size !== 0;\n    }\n    return this._use_gpu;\n  }\n  set use_gpu(value) {\n    this._use_gpu = value;\n  }\n  get batch_size() {\n    if (this.use_gpu && this.model_config?.gpu_batch_size)\n      return this.model_config.gpu_batch_size;\n    return this.model.opts.batch_size || this.model_config.batch_size || 1;\n  }\n};\n/**\n * @override in sub-class with adapter-specific default configurations\n * @property {string} id - The adapter identifier\n * @property {string} description - Human-readable description\n * @property {string} type - Adapter type ("API")\n * @property {string} endpoint - API endpoint\n * @property {string} adapter - Adapter identifier\n * @property {string} default_model - Default model to use\n */\n__publicField(SmartEmbedAdapter, "defaults", {});\n\n// adapters/transformers.js\nvar transformers_defaults = {\n  adapter: "transformers",\n  description: "Transformers (Local, built-in)",\n  default_model: "TaylorAI/bge-micro-v2"\n};\nvar SmartEmbedTransformersAdapter = class extends SmartEmbedAdapter {\n  /**\n   * Create transformers adapter instance\n   * @param {SmartEmbedModel} model - Parent model instance\n   */\n  constructor(model2) {\n    super(model2);\n    this.pipeline = null;\n    this.tokenizer = null;\n  }\n  /**\n   * Load model and tokenizer\n   * @returns {Promise<void>}\n   */\n  async load() {\n    await this.load_transformers();\n    this.loaded = true;\n    this.set_state("loaded");\n  }\n  /**\n   * Unload model and free resources\n   * @returns {Promise<void>}\n   */\n  async unload() {\n    if (this.pipeline) {\n      if (this.pipeline.destroy)\n        this.pipeline.destroy();\n      this.pipeline = null;\n    }\n    if (this.tokenizer) {\n      this.tokenizer = null;\n    }\n    this.loaded = false;\n    this.set_state("unloaded");\n  }\n  /**\n   * Initialize transformers pipeline and tokenizer\n   * @private\n   * @returns {Promise<void>}\n   */\n  async load_transformers() {\n    const { pipeline, env, AutoTokenizer } = await import("@huggingface/transformers");\n    env.allowLocalModels = false;\n    const pipeline_opts = {\n      quantized: true\n    };\n    if (this.use_gpu) {\n      console.log("[Transformers] Using GPU");\n      pipeline_opts.device = "webgpu";\n      pipeline_opts.dtype = "fp32";\n    } else {\n      console.log("[Transformers] Using CPU");\n      env.backends.onnx.wasm.numThreads = 8;\n    }\n    this.pipeline = await pipeline("feature-extraction", this.model_key, pipeline_opts);\n    this.tokenizer = await AutoTokenizer.from_pretrained(this.model_key);\n  }\n  /**\n   * Count tokens in input text\n   * @param {string} input - Text to tokenize\n   * @returns {Promise<Object>} Token count result\n   */\n  async count_tokens(input) {\n    if (!this.tokenizer)\n      await this.load();\n    const { input_ids } = await this.tokenizer(input);\n    return { tokens: input_ids.data.length };\n  }\n  /**\n   * Generate embeddings for multiple inputs\n   * @param {Array<Object>} inputs - Array of input objects\n   * @returns {Promise<Array<Object>>} Processed inputs with embeddings\n   */\n  async embed_batch(inputs) {\n    if (!this.pipeline)\n      await this.load();\n    const filtered_inputs = inputs.filter((item) => item.embed_input?.length > 0);\n    if (!filtered_inputs.length)\n      return [];\n    if (filtered_inputs.length > this.batch_size) {\n      console.log(`Processing ${filtered_inputs.length} inputs in batches of ${this.batch_size}`);\n      const results = [];\n      for (let i = 0; i < filtered_inputs.length; i += this.batch_size) {\n        const batch = filtered_inputs.slice(i, i + this.batch_size);\n        const batch_results = await this._process_batch(batch);\n        results.push(...batch_results);\n      }\n      return results;\n    }\n    return await this._process_batch(filtered_inputs);\n  }\n  /**\n   * Process a single batch of inputs\n   * @private\n   * @param {Array<Object>} batch_inputs - Batch of inputs to process\n   * @returns {Promise<Array<Object>>} Processed batch results\n   */\n  async _process_batch(batch_inputs) {\n    const tokens = await Promise.all(batch_inputs.map((item) => this.count_tokens(item.embed_input)));\n    const embed_inputs = await Promise.all(batch_inputs.map(async (item, i) => {\n      if (tokens[i].tokens < this.max_tokens)\n        return item.embed_input;\n      let token_ct = tokens[i].tokens;\n      let truncated_input = item.embed_input;\n      while (token_ct > this.max_tokens) {\n        const pct = this.max_tokens / token_ct;\n        const max_chars = Math.floor(truncated_input.length * pct * 0.9);\n        truncated_input = truncated_input.substring(0, max_chars) + "...";\n        token_ct = (await this.count_tokens(truncated_input)).tokens;\n      }\n      tokens[i].tokens = token_ct;\n      return truncated_input;\n    }));\n    try {\n      const resp = await this.pipeline(embed_inputs, { pooling: "mean", normalize: true });\n      return batch_inputs.map((item, i) => {\n        item.vec = Array.from(resp[i].data).map((val) => Math.round(val * 1e8) / 1e8);\n        item.tokens = tokens[i].tokens;\n        return item;\n      });\n    } catch (err) {\n      console.error("error_processing_batch", err);\n      this.pipeline?.dispose();\n      this.pipeline = null;\n      await this.load();\n      return Promise.all(batch_inputs.map(async (item) => {\n        try {\n          const result = await this.pipeline(item.embed_input, { pooling: "mean", normalize: true });\n          item.vec = Array.from(result[0].data).map((val) => Math.round(val * 1e8) / 1e8);\n          item.tokens = (await this.count_tokens(item.embed_input)).tokens;\n          return item;\n        } catch (single_err) {\n          console.error("error_processing_single_item", single_err);\n          return {\n            ...item,\n            vec: [],\n            tokens: 0,\n            error: single_err.message\n          };\n        }\n      }));\n    }\n  }\n  /** @returns {Object} Settings configuration for transformers adapter */\n  get settings_config() {\n    return transformers_settings_config;\n  }\n  /**\n   * Get available models (hardcoded list)\n   * @returns {Promise<Object>} Map of model objects\n   */\n  get_models() {\n    return Promise.resolve(this.models);\n  }\n  get models() {\n    return transformers_models;\n  }\n};\n__publicField(SmartEmbedTransformersAdapter, "defaults", transformers_defaults);\nvar transformers_models = {\n  "TaylorAI/bge-micro-v2": {\n    "id": "TaylorAI/bge-micro-v2",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "BGE-micro-v2",\n    "description": "Local, 512 tokens, 384 dim (recommended)",\n    "adapter": "transformers"\n  },\n  "Snowflake/snowflake-arctic-embed-xs": {\n    "id": "Snowflake/snowflake-arctic-embed-xs",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "Snowflake Arctic Embed XS",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "Snowflake/snowflake-arctic-embed-s": {\n    "id": "Snowflake/snowflake-arctic-embed-s",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "Snowflake Arctic Embed Small",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "Snowflake/snowflake-arctic-embed-m": {\n    "id": "Snowflake/snowflake-arctic-embed-m",\n    "batch_size": 1,\n    "dims": 768,\n    "max_tokens": 512,\n    "name": "Snowflake Arctic Embed Medium",\n    "description": "Local, 512 tokens, 768 dim",\n    "adapter": "transformers"\n  },\n  "TaylorAI/gte-tiny": {\n    "id": "TaylorAI/gte-tiny",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "GTE-tiny",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "Mihaiii/Ivysaur": {\n    "id": "Mihaiii/Ivysaur",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "Ivysaur",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "andersonbcdefg/bge-small-4096": {\n    "id": "andersonbcdefg/bge-small-4096",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 4096,\n    "name": "BGE-small-4K",\n    "description": "Local, 4,096 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  // Too slow and persistent crashes\n  // "jinaai/jina-embeddings-v2-base-de": {\n  //   "id": "jinaai/jina-embeddings-v2-base-de",\n  //   "batch_size": 1,\n  //   "dims": 768,\n  //   "max_tokens": 4096,\n  //   "name": "jina-embeddings-v2-base-de",\n  //   "description": "Local, 4,096 tokens, 768 dim, German",\n  //   "adapter": "transformers"\n  // },\n  "Xenova/jina-embeddings-v2-base-zh": {\n    "id": "Xenova/jina-embeddings-v2-base-zh",\n    "batch_size": 1,\n    "dims": 768,\n    "max_tokens": 8192,\n    "name": "Jina-v2-base-zh-8K",\n    "description": "Local, 8,192 tokens, 768 dim, Chinese/English bilingual",\n    "adapter": "transformers"\n  },\n  "Xenova/jina-embeddings-v2-small-en": {\n    "id": "Xenova/jina-embeddings-v2-small-en",\n    "batch_size": 1,\n    "dims": 512,\n    "max_tokens": 8192,\n    "name": "Jina-v2-small-en",\n    "description": "Local, 8,192 tokens, 512 dim",\n    "adapter": "transformers"\n  },\n  "nomic-ai/nomic-embed-text-v1.5": {\n    "id": "nomic-ai/nomic-embed-text-v1.5",\n    "batch_size": 1,\n    "dims": 768,\n    "max_tokens": 2048,\n    "name": "Nomic-embed-text-v1.5",\n    "description": "Local, 8,192 tokens, 768 dim",\n    "adapter": "transformers"\n  },\n  "Xenova/bge-small-en-v1.5": {\n    "id": "Xenova/bge-small-en-v1.5",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "BGE-small",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "nomic-ai/nomic-embed-text-v1": {\n    "id": "nomic-ai/nomic-embed-text-v1",\n    "batch_size": 1,\n    "dims": 768,\n    "max_tokens": 2048,\n    "name": "Nomic-embed-text",\n    "description": "Local, 2,048 tokens, 768 dim",\n    "adapter": "transformers"\n  }\n};\nvar transformers_settings_config = {\n  "[ADAPTER].gpu_batch_size": {\n    name: "GPU batch size",\n    type: "number",\n    description: "Number of embeddings to process per batch on GPU. Use 0 to disable GPU.",\n    placeholder: "Enter number ex. 10"\n  },\n  "[ADAPTER].legacy_transformers": {\n    name: "Legacy transformers (no GPU)",\n    type: "toggle",\n    description: "Use legacy transformers (v2) instead of v3. This may resolve issues if the local embedding isn\'t working.",\n    callback: "embed_model_changed",\n    default: true\n  }\n};\n\n// build/transformers_iframe_script.js\nvar model = null;\nasync function process_message(data) {\n  const { method, params, id, iframe_id } = data;\n  try {\n    let result;\n    switch (method) {\n      case "init":\n        console.log("init");\n        break;\n      case "load":\n        console.log("load", params);\n        model = new SmartEmbedModel({\n          ...params,\n          adapters: { transformers: SmartEmbedTransformersAdapter },\n          adapter: "transformers",\n          settings: {}\n        });\n        await model.load();\n        result = { model_loaded: true };\n        break;\n      case "embed_batch":\n        if (!model)\n          throw new Error("Model not loaded");\n        result = await model.embed_batch(params.inputs);\n        break;\n      case "count_tokens":\n        if (!model)\n          throw new Error("Model not loaded");\n        result = await model.count_tokens(params);\n        break;\n      default:\n        throw new Error(`Unknown method: ${method}`);\n    }\n    return { id, result, iframe_id };\n  } catch (error) {\n    console.error("Error processing message:", error);\n    return { id, error: error.message, iframe_id };\n  }\n}\nprocess_message({ method: "init" });\n';
+var transformers_connector = 'var __defProp = Object.defineProperty;\nvar __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;\nvar __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);\n\n// ../smart-model/adapters/_adapter.js\nvar SmartModelAdapter = class {\n  /**\n   * Create a SmartModelAdapter instance.\n   * @param {SmartModel} model - The parent SmartModel instance\n   */\n  constructor(model2) {\n    this.model = model2;\n    this.state = "unloaded";\n  }\n  /**\n   * Load the adapter.\n   * @async\n   * @returns {Promise<void>}\n   */\n  async load() {\n    this.set_state("loaded");\n  }\n  /**\n   * Unload the adapter.\n   * @returns {void}\n   */\n  unload() {\n    this.set_state("unloaded");\n  }\n  /**\n   * Get all settings.\n   * @returns {Object} All settings\n   */\n  get settings() {\n    return this.model.settings;\n  }\n  /**\n   * Get the current model key.\n   * @returns {string} Current model identifier\n   */\n  get model_key() {\n    return this.model.model_key;\n  }\n  /**\n   * Get the models.\n   * @returns {Object} Map of model objects\n   */\n  get models() {\n    const models = this.model.data.provider_models;\n    if (typeof models === "object" && Object.keys(models || {}).length > 0) return models;\n    else {\n      return {};\n    }\n  }\n  /**\n   * Get available models from the API.\n   * @abstract\n   * @param {boolean} [refresh=false] - Whether to refresh cached models\n   * @returns {Promise<Object>} Map of model objects\n   */\n  async get_models(refresh = false) {\n    throw new Error("get_models not implemented");\n  }\n  /**\n   * Get available models as dropdown options synchronously.\n   * @returns {Array<Object>} Array of model options.\n   */\n  get_models_as_options() {\n    const models = this.models;\n    if (!Object.keys(models || {}).length) {\n      this.get_models(true);\n      return [{ value: "", name: "No models currently available" }];\n    }\n    return Object.entries(models).map(([id, model2]) => ({ value: id, name: model2.name || id })).sort((a, b) => a.name.localeCompare(b.name));\n  }\n  /**\n   * Set the adapter\'s state.\n   * @deprecated should be handled in SmartModel (only handle once)\n   * @param {(\'unloaded\'|\'loading\'|\'loaded\'|\'unloading\')} new_state - The new state\n   * @throws {Error} If the state is invalid\n   */\n  set_state(new_state) {\n    const valid_states = ["unloaded", "loading", "loaded", "unloading"];\n    if (!valid_states.includes(new_state)) {\n      throw new Error(`Invalid state: ${new_state}`);\n    }\n    this.state = new_state;\n  }\n  // Replace individual state getters/setters with a unified state management\n  get is_loading() {\n    return this.state === "loading";\n  }\n  get is_loaded() {\n    return this.state === "loaded";\n  }\n  get is_unloading() {\n    return this.state === "unloading";\n  }\n  get is_unloaded() {\n    return this.state === "unloaded";\n  }\n};\n\n// adapters/_adapter.js\nvar SmartEmbedAdapter = class extends SmartModelAdapter {\n  /**\n   * Count tokens in input text\n   * @abstract\n   * @param {string} input - Text to tokenize\n   * @returns {Promise<Object>} Token count result\n   * @property {number} tokens - Number of tokens in input\n   * @throws {Error} If not implemented by subclass\n   */\n  async count_tokens(input) {\n    throw new Error("count_tokens method not implemented");\n  }\n  /**\n   * Generate embeddings for single input\n   * @abstract\n   * @param {string|Object} input - Text to embed\n   * @returns {Promise<Object>} Embedding result\n   * @property {number[]} vec - Embedding vector\n   * @property {number} tokens - Number of tokens in input\n   * @throws {Error} If not implemented by subclass\n   */\n  async embed(input) {\n    if (typeof input === "string") input = { embed_input: input };\n    return (await this.embed_batch([input]))[0];\n  }\n  /**\n   * Generate embeddings for multiple inputs\n   * @abstract\n   * @param {Array<string|Object>} inputs - Texts to embed\n   * @returns {Promise<Array<Object>>} Array of embedding results\n   * @property {number[]} vec - Embedding vector for each input\n   * @property {number} tokens - Number of tokens in each input\n   * @throws {Error} If not implemented by subclass\n   */\n  async embed_batch(inputs) {\n    throw new Error("embed_batch method not implemented");\n  }\n  get settings_config() {\n    return {\n      "[ADAPTER].model_key": {\n        name: "Embedding model",\n        type: "dropdown",\n        description: "Select an embedding model.",\n        options_callback: "adapter.get_models_as_options",\n        callback: "model_changed",\n        default: this.constructor.defaults.default_model\n      }\n    };\n  }\n  get dims() {\n    return this.model.data.dims;\n  }\n  get max_tokens() {\n    return this.model.data.max_tokens;\n  }\n  get batch_size() {\n    return this.model.data.batch_size || 1;\n  }\n};\n/**\n * @override in sub-class with adapter-specific default configurations\n * @property {string} id - The adapter identifier\n * @property {string} description - Human-readable description\n * @property {string} type - Adapter type ("API")\n * @property {string} endpoint - API endpoint\n * @property {string} adapter - Adapter identifier\n * @property {string} default_model - Default model to use\n */\n__publicField(SmartEmbedAdapter, "defaults", {});\n\n// adapters/transformers.js\nvar transformers_defaults = {\n  adapter: "transformers",\n  description: "Transformers (Local, built-in)",\n  default_model: "TaylorAI/bge-micro-v2",\n  models: transformers_models\n};\nvar DEVICE_CONFIGS = {\n  // // WebGPU: high quality first\n  webgpu_fp16: {\n    device: "webgpu",\n    dtype: "fp16",\n    quantized: false\n  },\n  webgpu_fp32: {\n    device: "webgpu",\n    dtype: "fp32",\n    quantized: false\n  },\n  // WebGPU: quantized tiers\n  webgpu_q8: {\n    device: "webgpu",\n    dtype: "q8",\n    quantized: true\n  },\n  webgpu_q4: {\n    device: "webgpu",\n    dtype: "q4",\n    quantized: true\n  },\n  // Optional, if you use it\n  webgpu_q4f16: {\n    device: "webgpu",\n    dtype: "q4f16",\n    quantized: true\n  },\n  webgpu_bnb4: {\n    device: "webgpu",\n    dtype: "bnb4",\n    quantized: true\n  },\n  // WASM: quantized CPU\n  wasm_q8: {\n    dtype: "q8",\n    quantized: true\n  },\n  wasm_q4: {\n    dtype: "q4",\n    quantized: true\n  },\n  // Final universal fallback: WASM CPU, dtype = auto\n  wasm_auto: {\n    // NOTE: leaving out device to avoid Linux issues with \'wasm\'\n    // transformers.js will pick CPU/WASM backend itself\n    quantized: false\n  }\n};\nvar is_webgpu_available = async () => {\n  if (!("gpu" in navigator)) return false;\n  const adapter = await navigator.gpu.requestAdapter();\n  if (!adapter) return false;\n  return true;\n};\nvar SmartEmbedTransformersAdapter = class extends SmartEmbedAdapter {\n  /**\n   * @param {import("../smart_embed_model.js").SmartEmbedModel} model\n   */\n  constructor(model2) {\n    super(model2);\n    this.pipeline = null;\n    this.tokenizer = null;\n    this.active_config_key = null;\n    this.has_gpu = false;\n  }\n  /**\n   * Load the underlying transformers pipeline with WebGPU \u2192 WASM fallback.\n   * @returns {Promise<void>}\n   */\n  async load() {\n    this.has_gpu = await is_webgpu_available();\n    try {\n      if (this.loading) {\n        console.warn("[Transformers v2] load already in progress, waiting...");\n        while (this.loading) {\n          await new Promise((resolve) => setTimeout(resolve, 100));\n        }\n      } else {\n        this.loading = true;\n        if (this.pipeline) {\n          this.loaded = true;\n          this.loading = false;\n          return;\n        }\n        await this.load_transformers_with_fallback();\n        this.loading = false;\n        this.loaded = true;\n        console.log(`[Transformers v2] model loaded using ${this.active_config_key}`, this);\n      }\n    } catch (e) {\n      this.loading = false;\n      this.loaded = false;\n      console.error("[Transformers v2] load failed", e);\n      throw e;\n    }\n  }\n  /**\n   * Unload the pipeline and free resources.\n   * @returns {Promise<void>}\n   */\n  async unload() {\n    try {\n      if (this.pipeline) {\n        if (typeof this.pipeline.destroy === "function") {\n          this.pipeline.destroy();\n        } else if (typeof this.pipeline.dispose === "function") {\n          this.pipeline.dispose();\n        }\n      }\n    } catch (err) {\n      console.warn("[Transformers v2] error while disposing pipeline", err);\n    }\n    this.pipeline = null;\n    this.tokenizer = null;\n    this.active_config_key = null;\n    this.loaded = false;\n  }\n  /**\n   * Available models \u2013 reuses the v1 transformers model catalog.\n   * @returns {Object}\n   */\n  get models() {\n    return transformers_models;\n  }\n  /**\n   * Maximum tokens per input.\n   * @returns {number}\n   */\n  get max_tokens() {\n    return this.model.data.max_tokens || 512;\n  }\n  /**\n   * Effective batch size.\n   * Prefers small deterministic batches when not explicitly configured.\n   * @returns {number}\n   */\n  get batch_size() {\n    const configured = this.model.data.batch_size;\n    if (configured && configured > 0) return configured;\n    return this.gpu_enabled ? 16 : 8;\n  }\n  get gpu_enabled() {\n    if (this.has_gpu) {\n      const explicit = typeof this.model.data.use_gpu === "boolean" ? this.model.data.use_gpu : null;\n      if (explicit === false) return false;\n      return true;\n    } else {\n      return false;\n    }\n  }\n  /**\n   * Initialize transformers pipeline with WebGPU \u2192 WASM fallback.\n   * @private\n   * @returns {Promise<void>}\n   */\n  async load_transformers_with_fallback() {\n    const { pipeline, env, AutoTokenizer } = await import("@huggingface/transformers");\n    env.allowLocalModels = false;\n    if (typeof env.useBrowserCache !== "undefined") {\n      env.useBrowserCache = true;\n    }\n    let last_error = null;\n    const CONFIG_LIST_ORDER = Object.keys(DEVICE_CONFIGS);\n    const try_create = async (config_key) => {\n      const pipe = await pipeline("feature-extraction", this.model_key, DEVICE_CONFIGS[config_key]);\n      return pipe;\n    };\n    for (const config of CONFIG_LIST_ORDER) {\n      if (this.pipeline) break;\n      if (config.includes("gpu") && !this.gpu_enabled) {\n        console.warn(`[Transformers v2: ${config}] skipping ${config} as GPU is disabled`);\n        continue;\n      }\n      try {\n        console.log(`[Transformers v2] trying to load pipeline on ${config}`);\n        this.pipeline = await try_create(config);\n        this.active_config_key = config;\n        break;\n      } catch (err) {\n        console.warn(`[Transformers v2: ${config}] failed to load pipeline on ${config}`, err);\n        last_error = err;\n      }\n    }\n    if (this.pipeline) {\n      console.log(`[Transformers v2: ${this.active_config_key}] pipeline initialized using ${this.active_config_key}`);\n    } else {\n      throw last_error || new Error("Failed to initialize transformers pipeline");\n    }\n    this.tokenizer = await AutoTokenizer.from_pretrained(this.model_key);\n  }\n  /**\n   * Count tokens in input text.\n   * @param {string} input\n   * @returns {Promise<{tokens:number}>}\n   */\n  async count_tokens(input) {\n    if (!this.tokenizer) {\n      await this.load();\n    }\n    const { input_ids } = await this.tokenizer(input);\n    return { tokens: input_ids.data.length };\n  }\n  /**\n   * Generate embeddings for multiple inputs.\n   * @param {Array<Object>} inputs\n   * @returns {Promise<Array<Object>>}\n   */\n  async embed_batch(inputs) {\n    if (!this.pipeline) {\n      await this.load();\n    }\n    const filtered_inputs = inputs.filter((item) => item.embed_input && item.embed_input.length > 0);\n    if (!filtered_inputs.length) return [];\n    const results = [];\n    for (let i = 0; i < filtered_inputs.length; i += this.batch_size) {\n      const batch = filtered_inputs.slice(i, i + this.batch_size);\n      const batch_results = await this._process_batch(batch);\n      results.push(...batch_results);\n    }\n    return results;\n  }\n  /**\n   * Process a single batch \u2013 with per-item retry on failure.\n   * @private\n   * @param {Array<Object>} batch_inputs\n   * @returns {Promise<Array<Object>>}\n   */\n  async _process_batch(batch_inputs) {\n    const prepared = await Promise.all(\n      batch_inputs.map((item) => this._prepare_input(item.embed_input))\n    );\n    const embed_inputs = prepared.map((p) => p.text);\n    const tokens = prepared.map((p) => p.tokens);\n    try {\n      const resp = await this.pipeline(embed_inputs, { pooling: "mean", normalize: true });\n      return batch_inputs.map((item, i) => {\n        const vec = Array.from(resp[i].data).map((val) => Math.round(val * 1e8) / 1e8);\n        item.vec = vec;\n        item.tokens = tokens[i];\n        return item;\n      });\n    } catch (err) {\n      console.error("[Transformers v2] batch embed failed \\u2013 retrying items individually", err);\n      return await this._retry_items_individually(batch_inputs);\n    }\n  }\n  /**\n   * Prepare a single input by truncating to max_tokens if necessary.\n   * @private\n   * @param {string} embed_input\n   * @returns {Promise<{text:string,tokens:number}>}\n   */\n  async _prepare_input(embed_input) {\n    let { tokens } = await this.count_tokens(embed_input);\n    if (tokens <= this.max_tokens) {\n      return { text: embed_input, tokens };\n    }\n    let truncated = embed_input;\n    while (tokens > this.max_tokens && truncated.length > 0) {\n      const pct = this.max_tokens / tokens;\n      const max_chars = Math.floor(truncated.length * pct * 0.9);\n      truncated = truncated.slice(0, max_chars);\n      const last_space = truncated.lastIndexOf(" ");\n      if (last_space > 0) {\n        truncated = truncated.slice(0, last_space);\n      }\n      tokens = (await this.count_tokens(truncated)).tokens;\n    }\n    return { text: truncated, tokens };\n  }\n  /**\n   * Retry each item individually after a batch failure.\n   * @private\n   * @param {Array<Object>} batch_inputs\n   * @returns {Promise<Array<Object>>}\n   */\n  async _retry_items_individually(batch_inputs) {\n    await this._reset_pipeline_after_error();\n    const results = [];\n    for (const item of batch_inputs) {\n      try {\n        const prepared = await this._prepare_input(item.embed_input);\n        const resp = await this.pipeline(prepared.text, { pooling: "mean", normalize: true });\n        const vec = Array.from(resp[0].data).map((val) => Math.round(val * 1e8) / 1e8);\n        results.push({\n          ...item,\n          vec,\n          tokens: prepared.tokens\n        });\n      } catch (single_err) {\n        console.error("[Transformers v2] single item embed failed \\u2013 skipping", single_err);\n        results.push({\n          ...item,\n          vec: [],\n          tokens: 0,\n          error: single_err.message\n        });\n      }\n    }\n    return results;\n  }\n  /**\n   * Reset pipeline after a failure \u2013 falling back to WASM if needed.\n   * @private\n   * @returns {Promise<void>}\n   */\n  async _reset_pipeline_after_error() {\n    try {\n      if (this.pipeline) {\n        if (typeof this.pipeline.destroy === "function") {\n          this.pipeline.destroy();\n        } else if (typeof this.pipeline.dispose === "function") {\n          this.pipeline.dispose();\n        }\n      }\n    } catch (err) {\n      console.warn("[Transformers v2] error while resetting pipeline", err);\n    }\n    this.pipeline = null;\n    await this.load_transformers_with_fallback();\n  }\n  /**\n   * V2 intentionally exposes only model selection in the settings UI.\n   * @returns {Object}\n   */\n  get settings_config() {\n    return super.settings_config;\n  }\n};\n__publicField(SmartEmbedTransformersAdapter, "defaults", transformers_defaults);\nvar transformers_models = {\n  "TaylorAI/bge-micro-v2": {\n    "id": "TaylorAI/bge-micro-v2",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "BGE-micro-v2",\n    "description": "Local, 512 tokens, 384 dim (recommended)",\n    "adapter": "transformers"\n  },\n  "Snowflake/snowflake-arctic-embed-xs": {\n    "id": "Snowflake/snowflake-arctic-embed-xs",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "Snowflake Arctic Embed XS",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "Snowflake/snowflake-arctic-embed-s": {\n    "id": "Snowflake/snowflake-arctic-embed-s",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "Snowflake Arctic Embed Small",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "Snowflake/snowflake-arctic-embed-m": {\n    "id": "Snowflake/snowflake-arctic-embed-m",\n    "batch_size": 1,\n    "dims": 768,\n    "max_tokens": 512,\n    "name": "Snowflake Arctic Embed Medium",\n    "description": "Local, 512 tokens, 768 dim",\n    "adapter": "transformers"\n  },\n  "TaylorAI/gte-tiny": {\n    "id": "TaylorAI/gte-tiny",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "GTE-tiny",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "onnx-community/embeddinggemma-300m-ONNX": {\n    "id": "onnx-community/embeddinggemma-300m-ONNX",\n    "batch_size": 1,\n    "dims": 768,\n    "max_tokens": 2048,\n    "name": "EmbeddingGemma-300M",\n    "description": "Local, 2,048 tokens, 768 dim",\n    "adapter": "transformers"\n  },\n  "Mihaiii/Ivysaur": {\n    "id": "Mihaiii/Ivysaur",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "Ivysaur",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "andersonbcdefg/bge-small-4096": {\n    "id": "andersonbcdefg/bge-small-4096",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 4096,\n    "name": "BGE-small-4K",\n    "description": "Local, 4,096 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  // Too slow and persistent crashes\n  // "jinaai/jina-embeddings-v2-base-de": {\n  //   "id": "jinaai/jina-embeddings-v2-base-de",\n  //   "batch_size": 1,\n  //   "dims": 768,\n  //   "max_tokens": 4096,\n  //   "name": "jina-embeddings-v2-base-de",\n  //   "description": "Local, 4,096 tokens, 768 dim, German",\n  //   "adapter": "transformers"\n  // },\n  "Xenova/jina-embeddings-v2-base-zh": {\n    "id": "Xenova/jina-embeddings-v2-base-zh",\n    "batch_size": 1,\n    "dims": 768,\n    "max_tokens": 8192,\n    "name": "Jina-v2-base-zh-8K",\n    "description": "Local, 8,192 tokens, 768 dim, Chinese/English bilingual",\n    "adapter": "transformers"\n  },\n  "Xenova/jina-embeddings-v2-small-en": {\n    "id": "Xenova/jina-embeddings-v2-small-en",\n    "batch_size": 1,\n    "dims": 512,\n    "max_tokens": 8192,\n    "name": "Jina-v2-small-en",\n    "description": "Local, 8,192 tokens, 512 dim",\n    "adapter": "transformers"\n  },\n  "nomic-ai/nomic-embed-text-v1.5": {\n    "id": "nomic-ai/nomic-embed-text-v1.5",\n    "batch_size": 1,\n    "dims": 768,\n    "max_tokens": 2048,\n    "name": "Nomic-embed-text-v1.5",\n    "description": "Local, 8,192 tokens, 768 dim",\n    "adapter": "transformers"\n  },\n  "Xenova/bge-small-en-v1.5": {\n    "id": "Xenova/bge-small-en-v1.5",\n    "batch_size": 1,\n    "dims": 384,\n    "max_tokens": 512,\n    "name": "BGE-small",\n    "description": "Local, 512 tokens, 384 dim",\n    "adapter": "transformers"\n  },\n  "nomic-ai/nomic-embed-text-v1": {\n    "id": "nomic-ai/nomic-embed-text-v1",\n    "batch_size": 1,\n    "dims": 768,\n    "max_tokens": 2048,\n    "name": "Nomic-embed-text",\n    "description": "Local, 2,048 tokens, 768 dim",\n    "adapter": "transformers"\n  }\n};\n\n// build/transformers_iframe_script.js\nvar model = null;\nasync function process_message(data) {\n  const { method, params, id, iframe_id } = data;\n  try {\n    let result;\n    switch (method) {\n      case "init":\n        console.log("init");\n        break;\n      case "load":\n        const model_params = { data: params, ...params };\n        console.log("load", { model_params });\n        model = new SmartEmbedTransformersAdapter(model_params);\n        await model.load();\n        result = { model_loaded: true, model_config_key: model.active_config_key };\n        break;\n      case "embed_batch":\n        if (!model) throw new Error("Model not loaded");\n        result = await model.embed_batch(params.inputs);\n        break;\n      case "count_tokens":\n        if (!model) throw new Error("Model not loaded");\n        result = await model.count_tokens(params);\n        break;\n      default:\n        throw new Error(`Unknown method: ${method}`);\n    }\n    return { id, result, iframe_id };\n  } catch (error) {\n    console.error("Error processing message:", error);\n    return { id, error: error.message, iframe_id };\n  }\n}\nprocess_message({ method: "init" });\n';
 
 // node_modules/obsidian-smart-env/node_modules/smart-embed-model/adapters/transformers.js
 var transformers_defaults = {
   adapter: "transformers",
   description: "Transformers (Local, built-in)",
-  default_model: "TaylorAI/bge-micro-v2"
+  default_model: "TaylorAI/bge-micro-v2",
+  models: transformers_models
 };
 var transformers_models = {
   "TaylorAI/bge-micro-v2": {
@@ -10192,6 +10802,15 @@ var transformers_models = {
     "max_tokens": 512,
     "name": "GTE-tiny",
     "description": "Local, 512 tokens, 384 dim",
+    "adapter": "transformers"
+  },
+  "onnx-community/embeddinggemma-300m-ONNX": {
+    "id": "onnx-community/embeddinggemma-300m-ONNX",
+    "batch_size": 1,
+    "dims": 768,
+    "max_tokens": 2048,
+    "name": "EmbeddingGemma-300M",
+    "description": "Local, 2,048 tokens, 768 dim",
     "adapter": "transformers"
   },
   "Mihaiii/Ivysaur": {
@@ -10269,19 +10888,22 @@ var transformers_models = {
   }
 };
 var transformers_settings_config = {
-  "[ADAPTER].gpu_batch_size": {
-    name: "GPU batch size",
-    type: "number",
-    description: "Number of embeddings to process per batch on GPU. Use 0 to disable GPU.",
-    placeholder: "Enter number ex. 10"
-  },
-  "[ADAPTER].legacy_transformers": {
-    name: "Legacy transformers (no GPU)",
-    type: "toggle",
-    description: "Use legacy transformers (v2) instead of v3. This may resolve issues if the local embedding isn't working.",
-    callback: "embed_model_changed",
-    default: true
-  }
+  // "[ADAPTER].legacy_transformers": {
+  //   name: 'Legacy transformers (no GPU)',
+  //   type: "toggle",
+  //   description: "Use legacy transformers (v2) instead of v3. This may resolve issues if the local embedding isn't working.",
+  //   callback: 'embed_model_changed',
+  //   default: true,
+  // },
+};
+var settings_config4 = {
+  // "legacy_transformers": {
+  //   name: 'Legacy transformers (no GPU)',
+  //   type: "toggle",
+  //   description: "Use legacy transformers (v2) instead of v3. This may resolve issues if the local embedding isn't working.",
+  //   // callback: 'embed_model_changed',
+  //   // default: false,
+  // },
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-embed-model/adapters/transformers_iframe.js
@@ -10289,15 +10911,11 @@ var SmartEmbedTransformersIframeAdapter = class extends SmartEmbedIframeAdapter 
   static defaults = transformers_defaults;
   /**
    * Create transformers iframe adapter instance
-   * @param {SmartEmbedModel} model - Parent model instance
    */
   constructor(model) {
     super(model);
-    this.connector = transformers_connector;
-    if (this.adapter_settings.legacy_transformers || !this.use_gpu) {
-      this.connector = this.connector.replace("@huggingface/transformers", "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2");
-      this.use_gpu = false;
-    } else this.connector = this.connector.replace("@huggingface/transformers", "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1");
+    this.connector = transformers_connector.replace("@huggingface/transformers", "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0");
+    console.log("transformers iframe connector", this.model);
   }
   /** @returns {Object} Settings configuration for transformers adapter */
   get settings_config() {
@@ -10338,11 +10956,17 @@ var SmartEmbedOllamaAdapter = class extends SmartEmbedModelApiAdapter {
     models: {},
     model_key: "nomic-embed-text"
   };
+  get host() {
+    return this.model.data.host || this.constructor.defaults.host;
+  }
   get endpoint() {
-    return `${this.model_config.host}${this.model_config.endpoint}`;
+    return `${this.host}${this.constructor.defaults.endpoint}`;
   }
   get models_endpoint() {
-    return `${this.model_config.host}${this.model_config.models_endpoint}`;
+    return `${this.host}${this.constructor.defaults.models_endpoint}`;
+  }
+  get model_show_endpoint() {
+    return `${this.host}/api/show`;
   }
   async load() {
     await this.get_models();
@@ -10388,7 +11012,7 @@ var SmartEmbedOllamaAdapter = class extends SmartEmbedModelApiAdapter {
   }
   /** @returns {number} Maximum tokens for an input */
   get max_tokens() {
-    return this.model_config.max_tokens || this.constructor.defaults.max_tokens;
+    return this.model.data.max_tokens || this.constructor.defaults.max_tokens;
   }
   /**
    * Get the request adapter class.
@@ -10422,7 +11046,7 @@ var SmartEmbedOllamaAdapter = class extends SmartEmbedModelApiAdapter {
       const models_raw = [];
       for (const m of filter_embedding_models(list_data.models || [])) {
         const detail_resp = await this.http_adapter.request({
-          url: "http://localhost:11434/api/show",
+          url: this.model_show_endpoint,
           method: "POST",
           body: JSON.stringify({ model: m.name })
         });
@@ -10515,7 +11139,7 @@ var SmartEmbedModelOllamaRequestAdapter = class extends SmartEmbedModelRequestAd
    */
   to_platform() {
     const ollama_body = {
-      model: this.adapter.model_config.model_key,
+      model: this.model_id,
       input: this.embed_inputs
     };
     return {
@@ -10571,6 +11195,449 @@ var filter_embedding_models = (models) => {
   return models.filter(is_embedding_model);
 };
 
+// node_modules/obsidian-smart-env/node_modules/smart-embed-model/adapters/gemini.js
+var GeminiEmbedModelAdapter = class extends SmartEmbedModelApiAdapter {
+  static defaults = {
+    adapter: "gemini",
+    description: "Google Gemini (API)",
+    default_model: "gemini-embedding-001",
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents"
+  };
+  /**
+   * Count tokens in input text using tokenizer
+   * @param {string} input - Text to tokenize
+   * @returns {Promise<Object>} Token count result
+   */
+  async count_tokens(input) {
+    if (!this.tiktoken) await this.load_tiktoken();
+    return { tokens: this.tiktoken.encode(input).length };
+  }
+  /**
+   * Prepare input text for embedding
+   * Handles token limit truncation
+   * @param {string} embed_input - Raw input text
+   * @returns {Promise<string|null>} Processed input text
+   */
+  async prepare_embed_input(embed_input) {
+    if (typeof embed_input !== "string") {
+      throw new TypeError("embed_input must be a string");
+    }
+    if (embed_input.length === 0) {
+      console.log("Warning: prepare_embed_input received an empty string");
+      return null;
+    }
+    const { tokens } = await this.count_tokens(embed_input);
+    if (tokens <= this.max_tokens) {
+      return embed_input;
+    }
+    return await this.trim_input_to_max_tokens(embed_input, tokens);
+  }
+  /**
+   * Trim input text to fit token limit
+   * @private
+   * @param {string} embed_input - Input text to trim
+   * @param {number} tokens_ct - Current token count
+   * @returns {Promise<string|null>} Trimmed input text
+   */
+  async trim_input_to_max_tokens(embed_input, tokens_ct) {
+    const reduce_ratio = (tokens_ct - this.max_tokens) / tokens_ct;
+    const new_length = Math.floor(embed_input.length * (1 - reduce_ratio));
+    let trimmed_input = embed_input.slice(0, new_length);
+    const last_space_index = trimmed_input.lastIndexOf(" ");
+    if (last_space_index > 0) {
+      trimmed_input = trimmed_input.slice(0, last_space_index);
+    }
+    const prepared_input = await this.prepare_embed_input(trimmed_input);
+    if (prepared_input === null) {
+      console.log(
+        "Warning: prepare_embed_input resulted in an empty string after trimming"
+      );
+      return null;
+    }
+    return prepared_input;
+  }
+  /**
+   * Get the request adapter class.
+   * @returns {SmartEmbedGeminiRequestAdapter} The request adapter class
+   */
+  get req_adapter() {
+    return SmartEmbedGeminiRequestAdapter;
+  }
+  /**
+   * Get the response adapter class.
+   * @returns {SmartEmbedGeminiResponseAdapter} The response adapter class
+   */
+  get res_adapter() {
+    return SmartEmbedGeminiResponseAdapter;
+  }
+  /** @returns {Object} Settings configuration for Gemini adapter */
+  get settings_config() {
+    return {
+      ...super.settings_config,
+      "[ADAPTER].api_key": {
+        name: "Google API Key for Gemini embeddings",
+        type: "password",
+        description: "Required for Gemini embedding models",
+        placeholder: "Enter Google API Key"
+      }
+    };
+  }
+  /**
+   * Get available models (hardcoded list)
+   * @returns {Promise<Object>} Map of model objects
+   */
+  get_models() {
+    return Promise.resolve(this.models);
+  }
+  get models() {
+    return {
+      "gemini-embedding-001": {
+        "id": "models/gemini-embedding-001",
+        "batch_size": 50,
+        "dims": 768,
+        "max_tokens": 2048,
+        "name": "Gemini Embedding",
+        "description": "API, 2,048 tokens, 768 dim",
+        "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents",
+        "adapter": "gemini"
+      }
+    };
+  }
+  prepare_request_headers() {
+    return {
+      "Content-Type": "application/json",
+      "x-goog-api-key": this.api_key
+    };
+  }
+};
+var SmartEmbedGeminiRequestAdapter = class extends SmartEmbedModelRequestAdapter {
+  /**
+   * Prepare request body for Gemini API
+   * @returns {Object} Request body for API
+   */
+  prepare_request_body() {
+    const requests = this.embed_inputs.map((input) => {
+      const [title, ...content] = input.split("\n");
+      const doc_content = content.join("\n").trim() || "";
+      if (doc_content.length) {
+        return {
+          model: this.model_id,
+          content: {
+            parts: [{ text: doc_content }]
+          },
+          outputDimensionality: this.model_dims,
+          taskType: "RETRIEVAL_DOCUMENT",
+          title
+        };
+      } else {
+        return {
+          model: this.model_id,
+          content: {
+            parts: [{ text: title }]
+          },
+          outputDimensionality: this.model_dims,
+          taskType: "RETRIEVAL_DOCUMENT"
+        };
+      }
+    });
+    return {
+      requests
+    };
+  }
+};
+var SmartEmbedGeminiResponseAdapter = class extends SmartEmbedModelResponseAdapter {
+  /**
+   * Parse Gemini API response
+   * @returns {Array<Object>} Parsed embedding results
+   */
+  parse_response() {
+    const resp = this.response;
+    console.log("Gemini response:", resp);
+    if (!resp || !resp.embeddings || !resp.embeddings[0].values) {
+      console.error("Invalid Gemini embedding response format", resp);
+      return [];
+    }
+    return resp.embeddings.map((embedding, i) => {
+      if (!embedding.values || embedding.values.length === 0) {
+        console.warn(`No values for embedding at index ${i}`);
+        return { vec: [], tokens: 0 };
+      }
+      return {
+        vec: embedding.values,
+        tokens: 500
+        // not provided
+      };
+    });
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-embed-model/adapters/lm_studio.js
+function parse_lm_studio_models(list, adapter_key = "lm_studio") {
+  if (list.object !== "list" || !Array.isArray(list.data)) {
+    return { _: { id: "No models found." } };
+  }
+  console.log("LM Studio models", list);
+  return list.data.filter((m) => m.id && m.type === "embeddings").reduce((acc, m) => {
+    acc[m.id] = {
+      id: m.id,
+      model_name: m.id,
+      max_tokens: m.loaded_context_length || 512,
+      description: `LM Studio model: ${m.id}`,
+      adapter: adapter_key
+    };
+    return acc;
+  }, {});
+}
+var LmStudioEmbedModelAdapter = class extends SmartEmbedModelApiAdapter {
+  static key = "lm_studio";
+  static defaults = {
+    description: "LM Studio",
+    type: "API",
+    host: "http://localhost:1234",
+    // endpoint: "/v1/embeddings",
+    endpoint: "/api/v0/embeddings",
+    models_endpoint: "/api/v0/models",
+    default_model: "",
+    // user picks from dropdown
+    streaming: false,
+    api_key: "na",
+    // not used
+    batch_size: 10,
+    max_tokens: 512
+  };
+  get req_adapter() {
+    return LmStudioEmbedModelRequestAdapter;
+  }
+  get res_adapter() {
+    return LmStudioEmbedModelResponseAdapter;
+  }
+  get host() {
+    return this.model.data.host || this.constructor.defaults.host;
+  }
+  get endpoint() {
+    return `${this.host}${this.constructor.defaults.endpoint}`;
+  }
+  get models_endpoint() {
+    return `${this.host}${this.constructor.defaults.models_endpoint}`;
+  }
+  get settings_config() {
+    const cfg = { ...super.settings_config };
+    delete cfg["[ADAPTER].api_key"];
+    cfg["[ADAPTER].refresh_models"] = {
+      name: "Refresh Models",
+      type: "button",
+      description: "Refresh the list of available models.",
+      callback: "adapter.refresh_models"
+    };
+    cfg["[ADAPTER].current_model"] = {
+      type: "html",
+      value: `<p>Embedding Model Max Tokens: ${this.max_tokens} (may be configured in LM Studio)</p>`
+    };
+    cfg["[ADAPTER].batch_size"] = {
+      name: "Embedding Batch Size",
+      type: "number",
+      description: "Number of embeddings to process in parallel. Adjusting this may improve performance.",
+      value: this.batch_size,
+      default: this.constructor.defaults.batch_size
+    };
+    cfg["[ADAPTER].cors_note"] = {
+      name: "CORS required",
+      type: "html",
+      // The renderer treats `value` as innerHTML.
+      value: `<p>Before you can use LM Studio you must <strong>Enable CORS</strong> inside LM Studio \u2192 Developer \u2192 Settings</p>`
+    };
+    return cfg;
+  }
+  async get_models(refresh = false) {
+    if (!refresh && this.model.data.provider_models) return this.model.data.provider_models;
+    const resp = await this.http_adapter.request({
+      url: this.models_endpoint,
+      method: "GET"
+    });
+    const raw = await resp.json();
+    const parsed = this.parse_model_data(raw);
+    this.model.data.provider_models = parsed;
+    this.model.re_render_settings();
+    return parsed;
+  }
+  parse_model_data(list) {
+    return parse_lm_studio_models(list, this.constructor.key);
+  }
+  async count_tokens(input) {
+    return { tokens: this.estimate_tokens(input) };
+  }
+  /**
+   * Prepare input text and ensure it fits within `max_tokens`.
+   * @param {string} embed_input - Raw input text
+   * @returns {Promise<string|null>} Processed input text
+   */
+  async prepare_embed_input(embed_input) {
+    if (typeof embed_input !== "string") throw new TypeError("embed_input must be a string");
+    if (embed_input.length === 0) return null;
+    const { tokens } = await this.count_tokens(embed_input);
+    if (tokens <= this.max_tokens) return embed_input;
+    return await this.trim_input_to_max_tokens(embed_input, tokens);
+  }
+  /**
+   * Refresh available models.
+   */
+  refresh_models() {
+    console.log("refresh_models");
+    this.get_models(true);
+  }
+  // no usaqge stats from LM Studio so need to estimate tokens
+  async embed_batch(inputs) {
+    const token_cts = inputs.map((item) => this.estimate_tokens(item.embed_input));
+    const resp = await super.embed_batch(inputs);
+    resp.forEach((item, idx) => {
+      item.tokens = token_cts[idx];
+    });
+    return resp;
+  }
+};
+var LmStudioEmbedModelRequestAdapter = class extends SmartEmbedModelRequestAdapter {
+  /**
+   * Prepare request body for LM Studio API
+   * @returns {Object} Request body for API
+   */
+  prepare_request_body() {
+    const body = {
+      model: this.model_id,
+      input: this.embed_inputs
+    };
+    return body;
+  }
+};
+var LmStudioEmbedModelResponseAdapter = class extends SmartEmbedModelResponseAdapter {
+  /**
+   * Parse LM Studio API response
+   * @returns {Array<Object>} Parsed embedding results
+   */
+  parse_response() {
+    const resp = this.response;
+    if (!resp || !resp.data) {
+      console.error("Invalid response format", resp);
+      return [];
+    }
+    return resp.data.map((item) => ({
+      vec: item.embedding,
+      tokens: null
+      // LM Studio doesn't provide token usage
+    }));
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-chat-model/utils/normalize_error.js
+function is_json_compatible(value) {
+  if (value === null) {
+    return true;
+  }
+  const type = typeof value;
+  if (type === "string" || type === "number" || type === "boolean") {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.every(is_json_compatible);
+  }
+  if (type === "object") {
+    const obj = (
+      /** @type {Record<string, unknown>} */
+      value
+    );
+    return Object.values(obj).every(is_json_compatible);
+  }
+  return false;
+}
+function extract_json_details(source, exclude_keys) {
+  const details = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (exclude_keys.includes(key)) {
+      continue;
+    }
+    if (!is_json_compatible(value)) {
+      continue;
+    }
+    details[key] = value;
+  }
+  return details;
+}
+function is_empty_object(obj) {
+  return Object.keys(obj).length === 0;
+}
+function merge_details(first, second) {
+  if (is_empty_object(first)) {
+    return second;
+  }
+  if (is_empty_object(second)) {
+    return first;
+  }
+  return { ...first, ...second };
+}
+function get_message_from_object(value) {
+  const raw = value.message;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  }
+  return null;
+}
+function normalize_error(error) {
+  if (error == null) {
+    return { message: "Unknown error", details: null };
+  }
+  if (typeof error === "string") {
+    return { message: error, details: null };
+  }
+  if (error instanceof Error) {
+    const message = (error.message || "").trim() || "Unknown error";
+    const extra_details = extract_json_details(
+      /** @type {Record<string, unknown>} */
+      error,
+      ["message"]
+    );
+    return {
+      message,
+      details: is_empty_object(extra_details) ? null : extra_details
+    };
+  }
+  if (typeof error === "object") {
+    const obj = (
+      /** @type {Record<string, unknown>} */
+      error
+    );
+    if ("error" in obj && obj.error != null) {
+      const nested_error = obj.error;
+      if (typeof nested_error === "object") {
+        const nested_obj = (
+          /** @type {Record<string, unknown>} */
+          nested_error
+        );
+        const nested_message = get_message_from_object(nested_obj);
+        const nested_details = extract_json_details(nested_obj, ["message"]);
+        const outer_details = extract_json_details(obj, ["message", "error"]);
+        const combined_details = merge_details(outer_details, nested_details);
+        const message = nested_message || get_message_from_object(obj) || "Unknown error";
+        return {
+          message,
+          details: is_empty_object(combined_details) ? null : combined_details
+        };
+      }
+      return normalize_error(nested_error);
+    }
+    const object_message = get_message_from_object(obj);
+    if (object_message) {
+      const details = extract_json_details(obj, ["message"]);
+      return {
+        message: object_message,
+        details: is_empty_object(details) ? null : details
+      };
+    }
+  }
+  return { message: "Unknown error", details: null };
+}
+
 // node_modules/obsidian-smart-env/node_modules/smart-chat-model/smart_chat_model.js
 var SmartChatModel = class extends SmartModel {
   scope_name = "smart_chat_model";
@@ -10597,16 +11664,17 @@ var SmartChatModel = class extends SmartModel {
   get can_stream() {
     return this.adapter.constructor.defaults.streaming;
   }
-  get can_use_tools() {
-    return this.adapter.constructor.defaults.can_use_tools;
-  }
   /**
    * Complete a chat request.
    * @param {Object} req - Request parameters
    * @returns {Promise<Object>} Completion result
    */
   async complete(req) {
-    return await this.invoke_adapter_method("complete", req);
+    const resp = await this.invoke_adapter_method("complete", req);
+    if (resp.error) {
+      throw normalize_error(resp.error);
+    }
+    return resp;
   }
   /**
    * Stream chat responses.
@@ -10683,13 +11751,6 @@ var SmartChatModel = class extends SmartModel {
    */
   process_setting_key(key) {
     return key.replace(/\[CHAT_ADAPTER\]/g, this.adapter_name);
-  }
-  /**
-   * Validate the adapter configuration.
-   * @returns {Object} Validation result with 'valid' and 'message'.
-   */
-  validate_config() {
-    return this.adapter.validate_config();
   }
 };
 
@@ -10802,7 +11863,16 @@ var SmartStreamer = class {
   }
   #onStreamFailure(e) {
     const event = new CustomEvent("error");
-    event.data = e.currentTarget.response;
+    try {
+      const parsed = JSON.parse(e.currentTarget.response);
+      if (typeof parsed === "object") {
+        event.data = parsed;
+      } else {
+        event.data = e.currentTarget.response;
+      }
+    } catch {
+      event.data = e.currentTarget.response;
+    }
     this.dispatchEvent(event);
     this.end();
   }
@@ -10945,21 +12015,16 @@ var SmartChatModelAdapter = class extends SmartModelAdapter {
       }
     };
   }
-  /**
-   * Validate the adapter configuration.
-   * @abstract
-   * @returns {Object} { valid: boolean, message: string }
-   */
-  validate_config() {
-    throw new Error("validate_config not implemented");
-  }
-  get can_use_tools() {
-    return this.model_config?.can_use_tools || false;
-  }
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-chat-model/adapters/_api.js
+var MODEL_ADAPTER_CACHE = {};
+var MODELS_DEV_CACHE = { data: null, fetched_at: 0 };
 var SmartChatModelApiAdapter = class extends SmartChatModelAdapter {
+  constructor(model) {
+    super(model);
+    this.model_data_loaded_at = 0;
+  }
   /**
    * Get the request adapter class.
    * @returns {SmartChatModelRequestAdapter} The request adapter class
@@ -10980,13 +12045,15 @@ var SmartChatModelApiAdapter = class extends SmartChatModelAdapter {
    */
   get http_adapter() {
     if (!this._http_adapter) {
-      if (this.model.opts.http_adapter) this._http_adapter = this.model.opts.http_adapter;
+      if (this.model.http_adapter) this._http_adapter = this.model.http_adapter;
+      else if (this.model.opts.http_adapter) this._http_adapter = this.model.opts.http_adapter;
       else this._http_adapter = new SmartHttpRequest({ adapter: SmartHttpRequestFetchAdapter });
     }
     return this._http_adapter;
   }
   /**
    * Get the settings configuration for the API adapter.
+   * @deprecated migrating to module export
    * @returns {Object} Settings configuration object with API key and other settings
    */
   get settings_config() {
@@ -11024,22 +12091,40 @@ var SmartChatModelApiAdapter = class extends SmartChatModelAdapter {
       }
     };
   }
-  /**
-   * Validate parameters required for getting models.
-   * @returns {true|Array<Object>} True if valid, array of error objects if invalid
-   */
-  validate_get_models_params() {
-    if (!this.adapter_config.models_endpoint) {
-      const err_msg = `${this.model.adapter_name} models endpoint required to retrieve models`;
-      console.warn(err_msg);
-      return [{ value: "", name: err_msg }];
+  async get_enriched_model_data() {
+    const provider_key = this.constructor.models_dev_key || this.constructor.key;
+    await this.get_models_dev_index();
+    const provider_data = MODELS_DEV_CACHE.data[provider_key] || {};
+    const get_limit_i = (model) => model.limit?.context || 1e4;
+    const get_limit_o = (model) => model.limit?.output || 1e4;
+    const get_multimodal = (model) => model.modalities?.input?.includes("image") || false;
+    if (Object.keys(this.model_data || {}).length > 0) {
+      for (const [key, model] of Object.entries(this.model_data)) {
+        const enriched = provider_data?.models?.[model.id];
+        if (!enriched) continue;
+        this.model_data[key].models_dev = enriched;
+        this.model_data[key].name = enriched.name || model.name;
+        this.model_data[key].max_input_tokens = get_limit_i(enriched);
+        this.model_data[key].max_output_tokens = get_limit_o(enriched);
+        this.model_data[key].multimodal = get_multimodal(enriched);
+        this.model_data[key].cost = enriched.cost;
+      }
+    } else {
+      for (const [key, model] of Object.entries(provider_data?.models || {})) {
+        this.model_data[key] = {
+          ...model,
+          model_name: model.name,
+          description: model.name,
+          max_input_tokens: get_limit_i(model),
+          max_output_tokens: get_limit_o(model),
+          multimodal: get_multimodal(model)
+        };
+      }
     }
-    if (!this.api_key) {
-      const err_msg = `${this.model.adapter_name} API key required to retrieve models`;
-      console.warn(err_msg);
-      return [{ value: "", name: err_msg }];
-    }
-    return true;
+    return this.model_data;
+  }
+  valid_model_data() {
+    return typeof this.model_data === "object" && Object.keys(this.model_data || {}).length > 0 && this.model_data_loaded_at && Date.now() - this.model_data_loaded_at < 1 * 60 * 60 * 1e3;
   }
   /**
    * Get available models from the API.
@@ -11047,21 +12132,31 @@ var SmartChatModelApiAdapter = class extends SmartChatModelAdapter {
    * @returns {Promise<Object>} Map of model objects
    */
   async get_models(refresh = false) {
-    if (!refresh && this.adapter_config?.models && typeof this.adapter_config.models === "object" && Object.keys(this.adapter_config.models).length > 0) return this.adapter_config.models;
-    try {
-      const response = await this.http_adapter.request(this.models_request_params);
-      const model_data = this.parse_model_data(await response.json());
-      this.adapter_settings.models = model_data;
-      this.model.re_render_settings();
-      return model_data;
-    } catch (error) {
-      console.error("Failed to fetch model data:", error);
-      return { "_": { id: `Failed to fetch models from ${this.model.adapter_name}` } };
+    if (!refresh && this.valid_model_data()) return this.model_data;
+    if (this.api_key) {
+      let response;
+      try {
+        response = await this.http_adapter.request(this.models_request_params);
+        this.model_data = this.parse_model_data(await response.json());
+      } catch (error) {
+        console.error("Failed to fetch model data:", { error, response });
+      }
     }
+    this.model_data = await this.get_enriched_model_data();
+    this.model_data_loaded_at = Date.now();
+    if (this.model.data) {
+      this.model.data.provider_models = this.model_data;
+    }
+    if (this.valid_model_data() && typeof this.model.re_render_settings === "function") setTimeout(() => {
+      this.model.re_render_settings();
+    }, 100);
+    else console.warn("Invalid model data, not re-rendering settings");
+    return this.model_data;
   }
   /**
    * Parses the raw model data from OpenAI API and transforms it into a more usable format.
    * @param {Object} model_data - The raw model data received from OpenAI API.
+   * @abstract
    * @returns {Array<Object>} An array of parsed model objects with the following properties:
    *   @property {string} model_name - The name/ID of the model as returned by the API.
    *   @property {string} id - The id used to identify the model (usually same as model_name).
@@ -11087,11 +12182,13 @@ var SmartChatModelApiAdapter = class extends SmartChatModelAdapter {
     if (!http_resp) return null;
     const _res = new this.res_adapter(this, await http_resp.json());
     try {
-      return _res.to_openai();
+      const resp = _res.to_openai();
+      return resp;
     } catch (error) {
-      console.error("Error in SmartChatModelApiAdapter.complete():", error);
+      const normalized_error = normalize_error(error?.data || error);
+      console.error("Error in SmartChatModelApiAdapter.complete():", { normalized_error, error });
       console.error(http_resp);
-      return null;
+      return normalized_error;
     }
   }
   // STREAMING
@@ -11122,27 +12219,30 @@ var SmartChatModelApiAdapter = class extends SmartChatModelAdapter {
             return;
           }
           try {
-            resp_adapter.handle_chunk(e.data);
-            handlers.chunk && await handlers.chunk(resp_adapter.to_openai());
+            const raw = resp_adapter.handle_chunk(e.data);
+            handlers.chunk && await handlers.chunk({ ...resp_adapter.to_openai(), raw });
           } catch (error) {
-            console.error("Error processing stream chunk:", error);
-            handlers.error && handlers.error(e.data);
+            const normalized_error = normalize_error({ ...e.data, ...error });
+            console.error("Error processing stream chunk:", { e, error, normalized_error });
+            handlers.error && handlers.error(normalized_error);
             this.stop_stream();
-            reject(error);
+            reject(normalized_error);
           }
         });
         this.active_stream.addEventListener("error", (e) => {
           console.error("Stream error:", e);
-          handlers.error && handlers.error("*API Error. See console logs for details.*");
+          const normalized_error = normalize_error(e?.data || e);
+          handlers.error && handlers.error(normalized_error);
           this.stop_stream();
-          reject(e);
+          reject(normalized_error);
         });
         this.active_stream.stream();
       } catch (err) {
         console.error("Failed to start stream:", err);
-        handlers.error && handlers.error("*API Error. See console logs for details.*");
+        const normalized_error = normalize_error(err?.data || err);
+        handlers.error && handlers.error(normalized_error);
         this.stop_stream();
-        reject(err);
+        reject(normalized_error);
       }
     });
   }
@@ -11164,36 +12264,14 @@ var SmartChatModelApiAdapter = class extends SmartChatModelAdapter {
     }
   }
   /**
-   * Validate Anthropic adapter configuration.
-   * @returns {Object} { valid: boolean, message: string }
-   */
-  validate_config() {
-    if (!this.adapter_config.model_key || this.adapter_config.model_key === "undefined") return { valid: false, message: "No model selected." };
-    if (!this.api_key) {
-      return { valid: false, message: "API key is missing." };
-    }
-    if (!this.can_use_tools) {
-      return { valid: false, message: "Selected model does not support tools." };
-    }
-    return { valid: true, message: "Configuration is valid." };
-  }
-  /**
    * Get the API key.
    * @returns {string} The API key.
    */
   get api_key() {
-    return this.main.opts.api_key || this.adapter_config?.api_key;
-  }
-  /**
-  
-     * Get the number of choices.
-     * @returns {number} The number of choices.
-     */
-  get choices() {
-    return this.adapter_config.choices;
+    return this.model.api_key || this.main.opts.api_key;
   }
   get models_endpoint() {
-    return this.adapter_config.models_endpoint;
+    return this.constructor.defaults.models_endpoint;
   }
   get models_endpoint_method() {
     return "POST";
@@ -11203,28 +12281,62 @@ var SmartChatModelApiAdapter = class extends SmartChatModelAdapter {
    * @returns {string} The endpoint URL.
    */
   get endpoint() {
-    return this.adapter_config.endpoint;
+    return this.constructor.defaults.endpoint;
   }
   /**
    * Get the streaming endpoint URL.
    * @returns {string} The streaming endpoint URL.
    */
   get endpoint_streaming() {
-    return this.adapter_config.endpoint_streaming || this.endpoint;
+    return this.constructor.defaults.endpoint_streaming || this.endpoint;
   }
   /**
    * Get the maximum output tokens.
    * @returns {number} The maximum output tokens.
    */
   get max_output_tokens() {
-    return this.adapter_config.max_output_tokens || 3e3;
+    return this.model.data.max_output_tokens || 3e3;
+  }
+  async get_models_dev_index(ttl_ms = 60 * 60 * 1e3) {
+    const now = Date.now();
+    if (MODELS_DEV_CACHE?.data && now - MODELS_DEV_CACHE?.fetched_at < ttl_ms) {
+      return MODELS_DEV_CACHE.data;
+    }
+    try {
+      const req = {
+        url: "https://models.dev/api.json",
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+      };
+      const resp = await this.http_adapter.request(req);
+      const data = await resp.json();
+      MODELS_DEV_CACHE.data = data;
+      MODELS_DEV_CACHE.fetched_at = now;
+      console.log({ MODELS_DEV_CACHE });
+      return data;
+    } catch (err) {
+      console.warn("models.dev fetch failed; continuing without enrichment", err);
+      return MODELS_DEV_CACHE.data || [];
+    }
   }
   /**
-   * Get the temperature.
-   * @returns {number} The temperature.
+   * Get available models as dropdown options synchronously.
+   * @returns {Array<Object>} Array of model options.
    */
-  get temperature() {
-    return this.adapter_config.temperature;
+  get_models_as_options() {
+    if (Object.keys(this.model_data || {}).length) {
+      return Object.entries(this.model_data).map(([id, model]) => ({ value: id, name: model.name || id })).sort((a, b) => a.name.localeCompare(b.name));
+    }
+    this.get_models(true);
+    return [{ value: "", name: "No models currently available" }];
+  }
+  get model_data() {
+    if (!MODEL_ADAPTER_CACHE[this.constructor.key]) MODEL_ADAPTER_CACHE[this.constructor.key] = {};
+    return MODEL_ADAPTER_CACHE[this.constructor.key];
+  }
+  set model_data(data) {
+    if (!MODEL_ADAPTER_CACHE[this.constructor.key]) MODEL_ADAPTER_CACHE[this.constructor.key] = {};
+    MODEL_ADAPTER_CACHE[this.constructor.key] = data;
   }
 };
 var SmartChatModelRequestAdapter = class {
@@ -11248,8 +12360,8 @@ var SmartChatModelRequestAdapter = class {
    * Get the model identifier
    * @returns {string} Model ID
    */
-  get model() {
-    return this._req.model || this.adapter.model_config.id;
+  get model_id() {
+    return this._req.model || this.adapter.model.model_key || this.adapter.model.data.id;
   }
   /**
    * Get the temperature setting
@@ -11263,7 +12375,7 @@ var SmartChatModelRequestAdapter = class {
    * @returns {number} Max tokens value
    */
   get max_tokens() {
-    return this._req.max_tokens || this.adapter.model_config.max_output_tokens;
+    return this._req.max_tokens || this.adapter.max_output_tokens;
   }
   /**
    * Get the streaming flag
@@ -11302,11 +12414,12 @@ var SmartChatModelRequestAdapter = class {
   get_headers() {
     const headers = {
       "Content-Type": "application/json",
-      ...this.adapter.adapter_config.headers || {}
+      ...this.adapter.constructor.defaults.headers || {}
     };
-    if (this.adapter.adapter_config.api_key_header !== "none") {
-      if (this.adapter.adapter_config.api_key_header) {
-        headers[this.adapter.adapter_config.api_key_header] = this.adapter.api_key;
+    const api_key_header = this.adapter.constructor.defaults.api_key_header;
+    if (api_key_header !== "none") {
+      if (api_key_header) {
+        headers[api_key_header] = this.adapter.api_key;
       } else if (this.adapter.api_key) {
         headers["Authorization"] = `Bearer ${this.adapter.api_key}`;
       }
@@ -11327,8 +12440,8 @@ var SmartChatModelRequestAdapter = class {
   to_openai(streaming = false) {
     const body = {
       messages: this._transform_messages_to_openai(),
-      model: this.model,
-      max_tokens: this.max_tokens,
+      model: this.model_id,
+      // TODO max_completion_tokens
       temperature: this.temperature,
       stream: streaming,
       ...this.tools && { tools: this._transform_tools_to_openai() }
@@ -11336,7 +12449,7 @@ var SmartChatModelRequestAdapter = class {
     if (body.tools?.length > 0 && this.tool_choice && this.tool_choice !== "none") {
       body.tool_choice = this.tool_choice;
     }
-    if (this.model?.startsWith("o1-")) {
+    if (this.model_id?.startsWith("o1-")) {
       body.messages = body.messages.filter((m) => m.role !== "system");
       delete body.temperature;
     }
@@ -11510,6 +12623,7 @@ var SmartChatModelResponseAdapter = class {
    * @returns {Object} Response in OpenAI format
    */
   to_openai() {
+    if (this.error) return { error: normalize_error(this.error) };
     const res = {
       id: this.id,
       object: this.object,
@@ -11518,7 +12632,6 @@ var SmartChatModelResponseAdapter = class {
       usage: this._transform_usage_to_openai(),
       raw: this._res
     };
-    if (this.error) res.error = this.error;
     return res;
   }
   /**
@@ -11540,8 +12653,11 @@ var SmartChatModelResponseAdapter = class {
     if (!this._res.id) {
       this._res.id = chunk.id;
     }
+    let raw;
     if (chunk.choices?.[0]?.delta?.content) {
-      this._res.choices[0].message.content += chunk.choices[0].delta.content;
+      const content = chunk.choices[0].delta.content;
+      raw = content;
+      this._res.choices[0].message.content += content;
     }
     if (chunk.choices?.[0]?.delta?.tool_calls) {
       if (!this._res.choices[0].message.tool_calls) {
@@ -11564,6 +12680,7 @@ var SmartChatModelResponseAdapter = class {
         this._res.choices[0].message.tool_calls[0].function.arguments += chunk.choices[0].delta.tool_calls[0].function.arguments;
       }
     }
+    return raw;
   }
   /**
    * Transform choices to OpenAI format.
@@ -11653,7 +12770,6 @@ var SmartChatModelAnthropicAdapter = class extends SmartChatModelApiAdapter {
     description: "Anthropic Claude",
     type: "API",
     endpoint: "https://api.anthropic.com/v1/messages",
-    // streaming: false,
     streaming: true,
     api_key_header: "x-api-key",
     headers: {
@@ -11663,9 +12779,8 @@ var SmartChatModelAnthropicAdapter = class extends SmartChatModelApiAdapter {
     },
     adapter: "Anthropic",
     models_endpoint: false,
-    default_model: "claude-3-5-sonnet-latest",
-    signup_url: "https://console.anthropic.com/login?returnTo=%2Fsettings%2Fkeys",
-    can_use_tools: true
+    default_model: "claude-opus-4-1-20250805",
+    signup_url: "https://console.anthropic.com/login?returnTo=%2Fsettings%2Fkeys"
   };
   /**
    * Get request adapter class
@@ -11680,146 +12795,149 @@ var SmartChatModelAnthropicAdapter = class extends SmartChatModelApiAdapter {
    */
   res_adapter = SmartChatModelAnthropicResponseAdapter;
   /**
-   * Validate parameters for getting models
-   * @returns {boolean} Always true since models are hardcoded
-   */
-  validate_get_models_params() {
-    return true;
-  }
-  /**
-   * Get available models (hardcoded list)
+   * Get available models (hardcoded list) and enrich via models.dev
    * @returns {Promise<Object>} Map of model objects
    */
-  get_models() {
-    return Promise.resolve(this.models);
+  async get_models() {
+    try {
+      this.model_data = await this.get_enriched_model_data();
+      this.model_data_loaded_at = Date.now();
+      this.model.data.provider_models = this.model_data;
+      setTimeout(() => {
+        this.model.re_render_settings();
+      }, 100);
+      return this.model_data;
+    } catch {
+      return this.anthropic_models;
+    }
   }
   is_end_of_stream(event) {
     return event.data.includes("message_stop");
   }
   /**
    * Get hardcoded list of available models
+   * @deprecated use get_enriched_model_data() instead (remove after no-incidents)
    * @returns {Object} Map of model objects with capabilities and limits
    */
-  get models() {
+  get anthropic_models() {
     return {
       // ── Claude 4 family ──────────────────────────────────────────────────────
+      "claude-opus-4-1-20250805": {
+        name: "Claude Opus 4.1 (2025-08-05)",
+        id: "claude-opus-4-1-20250805",
+        model_name: "claude-opus-4-1-20250805",
+        description: "Anthropic Claude Opus 4.1 snapshot (2025-08-05)",
+        max_input_tokens: 2e5,
+        max_output_tokens: 32e3,
+        multimodal: true
+      },
       "claude-opus-4-20250514": {
         name: "Claude Opus 4 (2025-05-14)",
         id: "claude-opus-4-20250514",
         model_name: "claude-opus-4-20250514",
-        description: "Anthropic's Claude Opus 4 (2025-05-14)",
+        description: "Anthropic Claude Opus 4 snapshot (2025-05-14)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 32e3,
         multimodal: true
       },
       "claude-sonnet-4-20250514": {
         name: "Claude Sonnet 4 (2025-05-14)",
         id: "claude-sonnet-4-20250514",
         model_name: "claude-sonnet-4-20250514",
-        description: "Anthropic's Claude Sonnet 4 (2025-05-14)",
+        description: "Anthropic Claude Sonnet 4 snapshot (2025-05-14)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 64e3,
         multimodal: true
       },
       // ── Claude 3.7 family ───────────────────────────────────────────────────
       "claude-3-7-sonnet-latest": {
-        name: "Claude 3.7 Sonnet (Latest)",
+        name: "Claude 3.7 Sonnet (latest)",
         id: "claude-3-7-sonnet-latest",
         model_name: "claude-3-7-sonnet-latest",
-        description: "Anthropic's Claude Sonnet 3.7 (Latest)",
+        description: "Anthropic Claude 3.7 Sonnet (rolling-latest)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 64e3,
         multimodal: true
       },
       "claude-3-7-sonnet-20250219": {
         name: "Claude 3.7 Sonnet (2025-02-19)",
         id: "claude-3-7-sonnet-20250219",
         model_name: "claude-3-7-sonnet-20250219",
-        description: "Anthropic's Claude Sonnet 3.7 (2025-02-19)",
+        description: "Anthropic Claude 3.7 Sonnet snapshot (2025-02-19)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 64e3,
         multimodal: true
       },
       // ── Claude 3.5 family ───────────────────────────────────────────────────
       "claude-3-5-sonnet-latest": {
-        name: "Claude 3.5 Sonnet (Latest)",
+        name: "Claude 3.5 Sonnet (latest)",
         id: "claude-3-5-sonnet-latest",
-        model_name: "claude-3.5-sonnet-latest",
-        description: "Anthropic's Claude Sonnet 3.5 (Latest)",
+        model_name: "claude-3-5-sonnet-latest",
+        description: "Anthropic Claude 3.5 Sonnet (rolling-latest)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 8192,
         multimodal: true
       },
       "claude-3-5-sonnet-20241022": {
         name: "Claude 3.5 Sonnet (2024-10-22)",
         id: "claude-3-5-sonnet-20241022",
         model_name: "claude-3-5-sonnet-20241022",
-        description: "Anthropic's Claude Sonnet 3.5 (2024-10-22)",
+        description: "Anthropic Claude 3.5 Sonnet snapshot (2024-10-22)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
-        multimodal: true
-      },
-      "claude-3.5-sonnet-20240620": {
-        // kept original id typo for backward compatibility
-        name: "Claude 3.5 Sonnet (2024-06-20)",
-        id: "claude-3.5-sonnet-20240620",
-        model_name: "claude-3.5-sonnet-20240620",
-        description: "Anthropic's Claude Sonnet 3.5 (2024-06-20)",
-        max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 8192,
         multimodal: true
       },
       "claude-3-5-haiku-latest": {
-        name: "Claude 3.5 Haiku (Latest)",
+        name: "Claude 3.5 Haiku (latest)",
         id: "claude-3-5-haiku-latest",
-        model_name: "claude-3.5-haiku-latest",
-        description: "Anthropic's Claude Haiku 3.5 (Latest)",
+        model_name: "claude-3-5-haiku-latest",
+        description: "Anthropic Claude 3.5 Haiku (rolling-latest)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3
+        max_output_tokens: 8192
       },
       "claude-3-5-haiku-20241022": {
         name: "Claude 3.5 Haiku (2024-10-22)",
         id: "claude-3-5-haiku-20241022",
         model_name: "claude-3-5-haiku-20241022",
-        description: "Anthropic's Claude Haiku 3.5 (2024-10-22)",
+        description: "Anthropic Claude 3.5 Haiku snapshot (2024-10-22)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3
+        max_output_tokens: 8192
       },
       // ── Claude 3 family ─────────────────────────────────────────────────────
       "claude-3-opus-latest": {
-        name: "Claude 3 Opus (Latest)",
+        name: "Claude 3 Opus (latest)",
         id: "claude-3-opus-latest",
         model_name: "claude-3-opus-latest",
-        description: "Anthropic's Claude Opus 3 (Latest)",
+        description: "Anthropic Claude 3 Opus (rolling-latest)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 4096,
         multimodal: true
       },
       "claude-3-opus-20240229": {
         name: "Claude 3 Opus (2024-02-29)",
         id: "claude-3-opus-20240229",
         model_name: "claude-3-opus-20240229",
-        description: "Anthropic's Claude Opus 3 (2024-02-29)",
+        description: "Anthropic Claude 3 Opus snapshot (2024-02-29)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 4096,
         multimodal: true
       },
       "claude-3-sonnet-20240229": {
         name: "Claude 3 Sonnet (2024-02-29)",
         id: "claude-3-sonnet-20240229",
         model_name: "claude-3-sonnet-20240229",
-        description: "Anthropic's Claude Sonnet 3 (2024-02-29)",
+        description: "Anthropic Claude 3 Sonnet snapshot (2024-02-29)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 4096,
         multimodal: true
       },
       "claude-3-haiku-20240307": {
         name: "Claude 3 Haiku (2024-03-07)",
         id: "claude-3-haiku-20240307",
         model_name: "claude-3-haiku-20240307",
-        description: "Anthropic's Claude Haiku 3 (2024-03-07)",
+        description: "Anthropic Claude 3 Haiku snapshot (2024-03-07)",
         max_input_tokens: 2e5,
-        max_output_tokens: 4e3,
+        max_output_tokens: 4096,
         multimodal: true
       }
     };
@@ -11839,7 +12957,7 @@ var SmartChatModelAnthropicRequestAdapter = class extends SmartChatModelRequestA
    */
   to_anthropic(streaming = false) {
     this.anthropic_body = {
-      model: this.model,
+      model: this.model_id,
       max_tokens: this.max_tokens,
       temperature: this.temperature,
       stream: streaming
@@ -11849,11 +12967,7 @@ var SmartChatModelAnthropicRequestAdapter = class extends SmartChatModelRequestA
       this.anthropic_body.tools = this._transform_tools_to_anthropic();
     }
     if (this.tool_choice) {
-      if (this.tool_choice === "auto") {
-        this.anthropic_body.tool_choice = { type: "auto" };
-      } else if (typeof this.tool_choice === "object" && this.tool_choice.function) {
-        this.anthropic_body.tool_choice = { type: "tool", name: this.tool_choice.function.name };
-      }
+      this.anthropic_body.tool_choice = this.tool_choice === "auto" ? { type: "auto" } : { type: "tool", name: this.tool_choice.function.name };
     }
     return {
       url: this.adapter.endpoint,
@@ -11963,10 +13077,10 @@ var SmartChatModelAnthropicRequestAdapter = class extends SmartChatModelRequestA
     return content;
   }
   /**
-   * Transform tools to Anthropic format
-   * @returns {Array<Object>} Tools in Anthropic format
-   * @private
-   */
+     * Transform tools to Anthropic format
+     * @returns {Array<Object>} Tools in Anthropic format
+     * @private
+     */
   _transform_tools_to_anthropic() {
     if (!this.tools) return void 0;
     return this.tools.map((tool) => ({
@@ -12098,8 +13212,11 @@ var SmartChatModelAnthropicResponseAdapter = class extends SmartChatModelRespons
     if (chunk.message?.role) {
       this._res.role = chunk.message.role;
     }
+    let raw;
     if (chunk.delta?.type === "text_delta") {
-      this._res.content[0].text += chunk.delta.text;
+      const content = chunk.delta?.text;
+      raw = content;
+      this._res.content[0].text += content;
     }
     if (chunk.delta?.stop_reason) {
       this._res.stop_reason = chunk.delta.stop_reason;
@@ -12110,6 +13227,7 @@ var SmartChatModelAnthropicResponseAdapter = class extends SmartChatModelRespons
         ...chunk.usage
       };
     }
+    return raw;
   }
 };
 
@@ -12143,9 +13261,8 @@ var SmartChatModelOpenaiAdapter = class extends SmartChatModelApiAdapter {
     endpoint: "https://api.openai.com/v1/chat/completions",
     streaming: true,
     models_endpoint: "https://api.openai.com/v1/models",
-    default_model: "gpt-4.1-mini",
-    signup_url: "https://platform.openai.com/api-keys",
-    can_use_tools: true
+    default_model: "gpt-5-nano",
+    signup_url: "https://platform.openai.com/api-keys"
   };
   res_adapter = SmartChatModelOpenaiResponseAdapter;
   /**
@@ -12160,7 +13277,6 @@ var SmartChatModelOpenaiAdapter = class extends SmartChatModelApiAdapter {
         model_name: model.id,
         id: model.id,
         multimodal: true,
-        can_use_tools: true,
         max_input_tokens: get_max_input_tokens(model.id)
       };
       acc[model.id] = out;
@@ -12186,16 +13302,6 @@ var SmartChatModelOpenaiAdapter = class extends SmartChatModelApiAdapter {
    */
   get settings_config() {
     const config = super.settings_config;
-    if (this.adapter?.model_config?.multimodal) {
-      config["[CHAT_ADAPTER].image_resolution"] = {
-        name: "Image Resolution",
-        type: "dropdown",
-        description: "Select the image resolution for the chat model.",
-        option_1: "low",
-        option_2: "high",
-        default: "low"
-      };
-    }
     config["[CHAT_ADAPTER].open_ai_note"] = {
       name: "Note about using OpenAI",
       type: "html",
@@ -12210,6 +13316,9 @@ function get_max_input_tokens(model_id) {
   }
   if (model_id.startsWith("o")) {
     return 2e5;
+  }
+  if (model_id.startsWith("gpt-5")) {
+    return 4e5;
   }
   if (model_id.startsWith("gpt-4o") || model_id.startsWith("gpt-4.5") || model_id.startsWith("gpt-4-turbo")) {
     return 128e3;
@@ -12239,8 +13348,7 @@ var SmartChatModelAzureAdapter = class extends SmartChatModelOpenaiAdapter {
     azure_api_version: "2024-10-01-preview",
     default_model: "gpt-35-turbo",
     signup_url: "https://learn.microsoft.com/azure/cognitive-services/openai/quickstart?tabs=command-line",
-    models_endpoint: "https://{azure_resource_name}.openai.azure.com/openai/deployments?api-version={azure_api_version}",
-    can_use_tools: true
+    models_endpoint: "https://{azure_resource_name}.openai.azure.com/openai/deployments?api-version={azure_api_version}"
   };
   /**
    * Override the settings configuration to include Azure-specific fields.
@@ -12274,7 +13382,7 @@ var SmartChatModelAzureAdapter = class extends SmartChatModelOpenaiAdapter {
    *  https://<RESOURCE>.openai.azure.com/openai/deployments/<DEPLOYMENT>/chat/completions?api-version=2023-05-15
    */
   get endpoint() {
-    const { azure_resource_name, azure_deployment_name, azure_api_version } = this.adapter_config;
+    const { azure_resource_name, azure_deployment_name, azure_api_version } = this.model.data;
     return `https://${azure_resource_name}.openai.azure.com/openai/deployments/${azure_deployment_name}/chat/completions?api-version=${azure_api_version}`;
   }
   /**
@@ -12290,7 +13398,7 @@ var SmartChatModelAzureAdapter = class extends SmartChatModelOpenaiAdapter {
    *   https://<RESOURCE>.openai.azure.com/openai/deployments?api-version=2023-05-15
    */
   get models_endpoint() {
-    const { azure_resource_name, azure_api_version } = this.adapter_config;
+    const { azure_resource_name, azure_api_version } = this.model.data;
     return `https://${azure_resource_name}.openai.azure.com/openai/deployments?api-version=${azure_api_version}`;
   }
   /**
@@ -12329,32 +13437,13 @@ var SmartChatModelAzureAdapter = class extends SmartChatModelOpenaiAdapter {
     }
     return parsed;
   }
-  /**
-   * Validate the Azure configuration fields.
-   */
-  validate_config() {
-    const { azure_resource_name, azure_deployment_name, azure_api_version } = this.adapter_config;
-    if (!azure_resource_name) {
-      return { valid: false, message: "Azure resource name is missing." };
-    }
-    if (!azure_deployment_name) {
-      return { valid: false, message: "Azure deployment name is missing." };
-    }
-    if (!azure_api_version) {
-      return { valid: false, message: "Azure API version is missing." };
-    }
-    if (!this.api_key) {
-      return { valid: false, message: "Azure OpenAI API key is missing." };
-    }
-    return { valid: true, message: "Configuration is valid." };
-  }
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-chat-model/adapters/google.js
-var SmartChatModelGeminiAdapter = class extends SmartChatModelApiAdapter {
-  static key = "gemini";
+var SmartChatModelGoogleAdapter = class extends SmartChatModelApiAdapter {
+  static key = "google";
   static defaults = {
-    description: "Google Gemini",
+    description: "Google (Gemini)",
     type: "API",
     api_key_header: "none",
     endpoint: "https://generativelanguage.googleapis.com/v1beta/models/MODEL_NAME:generateContent",
@@ -12363,8 +13452,7 @@ var SmartChatModelGeminiAdapter = class extends SmartChatModelApiAdapter {
     adapter: "Gemini",
     models_endpoint: "https://generativelanguage.googleapis.com/v1beta/models",
     default_model: "gemini-1.5-pro",
-    signup_url: "https://ai.google.dev/",
-    can_use_tools: true
+    signup_url: "https://ai.google.dev/"
   };
   streaming_chunk_splitting_regex = /(\r\n|\n|\r){2}/g;
   // handle Google's BS (split on double newlines only)
@@ -12560,9 +13648,11 @@ var SmartChatModelGeminiRequestAdapter = class extends SmartChatModelRequestAdap
       return content.map((part) => {
         if (part.type === "text") return { text: part.text };
         if (part.type === "image_url") {
+          let mime_type = part.image_url.url.split(";")[0].split(":")[1];
+          if (mime_type === "image/jpg") mime_type = "image/jpeg";
           return {
             inline_data: {
-              mime_type: part.image_url.url.split(";")[0].split(":")[1],
+              mime_type,
               data: part.image_url.url.split(",")[1]
             }
           };
@@ -12680,8 +13770,11 @@ var SmartChatModelGeminiResponseAdapter = class extends SmartChatModelResponseAd
     if (["[", ","].includes(chunk_trimmed[0])) chunk_trimmed = chunk_trimmed.slice(1);
     if (["]", ","].includes(chunk_trimmed[chunk_trimmed.length - 1])) chunk_trimmed = chunk_trimmed.slice(0, -1);
     const data = JSON.parse(chunk_trimmed);
+    let raw;
     if (data.candidates?.[0]?.content?.parts?.[0]?.text?.length) {
-      this._res.candidates[0].content.parts[0].text += data.candidates[0].content.parts[0].text;
+      const content = data.candidates[0].content.parts[0].text;
+      raw = content;
+      this._res.candidates[0].content.parts[0].text += content;
     }
     if (data.candidates?.[0]?.content?.role?.length) {
       this._res.candidates[0].content.role = data.candidates[0].content.role;
@@ -12718,12 +13811,29 @@ var SmartChatModelGeminiResponseAdapter = class extends SmartChatModelResponseAd
         });
       }
     }
+    return raw;
   }
+};
+var SmartChatModelGeminiAdapter = class extends SmartChatModelGoogleAdapter {
+  static key = "gemini";
+  static defaults = {
+    description: "Gemini (SWITCH TO **GOOGLE** ADAPTER)",
+    type: "API",
+    api_key_header: "none",
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/MODEL_NAME:generateContent",
+    endpoint_streaming: "https://generativelanguage.googleapis.com/v1beta/models/MODEL_NAME:streamGenerateContent",
+    streaming: true,
+    adapter: "Gemini",
+    models_endpoint: "https://generativelanguage.googleapis.com/v1beta/models",
+    default_model: "gemini-1.5-pro",
+    signup_url: "https://ai.google.dev/"
+  };
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-chat-model/adapters/open_router.js
 var SmartChatModelOpenRouterAdapter = class extends SmartChatModelApiAdapter {
   static key = "open_router";
+  static models_dev_key = "openrouter";
   static defaults = {
     description: "Open Router",
     type: "API",
@@ -12732,8 +13842,7 @@ var SmartChatModelOpenRouterAdapter = class extends SmartChatModelApiAdapter {
     adapter: "OpenRouter",
     models_endpoint: "https://openrouter.ai/api/v1/models",
     default_model: "mistralai/mistral-7b-instruct:free",
-    signup_url: "https://accounts.openrouter.ai/sign-up?redirect_url=https%3A%2F%2Fopenrouter.ai%2Fkeys",
-    can_use_tools: true
+    signup_url: "https://accounts.openrouter.ai/sign-up?redirect_url=https%3A%2F%2Fopenrouter.ai%2Fkeys"
   };
   /**
    * Get request adapter class
@@ -12748,13 +13857,6 @@ var SmartChatModelOpenRouterAdapter = class extends SmartChatModelApiAdapter {
    */
   get res_adapter() {
     return SmartChatModelOpenRouterResponseAdapter;
-  }
-  /**
-   * Get API key from various sources
-   * @returns {string|undefined} API key if available
-   */
-  get api_key() {
-    return this.main.opts.api_key || this.adapter_settings?.api_key || process.env.DEFAULT_OPEN_ROUTER_API_KEY;
   }
   /**
    * Count tokens in input text (rough estimate)
@@ -12786,8 +13888,9 @@ var SmartChatModelOpenRouterAdapter = class extends SmartChatModelApiAdapter {
         model_name: model.id,
         id: model.id,
         max_input_tokens: model.context_length,
+        name: model.name,
         description: model.name,
-        can_use_tools: model.description.includes("tool use") || model.description.includes("function call"),
+        long_desc: model.description,
         multimodal: model.architecture.modality === "multimodal",
         raw: model
       };
@@ -12858,7 +13961,6 @@ var SmartChatModelLmStudioAdapter = class extends SmartChatModelApiAdapter {
     models_endpoint: "http://localhost:1234/v1/models",
     default_model: "",
     signup_url: "https://lmstudio.ai/docs/api/openai-api",
-    can_use_tools: true,
     api_key: "no api key required"
   };
   /* ------------------------------------------------------------------ *
@@ -12887,7 +13989,7 @@ var SmartChatModelLmStudioAdapter = class extends SmartChatModelApiAdapter {
         /* visible only when this adapter is selected */
         name: "CORS required",
         type: "html",
-        value: "<p>Before sending requests from the browser you must enable CORS inside LM Studio:</p><p>Open the LM Studio application, choose <strong>Settings > OpenAI API Compatible</strong> and enable <strong>Allow Cross\u2011Origin Requests (CORS)</strong>. Restart the server afterwards.</p><p>With CORS enabled the local endpoint <code>http://localhost:1234</code> becomes reachable from web contexts.</p>"
+        value: `<p>Before you can use LM Studio you must <strong>Enable CORS</strong> inside LM Studio \u2192 Developer \u2192 Settings</p>`
       }
     };
   }
@@ -12935,15 +14037,6 @@ var SmartChatModelLmStudioAdapter = class extends SmartChatModelApiAdapter {
   get api_key() {
     return "no api key required";
   }
-  /**
-   * Validate configuration
-   */
-  validate_config() {
-    if (!this.adapter_config.model_key) {
-      return { valid: false, message: "No model selected." };
-    }
-    return { valid: true, message: "Configuration is valid." };
-  }
 };
 var SmartChatModelLmStudioRequestAdapter = class extends SmartChatModelRequestAdapter {
   to_platform(streaming = false) {
@@ -12977,22 +14070,31 @@ var SmartChatModelOllamaAdapter = class extends SmartChatModelApiAdapter {
   static defaults = {
     description: "Ollama (Local)",
     type: "API",
-    models_endpoint: "http://localhost:11434/api/tags",
-    endpoint: "http://localhost:11434/api/chat",
+    // models_endpoint: "http://localhost:11434/api/tags",
+    // endpoint: "http://localhost:11434/api/chat",
     api_key: "na",
+    host: "http://localhost:11434",
+    endpoint: "/api/chat",
+    models_endpoint: "/api/tags",
     // streaming: false, // TODO: Implement streaming
     streaming: true
   };
   req_adapter = SmartChatModelOllamaRequestAdapter;
   res_adapter = SmartChatModelOllamaResponseAdapter;
-  /**
-   * Get parameters for models request - no auth needed for local instance
-   * @returns {Object} Request parameters
-   */
-  get models_request_params() {
-    return {
-      url: this.adapter_config.models_endpoint
-    };
+  get host() {
+    return this.model.data.host || this.constructor.defaults.host;
+  }
+  get endpoint() {
+    return `${this.host}${this.constructor.defaults.endpoint}`;
+  }
+  get models_endpoint() {
+    return `${this.host}${this.constructor.defaults.models_endpoint}`;
+  }
+  get model_show_endpoint() {
+    return `${this.host}/api/show`;
+  }
+  get models_endpoint_method() {
+    return "GET";
   }
   /**
    * Get available models from local Ollama instance
@@ -13000,24 +14102,26 @@ var SmartChatModelOllamaAdapter = class extends SmartChatModelApiAdapter {
    * @returns {Promise<Object>} Map of model objects
    */
   async get_models(refresh = false) {
-    if (!refresh && this.adapter_config?.models && typeof this.adapter_config.models === "object" && Object.keys(this.adapter_config.models).length > 0) return this.adapter_config.models;
+    if (!refresh && typeof this.model_data === "object" && Object.keys(this.model_data || {}).length > 0 && this.model_data_loaded_at && time_now - this.model_data_loaded_at < 1 * 60 * 60 * 1e3) return this.model_data;
     try {
       const list_resp = await this.http_adapter.request(this.models_request_params);
       const list_data = await list_resp.json();
       const models_raw_data = [];
       for (const model of list_data.models) {
         const model_details_resp = await this.http_adapter.request({
-          url: `http://localhost:11434/api/show`,
+          url: this.model_show_endpoint,
           method: "POST",
           body: JSON.stringify({ model: model.name })
         });
         const model_details_data = await model_details_resp.json();
         models_raw_data.push({ ...model_details_data, name: model.name });
       }
-      const model_data = this.parse_model_data(models_raw_data);
-      this.adapter_settings.models = model_data;
+      this.model_data = this.parse_model_data(models_raw_data);
+      await this.get_enriched_model_data();
+      this.model.data.provider_models = this.model_data;
       this.model.re_render_settings();
-      return model_data;
+      this.model_data_loaded_at = Date.now();
+      return this.model_data;
     } catch (error) {
       console.error("Failed to fetch model data:", error);
       return { "_": { id: `Failed to fetch models from ${this.model.adapter_name}` } };
@@ -13042,13 +14146,12 @@ var SmartChatModelOllamaAdapter = class extends SmartChatModelApiAdapter {
       return this.model_data;
     }
     return model_data.reduce((acc, model) => {
+      if (model.name.includes("embed")) return acc;
       const out = {
         model_name: model.name,
         id: model.name,
         multimodal: false,
-        max_input_tokens: Object.entries(model.model_info).find((m) => m[0].includes(".context_length"))[1],
-        can_use_tools: true
-        // TODO: CHECK MODELFILE FOR TOOLS SUPPORT
+        max_input_tokens: Object.entries(model.model_info).find((m) => m[0].includes(".context_length"))[1]
       };
       acc[model.name] = out;
       return acc;
@@ -13061,6 +14164,12 @@ var SmartChatModelOllamaAdapter = class extends SmartChatModelApiAdapter {
   get settings_config() {
     const config = super.settings_config;
     delete config["[CHAT_ADAPTER].api_key"];
+    config["[CHAT_ADAPTER].host"] = {
+      name: "Ollama host",
+      type: "text",
+      description: "Enter the host for your Ollama instance",
+      default: this.constructor.defaults.host
+    };
     return config;
   }
   is_end_of_stream(event) {
@@ -13074,7 +14183,7 @@ var SmartChatModelOllamaRequestAdapter = class extends SmartChatModelRequestAdap
    */
   to_platform(streaming = false) {
     const ollama_body = {
-      model: this.model,
+      model: this.model_id,
       messages: this._transform_messages_to_ollama(),
       options: this._transform_parameters_to_ollama(),
       stream: streaming || this.stream
@@ -13227,8 +14336,11 @@ var SmartChatModelOllamaResponseAdapter = class extends SmartChatModelResponseAd
     if (chunk.created_at && !this._res.created_at) {
       this._res.created_at = chunk.created_at;
     }
+    let raw;
     if (chunk.message?.content) {
-      this._res.message.content += chunk.message.content;
+      const content = chunk.message.content;
+      raw = content;
+      this._res.message.content += content;
     }
     if (chunk.message?.role) {
       this._res.message.role = chunk.message.role;
@@ -13261,6 +14373,7 @@ var SmartChatModelOllamaResponseAdapter = class extends SmartChatModelResponseAd
         }
       }
     }
+    return raw;
   }
 };
 
@@ -13300,15 +14413,13 @@ var SmartChatModelCustomAdapter = class extends SmartChatModelApiAdapter {
   };
   /**
    * Provide dynamic request/response classes
-   * based on current adapter_config.api_adapter setting
-   * ----------------------------------------------------
    */
   /**
    * @override
    * @returns {typeof SmartChatModelRequestAdapter}
    */
   get req_adapter() {
-    const adapter_name = this.adapter_config.api_adapter || "openai";
+    const adapter_name = this.model.data.api_adapter || "openai";
     const map_entry = adapters_map[adapter_name];
     return map_entry && map_entry.req ? map_entry.req : SmartChatModelRequestAdapter;
   }
@@ -13317,7 +14428,7 @@ var SmartChatModelCustomAdapter = class extends SmartChatModelApiAdapter {
    * @returns {typeof SmartChatModelResponseAdapter}
    */
   get res_adapter() {
-    const adapter_name = this.adapter_config.api_adapter || "openai";
+    const adapter_name = this.model.data.api_adapter || "openai";
     const map_entry = adapters_map[adapter_name];
     return map_entry && map_entry.res ? map_entry.res : SmartChatModelResponseAdapter;
   }
@@ -13327,10 +14438,10 @@ var SmartChatModelCustomAdapter = class extends SmartChatModelApiAdapter {
    * @returns {string}
    */
   get endpoint() {
-    const protocol = this.adapter_config.protocol || "http";
-    const hostname = this.adapter_config.hostname || "localhost";
-    const port = this.adapter_config.port ? `:${this.adapter_config.port}` : "";
-    let path = this.adapter_config.path || "";
+    const protocol = this.model.data.protocol || "http";
+    const hostname = this.model.data.hostname || "localhost";
+    const port = this.model.data.port ? `:${this.model.data.port}` : "";
+    let path = this.model.data.path || "";
     if (path && !path.startsWith("/")) path = `/${path}`;
     return `${protocol}://${hostname}${port}${path}`;
   }
@@ -13399,25 +14510,6 @@ var SmartChatModelCustomAdapter = class extends SmartChatModelApiAdapter {
       }
     };
   }
-  /**
-   * Return 'true' for get_models params since user might
-   * not rely on auto-populating. 
-   * @override
-   * @returns {true}
-   */
-  validate_get_models_params() {
-    return true;
-  }
-  /**
-   * Unlike most API-based adapters, we do NOT force the user to have model_key set.
-   * So we override validate_config() to skip the "No model selected" error.
-   * Since this is a custom adapter, the onus is on the user to configure it correctly.
-   * @override
-   * @returns {Object} { valid: boolean, message: string }
-   */
-  validate_config() {
-    return { valid: true, message: "Configuration is valid." };
-  }
 };
 
 // node_modules/obsidian-smart-env/node_modules/smart-chat-model/adapters/groq.js
@@ -13431,8 +14523,7 @@ var SmartChatModelGroqAdapter = class extends SmartChatModelApiAdapter {
     adapter: "Groq",
     models_endpoint: "https://api.groq.com/openai/v1/models",
     default_model: "llama3-8b-8192",
-    signup_url: "https://groq.com",
-    can_use_tools: true
+    signup_url: "https://groq.com"
   };
   /**
    * Request adapter class
@@ -13448,32 +14539,8 @@ var SmartChatModelGroqAdapter = class extends SmartChatModelApiAdapter {
   get res_adapter() {
     return SmartChatModelGroqResponseAdapter;
   }
-  /**
-   * Retrieve the list of models from Groq's API.
-   * @returns {Promise<Object>} A dictionary of models keyed by their id
-   */
-  async get_models(refresh = false) {
-    if (!refresh && this.adapter_config?.models && Object.keys(this.adapter_config.models).length > 0) {
-      return this.adapter_config.models;
-    }
-    const request_params = {
-      url: this.models_endpoint,
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${this.api_key}`
-      }
-    };
-    try {
-      const resp = await this.http_adapter.request(request_params);
-      const data = await resp.json();
-      const model_data = this.parse_model_data(data);
-      this.adapter_settings.models = model_data;
-      this.model.re_render_settings();
-      return model_data;
-    } catch (error) {
-      console.error("Failed to fetch Groq model data:", error);
-      return { "_": { id: "Failed to fetch models from Groq" } };
-    }
+  get models_endpoint_method() {
+    return "GET";
   }
   /**
    * Parse model data from Groq API format to a dictionary keyed by model ID.
@@ -13510,17 +14577,6 @@ var SmartChatModelGroqAdapter = class extends SmartChatModelApiAdapter {
     }
     return parsed;
   }
-  /**
-   * Validate configuration for Groq
-   * @returns {Object} { valid: boolean, message: string }
-   */
-  validate_config() {
-    if (!this.adapter_config.model_key) return { valid: false, message: "No model selected." };
-    if (!this.api_key) {
-      return { valid: false, message: "API key is missing." };
-    }
-    return { valid: true, message: "Configuration is valid." };
-  }
 };
 var SmartChatModelGroqRequestAdapter = class extends SmartChatModelRequestAdapter {
   _get_openai_content(message) {
@@ -13539,429 +14595,208 @@ var SmartChatModelGroqRequestAdapter = class extends SmartChatModelRequestAdapte
 var SmartChatModelGroqResponseAdapter = class extends SmartChatModelResponseAdapter {
 };
 
-// node_modules/obsidian-smart-env/default.config.js
-var import_obsidian13 = require("obsidian");
-
-// node_modules/obsidian-smart-env/node_modules/smart-completions/smart_completions.js
-var SmartCompletions = class extends Collection {
+// node_modules/obsidian-smart-env/node_modules/smart-chat-model/adapters/xai.js
+var SmartChatModelXaiAdapter = class extends SmartChatModelApiAdapter {
+  /** Human-readable platform key used by SmartChatModel */
+  static key = "xai";
+  /** @type {import('./_adapter.js').SmartChatModelAdapter['constructor']['defaults']} */
+  static defaults = {
+    description: "xAI Grok",
+    type: "API",
+    adapter: "xAI_Grok",
+    endpoint: "https://api.x.ai/v1/chat/completions",
+    streaming: true,
+    models_endpoint: "https://api.x.ai/v1/models",
+    default_model: "grok-3-mini-beta",
+    signup_url: "https://ide.x.ai"
+  };
+  /** Grok is OpenAI-compatible → reuse the stock adapters */
+  get req_adapter() {
+    return SmartChatModelRequestAdapter;
+  }
+  get res_adapter() {
+    return SmartChatModelResponseAdapter;
+  }
+  /* ------------------------------------------------------------------ *
+   *  Model-list helpers
+   * ------------------------------------------------------------------ */
   /**
-   * Lazily instantiates and returns a chat_model. Similar to how
-   * SmartEntities implements embed_model. You can adapt this
-   * depending on how your environment is structured.
+   * The Grok `/v1/models` route is **GET**, not POST.
+   * Override the HTTP verb so `get_models()` works.
+   * @returns {string} 'GET'
+   */
+  get models_endpoint_method() {
+    return "GET";
+  }
+  /**
+   * Parse `/v1/models` payload to the canonical shape used by SmartChat.
    *
-   * @returns {Object|null} The chat model instance or null if not configured
+   * Grok returns:
+   * ```json
+   * { "object":"list",
+   *   "data":[{ "id":"grok-3-beta", "context_length":128000, …}] }
+   * ```
    */
-  get chat_model() {
-    if (!this._chat_model) {
-      this._chat_model = this.env.init_module("smart_chat_model", {
-        model_config: {},
-        settings: this.settings.chat_model ?? this.env.smart_chat_threads?.settings?.chat_model ?? {},
-        reload_model: this.reload_chat_model.bind(this),
-        re_render_settings: this.re_render_settings?.bind(this) ?? (() => {
-          console.log("no re_render_settings");
-        })
-      });
-    }
-    return this._chat_model;
-  }
-  /**
-   * Force unload & reload of chat model if user changes adapter or settings.
-   */
-  reload_chat_model() {
-    if (this._chat_model?.unload) {
-      this._chat_model.unload();
-    }
-    this._chat_model = null;
-  }
-  /**
-   * In addition to base collection settings, merges `chat_model.settings_config`.
-   * Allows the SmartCompletions UI to show chat-model relevant settings.
-   * @returns {Object} Merged settings config
-   */
-  get settings_config() {
-    return {};
-  }
-  /**
-   * (Optional) An array of request adapter classes. SmartCompletion items will invoke these
-   * in `run_completion_adapters()`. For example, we can list the context adapter or other custom ones.
-   */
-  get completion_adapters() {
-    if (!this._completion_adapters) {
-      this._completion_adapters = {};
-      Object.values(this.opts.completion_adapters).forEach((adapter) => {
-        this._completion_adapters[adapter.property_name] = adapter;
-      });
-    }
-    return this._completion_adapters;
+  parse_model_data(model_data = {}) {
+    const list = model_data.data || model_data.models || [];
+    return list.reduce((acc, m) => {
+      const id = m.id || m.name;
+      acc[id] = {
+        id,
+        model_name: id,
+        description: m.description || `context: ${m.context_length || "n/a"}`,
+        max_input_tokens: m.context_length || 128e3,
+        multimodal: !!m.modality && m.modality.includes("vision"),
+        raw: m
+      };
+      return acc;
+    }, {});
   }
 };
 
-// node_modules/smart-utils/coerce_primitives.js
-function coerce_primitives(value) {
-  if (typeof value !== "string") {
-    return value;
-  }
-  const trimmed_value = value.trim();
-  if (trimmed_value === "true") {
-    return true;
-  }
-  if (trimmed_value === "false") {
-    return false;
-  }
-  const float_pattern = /^-?\d+\.\d+$/;
-  if (float_pattern.test(trimmed_value)) {
-    const num = parseFloat(trimmed_value);
-    if (num.toString() === trimmed_value) {
-      return num;
-    }
-  }
-  const int_pattern = /^-?(?:0|[1-9]\d*)$/;
-  if (int_pattern.test(trimmed_value)) {
-    return Number(trimmed_value);
-  }
-  return value;
-}
-
-// node_modules/smart-utils/parse_xml_fragments.js
-function parse_xml_fragments(xml_input) {
-  if (typeof xml_input !== "string" || xml_input.trim() === "") {
-    return null;
-  }
-  const VERBATIM_TAGS = /* @__PURE__ */ new Set(["think"]);
-  const compress_whitespace = (str) => str.replace(/\s+/g, " ").trim();
-  const parse_attributes = (str) => {
-    if (!str) return {};
-    const attrs = {};
-    const attr_re = /(\w[\w.\-]*)\s*=\s*"([^"]*)"/g;
-    let m;
-    while ((m = attr_re.exec(str)) !== null) {
-      const [, key, raw_val] = m;
-      attrs[key] = coerce_primitives(raw_val);
-    }
-    return attrs;
+// node_modules/obsidian-smart-env/node_modules/smart-chat-model/adapters/deepseek.js
+var SmartChatModelDeepseekAdapter = class extends SmartChatModelApiAdapter {
+  static key = "deepseek";
+  static defaults = {
+    description: "DeepSeek",
+    type: "API",
+    endpoint: "https://api.deepseek.com/chat/completions",
+    streaming: true,
+    adapter: "DeepSeek",
+    models_endpoint: "https://api.deepseek.com/models",
+    default_model: "deepseek-base",
+    signup_url: "https://deepseek.com/signup"
   };
-  const attach_child = (map, tag, node) => {
-    if (tag in map) {
-      const existing = map[tag];
-      map[tag] = Array.isArray(existing) ? [...existing, node] : [existing, node];
-    } else {
-      map[tag] = node;
-    }
-  };
-  const finalize_node = (ctx) => {
-    const text_raw = ctx.verbatim ? ctx.text.replace(/^\s*\n/, "").replace(/\s+$/, "") : compress_whitespace(ctx.text);
-    if (Object.keys(ctx.children_map).length) {
-      ctx.node.contents = ctx.children_map;
-    } else if (text_raw !== "") {
-      ctx.node.contents = ctx.verbatim ? text_raw : coerce_primitives(text_raw);
-    } else {
-      ctx.node.contents = null;
-    }
-  };
-  const cleaned = xml_input.replace(/<!--[\s\S]*?-->/g, "");
-  const token_re = /<[^>]+>|[^<]+/g;
-  const root_map = {};
-  const stack = [];
-  let match;
-  while ((match = token_re.exec(cleaned)) !== null) {
-    const token = match[0];
-    if (stack.length) {
-      const top = stack[stack.length - 1];
-      if (top.verbatim) {
-        if (token.startsWith(`</${top.tag_name}`)) {
-          stack.pop();
-          finalize_node(top);
-          if (stack.length === 0) {
-            attach_child(root_map, top.tag_name, top.node);
-          } else {
-            attach_child(stack[stack.length - 1].children_map, top.tag_name, top.node);
-          }
-          continue;
-        }
-        top.text += token;
-        continue;
-      }
-    }
-    if (token.startsWith("<")) {
-      if (token.startsWith("</")) {
-        const tag_name = token.slice(2, -1).trim();
-        if (!stack.length) return null;
-        const ctx = stack.pop();
-        if (ctx.tag_name !== tag_name) return null;
-        finalize_node(ctx);
-        if (stack.length === 0) {
-          attach_child(root_map, tag_name, ctx.node);
-        } else {
-          attach_child(stack[stack.length - 1].children_map, tag_name, ctx.node);
-        }
-      } else {
-        const self_closing = token.endsWith("/>");
-        const body = self_closing ? token.slice(1, -2) : token.slice(1, -1);
-        const first_space = body.indexOf(" ");
-        const tag_name = first_space === -1 ? body : body.slice(0, first_space);
-        const attr_str = first_space === -1 ? "" : body.slice(first_space + 1);
-        const attributes = parse_attributes(attr_str);
-        const node = Object.keys(attributes).length ? { attributes } : {};
-        if (self_closing) {
-          node.contents = null;
-          if (stack.length === 0) {
-            attach_child(root_map, tag_name, node);
-          } else {
-            attach_child(stack[stack.length - 1].children_map, tag_name, node);
-          }
-        } else {
-          stack.push({
-            tag_name,
-            node,
-            text: "",
-            children_map: {},
-            verbatim: VERBATIM_TAGS.has(tag_name)
-          });
-        }
-      }
-    } else {
-      if (stack.length) stack[stack.length - 1].text += token;
-    }
-  }
-  while (stack.length) {
-    const ctx = stack.pop();
-    finalize_node(ctx);
-    if (stack.length === 0) {
-      attach_child(root_map, ctx.tag_name, ctx.node);
-    } else {
-      attach_child(stack[stack.length - 1].children_map, ctx.tag_name, ctx.node);
-    }
-  }
-  return Object.keys(root_map).length ? root_map : null;
-}
-
-// node_modules/obsidian-smart-env/node_modules/smart-completions/smart_completion.js
-var SmartCompletion = class extends CollectionItem {
-  constructor(env, data = null) {
-    super(env, data);
-    this.run_adapter_item_constructors();
-  }
-  run_adapter_item_constructors() {
-    for (const [key, AdapterClass] of Object.entries(this.completion_adapters)) {
-      AdapterClass.item_constructor?.(this);
-    }
+  /**
+   * Get the request adapter class
+   * @returns {typeof SmartChatModelDeepseekRequestAdapter} Request adapter class
+   */
+  get req_adapter() {
+    return SmartChatModelDeepseekRequestAdapter;
   }
   /**
-   * Default data structure for a new SmartCompletion item.
-   * @static
-   * @returns {Object}
+   * Get the response adapter class
+   * @returns {typeof SmartChatModelDeepseekResponseAdapter} Response adapter class
    */
-  static get defaults() {
-    return {
-      data: {
-        completion: {
-          request: {},
-          responses: [],
-          chat_model: null
-        }
-      }
-    };
+  get res_adapter() {
+    return SmartChatModelDeepseekResponseAdapter;
+  }
+  get models_endpoint_method() {
+    return "GET";
   }
   /**
-   * get_key
-   * Overridden to produce a unique key based on a hash of this.data plus the current timestamp.
-   * @returns {string}
+   * Parse the raw model data from DeepSeek's /v1/models endpoint
+   * into a structured map of model objects keyed by model ID.
+   * @param {Object} model_data - Raw JSON from DeepSeek
+   * @returns {Object} Map of model objects
    */
-  get_key() {
-    const hash = murmur_hash_32_alphanumeric(JSON.stringify(this.data));
-    const ts = Date.now();
-    return `${hash}-${ts}`;
-  }
-  /**
-   * Called automatically in many cases (via create_or_update).
-   * You can also call it manually if needed.
-   */
-  async init(completion_opts = {}) {
-    if (this.data.chat_model_config) {
-      this.chat_model = this.env.init_module("smart_chat_model", {
-        settings: this.data.chat_model_config
-      });
+  parse_model_data(model_data) {
+    if (!model_data?.data || !Array.isArray(model_data.data)) {
+      return { "_": { id: "No models found." } };
     }
-    await this.build_request();
-    await this.complete(completion_opts);
-    await this.parse_response();
-    this.queue_save();
-    this.collection.process_save_queue();
-  }
-  /**
-   * Collects or transforms data into a final `completion.request` structure
-   * by running any applicable completion adapters.
-   * @returns {Promise<void>}
-   */
-  async build_request() {
-    this.data.completion.request = {};
-    const adapters = Object.entries(this.completion_adapters).map(([key, AdapterClass]) => ({
-      key,
-      AdapterClass,
-      order: AdapterClass.order ?? 0
-    })).sort((a, b) => a.order - b.order);
-    for (const { AdapterClass, key } of adapters) {
-      const property = AdapterClass.property_name;
-      if (property && this.data[property]) {
-        const adapter = new AdapterClass(this);
-        await adapter.to_request?.();
-      }
+    const parsed = {};
+    for (const m of model_data.data) {
+      parsed[m.id] = {
+        model_name: m.id,
+        id: m.id,
+        max_input_tokens: m.context_size || 8192,
+        description: m.description || m.name || m.id,
+        raw: m
+      };
     }
-    return this.data.completion.request;
-  }
-  async parse_response() {
-    const data_keys = Object.keys(this.data);
-    for (const key of data_keys) {
-      const AdapterClass = this.completion_adapters[key];
-      if (AdapterClass) {
-        const adapter = new AdapterClass(this);
-        await adapter.from_response?.();
-      }
-    }
-    return this.data.completion.responses;
-  }
-  /**
-   * Calls the underlying chat model, stores the response in completion.responses.
-   * @returns {Promise<void>}
-   */
-  async complete(opts = {}) {
-    if (!this.data.completion || !this.data.completion.request) {
-      console.warn("No completion.request found, skipping complete().");
-      return;
-    }
-    const chat_model = this.get_chat_model(opts);
-    this.data.completion.chat_model = {
-      model_key: chat_model.model_key,
-      platform_key: chat_model.adapter_name
-    };
-    if (!chat_model) {
-      console.warn("No chat model available for SmartCompletion. Check environment config.");
-      return;
-    }
-    try {
-      const request_payload = this.data.completion.request;
-      const stream = opts.stream;
-      const result = stream ? await chat_model.stream(request_payload, this.stream_handlers(opts.stream_handlers)) : await chat_model.complete(request_payload);
-      if (!stream) {
-        this.data.completion.responses.push({
-          timestamp: Date.now(),
-          ...result
-        });
-      }
-      const typing_indicator = this.container?.closest(".smart-chat-thread")?.querySelector(".smart-chat-typing-indicator");
-      if (typing_indicator) typing_indicator.style.display = "none";
-      this.queue_save();
-    } catch (err) {
-      console.error("Error in SmartCompletion.complete():", err);
-    }
-  }
-  stream_handlers(stream_handlers = {}) {
-    return {
-      chunk: async (resp) => {
-        this.data.completion.responses[0] = {
-          timestamp: Date.now(),
-          ...resp
-        };
-        await stream_handlers.chunk?.(this);
-      },
-      done: async (resp) => {
-        this.data.completion.responses[0] = {
-          timestamp: Date.now(),
-          ...resp
-        };
-        await stream_handlers.done?.(this);
-      },
-      error: async (err) => {
-        console.error("error", err);
-        await stream_handlers.error?.(err);
-      }
-    };
-  }
-  /**
-   * Access the completion adapters from the parent collection, if any.
-   */
-  get completion_adapters() {
-    return this.collection?.completion_adapters || {};
-  }
-  /**
-   * If a local chat_model config is present, creates a dedicated instance.
-   * Otherwise, returns the collection-level chat_model or null.
-   * @returns {Object|null}
-   */
-  get_chat_model() {
-    if (this.chat_model) {
-      return this.chat_model;
-    } else {
-      console.log("no chat_model, using collection chat_model");
-      return this.collection?.chat_model || null;
-    }
-  }
-  get response() {
-    return this.data.completion.responses[0];
-  }
-  /**
-   * @method response_text
-   * @returns {string} The best guess at the main text from the model's first response.
-   */
-  get response_text() {
-    const resp = this.data?.completion?.responses[0];
-    if (!resp) return "";
-    if (Array.isArray(resp.choices) && resp.choices[0]) {
-      const choice = resp.choices[0];
-      if (choice.message && choice.message.content) {
-        return choice.message.content;
-      }
-      if (choice.text) return choice.text;
-    }
-    if (resp.text) return resp.text;
-    return "";
-  }
-  get response_structured_output() {
-    if (!this.response) return null;
-    if (this.action_call) {
-      try {
-        const parsed2 = JSON.parse(this.action_call);
-        return parsed2;
-      } catch (e) {
-        console.log("failed to parse tool_call in response_structured_output");
-      }
-    }
-    if (!this.response_text) return null;
-    const parsed = parse_xml_fragments(this.response_text);
-    if (!parsed) return null;
     return parsed;
   }
-  get action_call() {
-    const resp = this.response;
-    if (!resp) return null;
-    return resp.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+  /**
+   * Estimate tokens in user input.
+   * @param {string|Object} input - Input text or structured message
+   * @returns {Promise<number>} Token count estimate
+   */
+  async count_tokens(input) {
+    const text = typeof input === "string" ? input : JSON.stringify(input);
+    return Math.ceil(text.length / 4);
   }
-  get messages() {
-    const messages = [];
-    if (this.data.system_message) {
-      messages.push({
-        role: "system",
-        content: this.data.system_message
-      });
-    }
-    if (this.data.user_message) {
-      messages.push({
-        role: "user",
-        content: this.data.user_message
-      });
-    }
-    if (this.response_text) {
-      messages.push({
-        role: "assistant",
-        content: this.response_text
-      });
-    }
-    return messages;
-  }
-  get is_completed() {
-    return this.data.completion.responses.length > 0;
+  /**
+   * Check if an incoming streaming chunk signals end of stream.
+   * @param {CustomEvent} event - SSE event with data
+   * @returns {boolean} True if end of stream
+   */
+  is_end_of_stream(event) {
+    if (!event?.data) return false;
+    return event.data.includes('"done":true') || event.data.includes("[DONE]");
   }
 };
+var SmartChatModelDeepseekRequestAdapter = class extends SmartChatModelRequestAdapter {
+  /**
+   * Convert incoming request to DeepSeek's expected format
+   * Often just reuse the base "to_openai()" if that matches DeepSeek's design
+   * @param {boolean} streaming - True if streaming
+   * @returns {Object} Request parameters
+   */
+  to_platform(streaming = false) {
+    return this.to_openai(streaming);
+  }
+};
+var SmartChatModelDeepseekResponseAdapter = class extends SmartChatModelResponseAdapter {
+};
+
+// node_modules/obsidian-smart-env/default.config.js
+var import_obsidian30 = require("obsidian");
+
+// node_modules/obsidian-smart-env/node_modules/smart-blocks/content_parsers/parse_blocks.js
+function parse_blocks(source, content) {
+  let { blocks: blocks_obj, task_lines, tasks, codeblock_ranges } = parse_markdown_blocks(content);
+  const last_read_at = source.data.last_read?.at || Date.now();
+  for (const [sub_key, line_range] of Object.entries(blocks_obj)) {
+    const block_key = source.key + sub_key;
+    const existing_block = source.block_collection.get(block_key);
+    const block_content = get_line_range2(content, line_range[0], line_range[1]);
+    if (existing_block && existing_block.lines[0] === line_range[0] && existing_block.lines[1] === line_range[1] && existing_block.size === block_content.length && existing_block.vec) {
+      continue;
+    }
+    const block_outlinks = get_markdown_links(block_content);
+    const block_data = {
+      key: block_key,
+      lines: line_range,
+      size: block_content.length,
+      outlinks: block_outlinks,
+      last_read: {
+        at: last_read_at,
+        hash: murmur_hash_32_alphanumeric(block_content)
+      }
+    };
+    if (!existing_block || existing_block?.data.last_read?.hash !== block_data.last_read.hash) {
+      const new_item = new source.block_collection.item_type(source.env, block_data);
+      source.block_collection.set(new_item);
+    } else {
+      existing_block.data = {
+        ...existing_block.data,
+        ...block_data
+        // overwrites lines, last_read
+      };
+    }
+  }
+  clean_and_update_source_blocks(source, blocks_obj, task_lines, tasks, codeblock_ranges);
+  for (const block of source.blocks) {
+    if (!block.vec) {
+      block.queue_embed();
+    }
+  }
+}
+function clean_and_update_source_blocks(source, blocks_obj, task_lines = [], tasks = {}, codeblock_ranges = {}) {
+  const current_block_keys = new Set(Object.keys(blocks_obj).map((sk) => source.key + sk));
+  const blocks = source.blocks;
+  for (let i = 0; i < blocks.length; i++) {
+    if (!current_block_keys.has(blocks[i].key)) {
+      blocks[i].deleted = true;
+      blocks[i].queue_save();
+    }
+  }
+  source.data.blocks = blocks_obj;
+  source.data.task_lines = task_lines;
+  source.data.tasks = tasks;
+  source.data.codeblock_ranges = codeblock_ranges;
+  source.queue_save();
+}
 
 // node_modules/obsidian-smart-env/node_modules/smart-collections/utils/ajson_merge.js
 function ajson_merge(existing, new_obj) {
@@ -14030,6 +14865,7 @@ var AjsonSingleFileCollectionDataAdapter = class extends AjsonMultiFileCollectio
    * @returns {Promise<void>}
    */
   async process_load_queue() {
+    this.collection.emit_event("collection:load_started");
     this.collection.show_process_notice("loading_collection");
     if (!await this.fs.exists(this.collection.data_dir)) {
       await this.fs.mkdir(this.collection.data_dir);
@@ -14042,6 +14878,7 @@ var AjsonSingleFileCollectionDataAdapter = class extends AjsonMultiFileCollectio
         }
       }
       this.collection.clear_process_notice("loading_collection");
+      this.collection.emit_event("collection:load_halted");
       return;
     }
     const raw_data = await this.fs.read(path, "utf-8", { no_cache: true });
@@ -14052,6 +14889,7 @@ var AjsonSingleFileCollectionDataAdapter = class extends AjsonMultiFileCollectio
         }
       }
       this.collection.clear_process_notice("loading_collection");
+      this.collection.emit_event("collection:load_halted");
       return;
     }
     const { rewrite, file_data } = this.parse_single_file_ajson(raw_data);
@@ -14067,6 +14905,7 @@ var AjsonSingleFileCollectionDataAdapter = class extends AjsonMultiFileCollectio
       item.loaded_at = Date.now();
     }
     this.collection.clear_process_notice("loading_collection");
+    this.collection.emit_event("collection:load_completed");
   }
   /**
    * Helper to parse single-file .ajson content, distributing states to items.
@@ -14147,6 +14986,7 @@ var AjsonSingleFileCollectionDataAdapter = class extends AjsonMultiFileCollectio
    * @returns {Promise<void>}
    */
   async process_save_queue() {
+    this.collection.emit_event("collection:save_started");
     this.collection.show_process_notice("saving_collection");
     const save_queue = Object.values(this.collection.items).filter((item) => item._queue_save);
     const time_start = Date.now();
@@ -14169,622 +15009,1701 @@ var AjsonSingleFileCollectionDataAdapter = class extends AjsonMultiFileCollectio
     }
     console.log(`Saved (single-file) ${this.collection.collection_key} in ${Date.now() - time_start}ms`);
     this.collection.clear_process_notice("saving_collection");
+    this.collection.emit_event("collection:save_completed");
+  }
+};
+var AjsonSingleFileItemDataAdapter = class extends AjsonMultiFileItemDataAdapter {
+  /**
+   * Overridden to always return the single file path from the parent collection adapter.
+   * @returns {string}
+   */
+  get data_path() {
+    return this.collection_adapter.get_item_data_path(this.item.key);
+  }
+  /**
+   * Load logic:
+   * In single-file mode, we typically rely on the collection's `process_load_queue()`
+   * to parse the entire file. This direct `load()` will do a naive re-parse as well
+   * if used individually.
+   */
+  async load() {
+    const path = this.data_path;
+    if (!await this.fs.exists(path)) {
+      this.item.queue_import?.();
+      return;
+    }
+    try {
+      const raw_data = await this.fs.read(path, "utf-8", { no_cache: true });
+      if (!raw_data) {
+        this.item.queue_import?.();
+        return;
+      }
+      const { rewrite } = this.collection_adapter.parse_single_file_ajson(raw_data);
+    } catch (err) {
+      console.warn(`Error loading single-file item ${this.item.key}`, err);
+      this.item.queue_import?.();
+    }
+  }
+};
+var ajson_single_file_default = {
+  collection: AjsonSingleFileCollectionDataAdapter,
+  item: AjsonSingleFileItemDataAdapter
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-components/smart_component.js
+var SmartComponent = class extends CollectionItem {
+  static key = "smart_component";
+  static collection_key = "smart_components";
+  collection_key = "smart_components";
+  get_key() {
+    if (this.data?.key) return this.data.key;
+    const scope_key = this.scope_key;
+    const component_key = this.component_key;
+    const version = Number.isFinite(this.data?.version) ? this.data.version : 0;
+    const hash = this.data?.hash || "nohash";
+    const key_pcs = [];
+    if (!component_key.includes(scope_key) && scope_key !== "global") key_pcs.push(scope_key);
+    key_pcs.push(component_key);
+    return `${key_pcs.join("_").replace(/\./g, "_")}#${[version, hash].join("#")}`;
+  }
+  get scope_key() {
+    return this.data?.scope_key;
+  }
+  get component_key() {
+    return this.data?.component_key;
+  }
+  get component_adapter() {
+    return this._component_adapter;
+  }
+  /**
+   * Delegates render logic to the adapter.
+   * @param {object} component_scope
+   * @param {object} [opts={}]
+   * @returns {Promise<*>}
+   */
+  async render(component_scope, opts = {}) {
+    if (!this.component_adapter) {
+      throw new Error(`SmartComponent: adapter missing for ${this.component_key}`);
+    }
+    return await this.component_adapter.render(component_scope, opts);
   }
 };
 
-// node_modules/obsidian-smart-env/node_modules/smart-completions/utils/insert_user_message.js
-function insert_user_message(request, user_message, opts = {}) {
-  if (!user_message) return;
-  const { position = "end", new_user_message = false } = opts;
-  if (!request.messages) {
-    request.messages = [];
+// node_modules/obsidian-smart-env/node_modules/smart-components/adapters/_adapter.js
+function parse_component_properties(component_properties = []) {
+  const parts = component_properties.filter(Boolean).map((part) => part.toString());
+  const component_key = parts.pop();
+  const scope_key = parts.length ? parts.join(".") : "global";
+  return { scope_key, component_key };
+}
+async function build_component_data(component_properties, component_module) {
+  const { scope_key, component_key } = parse_component_properties(component_properties);
+  if (!component_key) return null;
+  const render_fn = typeof component_module === "function" ? component_module : component_module?.render;
+  const version = typeof render_fn?.version === "number" ? render_fn.version : 0;
+  const hash = await murmur_hash_32_alphanumeric(render_fn.toString());
+  return { scope_key, component_key, version, hash };
+}
+var SmartComponentAdapter = class {
+  constructor(item, component_module) {
+    this.item = item;
+    this.module = component_module;
+    this.item.env.create_env_getter(this);
   }
-  const last_user_index = request.messages.findLastIndex((x) => x.role === "user");
-  if (last_user_index === -1 || new_user_message) {
-    const new_user_message2 = {
-      role: "user",
-      content: [{ type: "text", text: user_message }]
-    };
-    request.messages.push(new_user_message2);
-    return;
+  static should_use_adapter(component_module) {
+    return true;
   }
-  const last_user_message = request.messages[last_user_index];
-  if (!Array.isArray(last_user_message.content)) {
-    last_user_message.content = [
-      {
-        type: "text",
-        text: last_user_message.content
-      }
-    ];
+  static async register_component(collection, component_properties, component_module) {
+    if (!this.should_use_adapter(component_module)) return null;
+    const data = await build_component_data(component_properties, component_module);
+    if (!data) return null;
+    const item = await collection.create_or_update({ ...data });
+    if (!item) return null;
+    item._component_module = component_module;
+    item._component_adapter = new this(item, component_module);
+    return item;
   }
-  if (position === "start") {
-    last_user_message.content.unshift({
-      type: "text",
-      text: user_message
+  /**
+   * Render the component for the provided scope.
+   * @abstract
+   * @param {Object} scope - Render scope from the hosting environment.
+   * @param {Object} [opts] - Optional render options.
+   * @returns {Promise<*>} Rendered output for the component.
+   */
+  async render(scope, opts) {
+    throw new Error("render() not implemented");
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-components/adapters/smart_view_component_adapter.js
+var SmartViewComponentAdapter = class extends SmartComponentAdapter {
+  static should_use_adapter(component_module) {
+    return typeof component_module === "function" || typeof component_module?.render === "function";
+  }
+  get smart_view() {
+    if (!this._smart_view) {
+      this._smart_view = this.env.init_module("smart_view");
+    }
+    return this._smart_view;
+  }
+  async render(scope, opts = {}) {
+    const render_fn = typeof this.module === "function" ? this.module : this.module?.render;
+    if (typeof render_fn !== "function") {
+      throw new Error("SmartViewComponentAdapter: render() missing on module");
+    }
+    return await render_fn.call(this.smart_view, scope, opts);
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-components/smart_components.js
+function flatten_components_config(config, path = [], acc = []) {
+  if (!config || typeof config !== "object") return acc;
+  Object.entries(config).forEach(([key, value]) => {
+    const next_path = [...path, key];
+    if (!value) return;
+    if (typeof value === "function" || typeof value?.render === "function") {
+      acc.push({ properties: next_path, module: value });
+      return;
+    }
+    if (typeof value === "object") {
+      flatten_components_config(value, next_path, acc);
+    }
+  });
+  return acc;
+}
+var SmartComponents = class extends Collection {
+  static key = "smart_components";
+  static collection_key = "smart_components";
+  collection_key = "smart_components";
+  async init() {
+    await this.load_components_from_config();
+  }
+  get component_adapters() {
+    if (Array.isArray(this.opts?.component_adapters)) {
+      return this.opts.component_adapters;
+    }
+    if (this.opts?.component_adapters && typeof this.opts.component_adapters === "object") {
+      return Object.values(this.opts.component_adapters);
+    }
+    return this.constructor.default_component_adapters || [];
+  }
+  async load_components_from_config() {
+    const records = flatten_components_config(this.env.config?.components || {});
+    for (const record of records) {
+      await this.register_component(record.properties, record.module);
+    }
+  }
+  async register_component(component_properties, component_module) {
+    for (const AdapterClass of this.component_adapters) {
+      const item = await AdapterClass.register_component(this, component_properties, component_module);
+      if (item) return item;
+    }
+    return null;
+  }
+  async render_component(component_key, scope, opts = {}) {
+    const components = this.filter((item) => {
+      if (item.key.startsWith(component_key + "#")) return true;
+      return item.component_key === component_key;
+    }).sort((a, b) => {
+      const a_scope_match = a.scope_key === scope.key ? 1 : 0;
+      const b_scope_match = b.scope_key === scope.key ? 1 : 0;
+      return b_scope_match - a_scope_match;
     });
-  } else {
-    last_user_message.content.push({
-      type: "text",
-      text: user_message
-    });
+    if (components.length === 0) {
+      throw new Error(`SmartComponents: no component found for key ${component_key}`);
+    }
+    const selected_component = components[0];
+    return await selected_component.render(scope, opts);
   }
+};
+var smart_components_default = {
+  class: SmartComponents,
+  item_type: SmartComponent,
+  data_adapter: ajson_single_file_default,
+  component_adapters: {
+    SmartViewComponentAdapter
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-components/index.js
+var smart_components_default2 = smart_components_default;
+
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/utils/filter_redundant_context_items.js
+function filter_redundant_context_items(items = []) {
+  const parents = /* @__PURE__ */ new Set();
+  for (const { key } of items) {
+    if (!key.includes("#")) parents.add(key);
+  }
+  return items.filter(({ key }) => {
+    if (!key.includes("#")) return true;
+    const base = key.split("#")[0];
+    return !parents.has(base);
+  });
 }
 
-// node_modules/obsidian-smart-env/node_modules/smart-completions/adapters/_adapter.js
-var SmartCompletionAdapter = class {
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/smart_context.js
+var SmartContext = class extends CollectionItem {
+  static version = 1;
+  static get defaults() {
+    return {
+      data: {
+        key: "",
+        context_items: {},
+        context_opts: {}
+      }
+    };
+  }
+  // queue_save to debounce process save queue
+  queue_save() {
+    super.queue_save();
+    this.collection.queue_save();
+  }
+  /**
+   * add_item
+   * @param {string|object} item
+   */
+  add_item(item, params = {}) {
+    const {
+      emit_updated = true
+    } = params;
+    let key;
+    if (typeof item === "object") {
+      key = item.key || item.path;
+    } else {
+      key = item;
+    }
+    const existing = this.data.context_items[key];
+    const context_item = {
+      d: 0,
+      at: Date.now(),
+      ...existing || {},
+      ...typeof item === "object" ? item : {}
+    };
+    if (!key) return console.error("SmartContext: add_item called with invalid item", item);
+    this.data.context_items[key] = context_item;
+    this.queue_save();
+    if (emit_updated) this.emit_event("context:updated", { add_item: key });
+  }
+  /**
+   * add_items
+   * @param {string[]|object[]} items
+   */
+  add_items(items) {
+    if (!Array.isArray(items)) items = [items];
+    items.forEach((item) => this.add_item(item, { emit_updated: false }));
+    this.emit_event("context:updated", { added_items: items.map((item) => typeof item === "object" ? item.key || item.path : item) });
+  }
+  /**
+   * remove_item
+   * Removes a path/ref from context and emits context:updated
+   * @param {string} key
+   */
+  remove_item(key) {
+    if (!key || !this.data?.context_items?.[key]) return;
+    if (this.data.context_items[key].folder) {
+      this.data.context_items[key].exclude = true;
+    } else {
+      delete this.data.context_items[key];
+    }
+    this.queue_save();
+    this.emit_event("context:updated", { removed_key: key });
+  }
+  clear_all() {
+    this.data.context_items = {};
+    this.queue_save();
+    this.emit_event("context:updated", { cleared: true });
+  }
+  get context_item_keys() {
+    return Object.entries(this.data?.context_items || {}).filter(([key, item_data]) => !item_data.exclude).map(([key, item_data]) => key);
+  }
+  get key() {
+    if (!this.data.key) {
+      this.data.key = Date.now().toString();
+    }
+    return this.data.key;
+  }
+  get has_context_items() {
+    return Object.keys(this.data.context_items || {}).length > 0;
+  }
+  get name() {
+    return this.data.name;
+  }
+  set name(name) {
+    if (typeof name !== "string") throw new TypeError("Name must be a string");
+    const was_nameless = !this.data.name || String(this.data.name).trim().length === 0;
+    this.data.name = name;
+    if (was_nameless) this.emit_event("context:created");
+    else this.emit_event("context:renamed", { name });
+    this.queue_save();
+  }
+  get size() {
+    let size = 0;
+    const context_items = this.get_context_items();
+    context_items.forEach((item) => {
+      if (item.size) size += item.size;
+    });
+    return size;
+  }
+  get item_count() {
+    return Object.entries(this.data?.context_items || {}).filter(([key, item_data]) => !item_data.exclude).length;
+  }
+  // v3
+  async get_text(params = {}) {
+    const segments = [];
+    const context_items = this.context_items.filter(params.filter).sort((a, b) => a.data.d - b.data.d);
+    console.log("get_text context_items", context_items);
+    for (const item of context_items) {
+      if (item.is_media) continue;
+      const item_text = await item.get_text();
+      if (typeof item_text === "string") segments.push(item_text);
+      else this.emit_get_text_error(item, item_text);
+    }
+    const context_items_text = segments.join("\n");
+    if (typeof this.actions.context_merge_template === "function") {
+      return await this.actions.context_merge_template(context_items_text, context_items);
+    }
+    return context_items_text;
+  }
+  async get_media(params = {}) {
+    const context_items = this.context_items.filter(params.filter);
+    const out = [];
+    for (const item of context_items) {
+      if (!item.is_media) continue;
+      const item_base64 = await item.get_base64();
+      if (item_base64.error) this.emit_get_media_error(item, item_base64);
+      else out.push(item_base64);
+    }
+    return out;
+  }
+  get context_items() {
+    if (!this._context_items) {
+      const config = this.env.config.collections.context_items;
+      const Class = config.class;
+      this._context_items = new Class(this.env, { ...config, class: null });
+      this._context_items.load_from_data(this.data.context_items || {});
+      this.on_event("context:updated", () => {
+        this._context_items = null;
+      });
+    }
+    return this._context_items;
+  }
+  emit_get_text_error(item, item_text) {
+    this.emit_event("notification:error", {
+      message: `Context item did not return text: ${item.key}`,
+      ...item_text && typeof item_text === "object" ? item_text : {}
+    });
+  }
+  emit_get_media_error(item, item_base64) {
+    this.emit_event("notification:error", {
+      message: `Context item did not return media: ${item.key}`,
+      ...item_base64 && typeof item_base64 === "object" ? item_base64 : {}
+    });
+  }
+  /**
+   * DEPRECATED
+   */
+  /**
+   * Return *ContextItem* instances (any depth) for a given key array.
+   * @deprecated use context_items property instead
+   * @param {string[]} keys
+   */
+  get_context_items(keys = this.context_item_keys) {
+    return filter_redundant_context_items(
+      keys.map((k) => this.get_context_item(k)).filter(Boolean)
+    );
+  }
+  /**
+   * @deprecated use context_items property instead
+   */
+  get_context_item(key) {
+    const existing = this.env.context_items.get(key);
+    if (existing) return existing;
+    return this.env.context_items.new_item({ key, ...this.data.context_items[key] || {} });
+  }
+  /**
+   * @method get_ref
+   * @deprecated moving to using ContextItem instances
+   */
+  get_ref(key) {
+    return this.collection.get_ref(key);
+  }
+  /**
+   * @deprecated
+   */
+  get_item_keys_by_depth(depth) {
+    return Object.keys(this.data.context_items).filter((k) => {
+      const item_depth = this.data.context_items[k].d;
+      if (item_depth === depth) return true;
+      if (typeof item_depth === "undefined" && depth === 0) return true;
+      return false;
+    });
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/smart_contexts.js
+var SmartContexts = class extends Collection {
+  static version = 0.1;
+  async load() {
+    console.log("SmartContexts: load called");
+  }
+  /**
+   * new_context
+   * @param {object} data
+   * @param {object} opts
+   * @param {string[]} opts.add_items
+   * @returns {SmartContext}
+   */
+  new_context(data = {}, opts = {}) {
+    const item = new this.item_type(this.env, data);
+    if (Array.isArray(opts.add_items)) item.add_items(opts.add_items);
+    this.set(item);
+    item.queue_save();
+    item.emit_event("context:created");
+    return item;
+  }
+  /**
+   * Default settings for all SmartContext items in this collection.
+   * @readonly
+   */
+  static get default_settings() {
+    return {
+      template_before: "<context>\n{{FILE_TREE}}",
+      template_after: "</context>"
+    };
+  }
+  get settings_config() {
+    return {
+      ...this.env.config.actions.context_merge_template?.settings_config || {}
+    };
+  }
+  get_ref(key) {
+    const collection = key.includes("#") ? this.env.smart_blocks : this.env.smart_sources;
+    return collection.get(key);
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/index.js
+var smart_contexts_default_config = {
+  class: SmartContexts,
+  data_adapter: AjsonSingleFileCollectionDataAdapter,
+  item_type: SmartContext
+};
+var smart_contexts_default = smart_contexts_default_config;
+
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/context_item.js
+var ContextItem = class extends CollectionItem {
+  // special handling because current name_to_collection_key removes "Items" suffix
+  get collection_key() {
+    return "context_items";
+  }
+  get context_type_adapter() {
+    if (!this._context_type_adapter) {
+      const Class = this.collection.context_item_adapters.find((adapter_class) => adapter_class.detect(this.key, this.data));
+      if (!Class) throw new Error(`No context item adapter found for key: ${this.key}`);
+      this._context_type_adapter = new Class(this);
+    }
+    return this._context_type_adapter;
+  }
+  get exists() {
+    return this.context_type_adapter.exists;
+  }
+  // v3
+  async get_text() {
+    const item_text = await this.context_type_adapter.get_text();
+    if (typeof item_text !== "string") return item_text;
+    if (typeof this.actions.context_item_merge_template === "function") {
+      return await this.actions.context_item_merge_template(item_text);
+    }
+    return item_text;
+  }
+  async get_base64() {
+    if (this.is_media) {
+      return await this.context_type_adapter.get_base64();
+    }
+    return { error: `Context item is not media type: ${this.key}` };
+  }
+  async open(event = null) {
+    return await this.context_type_adapter.open(event);
+  }
+  get is_media() {
+    return this.context_type_adapter.is_media || false;
+  }
+  get item_ref() {
+    return this.context_type_adapter.ref || null;
+  }
+  get size() {
+    return this.data.size || this.context_type_adapter.size || 0;
+  }
+  get mtime() {
+    return this.data.mtime || this.context_type_adapter.mtime || null;
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/adapters/context-items/_adapter.js
+var ContextItemAdapter = class {
   constructor(item) {
     this.item = item;
   }
-  get data() {
-    return this.item.data;
+  static detect(key, data = {}) {
+    return false;
   }
   get env() {
     return this.item.env;
   }
-  get completion() {
-    return this.data.completion;
+  get exists() {
+    return true;
   }
-  get request() {
-    return this.item.data.completion.request;
-  }
-  get response() {
-    return this.item.response;
-  }
-  insert_user_message(user_message, opts = {}) {
-    insert_user_message(this.request, user_message, opts);
-  }
-  // Override these methods in subclasses
-  static get property_name() {
-    return null;
-  }
+  // v3 API
   /**
-   * @returns {Promise<void>}
+   * for calculating context size
    */
-  async to_request() {
+  get size() {
+    return 0;
   }
-  /**
-   * @returns {Promise<void>}
-   */
-  async from_response() {
+  async get_text() {
+  }
+  async open() {
   }
 };
 
-// node_modules/obsidian-smart-env/node_modules/smart-completions/utils/insert_image.js
-async function insert_image(request, image_path, fs) {
-  const base64_image = await convert_image_to_base64(fs, image_path);
-  if (!base64_image) return;
-  const last_user_index = request.messages.findLastIndex((x) => x.role === "user");
-  const image_content = {
-    role: "user",
-    content: [{ type: "image_url", image_url: { url: base64_image } }]
-  };
-  if (last_user_index === -1) {
-    request.messages.unshift(image_content);
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/adapters/context-items/block.js
+var BlockContextItemAdapter = class extends ContextItemAdapter {
+  static order = 6;
+  static detect(key) {
+    return key.includes("#");
   }
-  const last_user_message = request.messages[last_user_index];
-  if (!last_user_message) return console.warn("insert_image: no last_user_message");
-  if (!Array.isArray(last_user_message.content)) {
-    last_user_message.content = [];
+  get ref() {
+    return this.env.smart_blocks.get(this.item.key);
   }
-  last_user_message.content.push(image_content.content[0]);
-}
-async function convert_image_to_base64(fs, image_path) {
-  if (!image_path) return;
-  const image_exts = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
-  const ext = image_path.split(".").pop().toLowerCase();
-  if (!image_exts.includes(ext)) return;
-  try {
-    const base64_data = await fs.read(image_path, "base64");
-    const base64_url = `data:image/${ext};base64,${base64_data}`;
-    return base64_url;
-  } catch (err) {
-    console.warn(`Failed to convert image ${image_path} to base64`, err);
+  get inlinks() {
+    return this.ref.inlinks || [];
   }
-}
+  get outlinks() {
+    return this.ref.outlinks || [];
+  }
+  get exists() {
+    return !!(this.ref && !this.ref.is_gone);
+  }
+  get mtime() {
+    return this.ref?.mtime || null;
+  }
+  get size() {
+    return this.ref?.size || 0;
+  }
+  async get_text() {
+    const block = this.ref;
+    if (!block) return { error: "Block not found" };
+    return await block.read();
+  }
+  async open(event = null) {
+    this.ref.actions.source_open(event);
+  }
+};
 
-// node_modules/obsidian-smart-env/node_modules/smart-completions/utils/insert_pdf.js
-async function insert_pdf(request, pdf_path, fs) {
-  const base64_pdf = await convert_pdf_to_base64(fs, pdf_path);
-  if (!base64_pdf) return;
-  const last_user_index = request.messages.findLastIndex((x) => x.role === "user");
-  const pdf_content = {
-    role: "user",
-    content: [{
-      type: "file",
-      file: {
-        filename: pdf_path.split(/[\\/]/).pop(),
-        file_data: `data:application/pdf;base64,${base64_pdf}`
-        // <-- Prefix added
-      }
-    }]
-  };
-  if (last_user_index === -1) {
-    request.messages.unshift(pdf_content);
-    return;
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/adapters/context-items/source.js
+var SourceContextItemAdapter = class extends ContextItemAdapter {
+  static order = 7;
+  // default lowest priority
+  static detect(key) {
+    return true;
   }
-  const last_user_message = request.messages[last_user_index];
-  if (!last_user_message) return console.warn("insert_pdf: no last_user_message");
-  if (!Array.isArray(last_user_message.content)) {
-    last_user_message.content = [];
+  get ref() {
+    return this.env.smart_sources.get(this.item.key);
   }
-  last_user_message.content.push(pdf_content.content[0]);
-}
-async function convert_pdf_to_base64(fs, pdf_path) {
-  if (!pdf_path) return;
-  const ext = pdf_path.split(".").pop().toLowerCase();
-  if (ext !== "pdf") return;
-  try {
-    const base64_data = await fs.read(pdf_path, "base64");
-    return base64_data;
-  } catch (err) {
-    console.warn(`Failed to convert PDF ${pdf_path} to base64`, err);
+  get inlinks() {
+    return this.ref.inlinks || [];
   }
-}
+  get outlinks() {
+    return this.ref.outlinks || [];
+  }
+  get exists() {
+    return !!(this.ref && !this.ref.is_gone);
+  }
+  get size() {
+    return this.ref?.size || 0;
+  }
+  get mtime() {
+    return this.ref?.mtime || null;
+  }
+  async get_text() {
+    return await this.ref?.read() || "MISSING SOURCE";
+  }
+  async open(event = null) {
+    this.ref.actions.source_open(event);
+  }
+};
 
-// node_modules/obsidian-smart-env/node_modules/smart-completions/adapters/context.js
-var SmartCompletionContextAdapter = class extends SmartCompletionAdapter {
-  static order = 10;
-  static get property_name() {
-    return "context_key";
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/utils/image_extension_regex.js
+var image_extension_regex = /\.(png|jpe?g|gif|bmp|webp|svg|ico|mp4)$/i;
+
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/adapters/context-items/image.js
+var ImageContextItemAdapter = class extends ContextItemAdapter {
+  static detect(key) {
+    if (image_extension_regex.test(key)) return "image";
+    return false;
   }
-  async to_request() {
-    const context_key = this.data.context_key;
-    if (!context_key) return;
-    const context_opts = this.data.context_opts;
-    const context_collection = this.item.env.smart_contexts;
-    if (!context_collection) {
-      console.warn("No 'smart_contexts' collection found; skipping context adapter.");
-      return;
-    }
-    const ctx_item = context_collection.get(context_key);
-    if (!ctx_item) {
-      console.warn(`SmartContext not found for key '${context_key}'`);
-      return;
-    }
-    if (!ctx_item.has_context_items) {
-      console.warn(`SmartContext '${context_key}' has no context items; skipping context adapter.`);
-      return;
-    }
-    await ctx_item.save();
-    let compiled;
+  get exists() {
+    return this.item.env.smart_sources.fs.exists_sync(this.item.key);
+  }
+  get is_media() {
+    return true;
+  }
+  async get_base64() {
+    const ext = this.item.key.split(".").pop().toLowerCase();
     try {
-      compiled = await ctx_item.compile(context_opts);
+      const base64_data = await this.item.env.fs.read(this.item.key, "base64");
+      const base64_url = `data:image/${ext};base64,${base64_data}`;
+      return {
+        type: "image_url",
+        key: this.item.key,
+        name: this.item.key.split(/[\\/]/).pop(),
+        url: base64_url
+      };
     } catch (err) {
-      console.warn("Error compiling ephemeral context", err);
-      return;
+      console.warn(`Failed to convert image ${this.item.key} to base64`, err);
+      return { error: `Failed to convert image to base64: ${err.message}` };
     }
-    if (compiled.context) {
-      this.insert_user_message(compiled.context);
-      if (this.data.user_message) {
-        this.insert_user_message(this.data.user_message, { position: "end" });
-      }
-    }
-    if (compiled.images?.length > 0) {
-      await this.insert_images(compiled.images);
-    }
-    if (compiled.pdfs?.length > 0) {
-      await this.insert_pdfs(compiled.pdfs);
-    }
-  }
-  async insert_images(image_paths) {
-    if (!Array.isArray(image_paths) || !image_paths.length) return;
-    for (const img_path of image_paths) {
-      await insert_image(this.request, img_path, this.item.env.fs);
-    }
-  }
-  async insert_pdfs(pdf_paths) {
-    if (!Array.isArray(pdf_paths) || !pdf_paths.length) return;
-    for (const pdf_path of pdf_paths) {
-      await insert_pdf(this.request, pdf_path, this.item.env.fs);
-    }
-  }
-  /**
-   * No special post-processing after we get model response.
-   */
-  async from_response() {
   }
 };
 
-// node_modules/obsidian-smart-env/node_modules/smart-completions/adapters/user.js
-var SmartCompletionUserAdapter = class extends SmartCompletionAdapter {
-  static order = 1;
-  /**
-   * @returns {string}
-   */
-  static get property_name() {
-    return "user_message";
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/adapters/context-items/pdf.js
+var PdfContextItemAdapter = class extends ContextItemAdapter {
+  static detect(key) {
+    if (key.endsWith(".pdf")) return "pdf";
+    return false;
   }
-  get request() {
-    return this.item.data.completion.request;
+  async add_to_snapshot(snapshot) {
+    if (!snapshot.pdfs) snapshot.pdfs = [];
+    snapshot.pdfs.push(this.item.key);
+  }
+  get is_media() {
+    return true;
+  }
+  async get_base64() {
+    try {
+      const base64_data = await this.item.env.fs.read(this.item.key, "base64");
+      const base64_url = `data:application/pdf;base64,${base64_data}`;
+      return {
+        type: "pdf_url",
+        key: this.item.key,
+        name: this.item.key.split(/[\\/]/).pop(),
+        url: base64_url
+      };
+    } catch (err) {
+      console.warn(`Failed to convert PDF ${this.item.key} to base64`, err);
+      return { error: `Failed to convert PDF to base64: ${err.message}` };
+    }
+  }
+  get exists() {
+    return this.item.env.smart_sources.fs.exists_sync(this.item.key);
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-contexts/context_items.js
+var ContextItems = class extends Collection {
+  async load() {
+    console.log("ContextItems: load called");
+  }
+  static version = 1;
+  get context_item_adapters() {
+    if (!this._context_item_adapters) {
+      this._context_item_adapters = Object.values(this.opts.context_item_adapters).sort((a, b) => {
+        const order_a = a.order || 0;
+        const order_b = b.order || 0;
+        return order_a - order_b;
+      });
+    }
+    return this._context_item_adapters;
+  }
+  new_item(data) {
+    const item = new this.item_type(this.env, data);
+    this.set(item);
+    return item;
+  }
+  process_load_queue() {
+  }
+  get settings_config() {
+    return {
+      ...this.env.config.actions.context_item_merge_template?.settings_config || {}
+    };
+  }
+  get_adapter_class(key, item_data) {
+    return this.context_item_adapters.find((adapter_class) => adapter_class.detect(key, item_data));
+  }
+  static get default_settings() {
+    return {
+      template_before: '<item loc="{{KEY}}" at="{{TIME_AGO}}">',
+      template_after: "</item>"
+    };
+  }
+  load_from_data(context_items_data) {
+    delete this.items;
+    this.items = {};
+    const entries = Object.entries(context_items_data || {});
+    for (let i = 0; i < entries.length; i++) {
+      const [key, item_data] = entries[i];
+      if (item_data.exclude) continue;
+      this.new_item({
+        key,
+        ...item_data
+      });
+    }
+  }
+};
+var context_items_default = {
+  version: 1,
+  class: ContextItems,
+  collection_key: "context_items",
+  item_type: ContextItem,
+  context_item_adapters: {
+    BlockContextItemAdapter,
+    SourceContextItemAdapter,
+    ImageContextItemAdapter,
+    PdfContextItemAdapter
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-events/event_log.js
+function next_log_stats(prev = {}, at_ms) {
+  const ct = (prev.ct || 0) + 1;
+  const first_at = prev.first_at ?? at_ms;
+  const last_at = at_ms;
+  return { ct, first_at, last_at };
+}
+var EventLog = class extends CollectionItem {
+  static version = 2e-3;
+  /** @returns {{data: EventLogData}} */
+  static get defaults() {
+    return {
+      data: {
+        key: null,
+        ct: 0,
+        first_at: null,
+        last_at: null
+      }
+    };
   }
   /**
-   * to_request: Checks `data.user`, adds a user message to `request.messages`.
-   * @returns {Promise<void>}
+   * Counters are updated via EventLogs listener.
+   * @param {Partial<EventLogData>} [_input_data]
    */
-  async to_request() {
-    const user_message = this.data.user_message;
-    const new_user_message = this.data.new_user_message;
-    this.insert_user_message(user_message, {
-      position: "start",
-      // always at start so that other adapters may add again to end (e.g. context adapter)
-      new_user_message
+  init(_input_data) {
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-events/event_logs.js
+var EXCLUDED_EVENT_KEYS = {
+  "collection:save_started": true,
+  "collection:save_completed": true
+};
+var EventLogs = class extends Collection {
+  static version = 3e-3;
+  constructor(env, opts = {}) {
+    super(env, opts);
+    this.session_events = [];
+    this.notification_status = null;
+  }
+  /**
+   * Factory that attaches the collection to env and registers the wildcard listener.
+   * @param {Object} env
+   * @param {Object} [opts={}]
+   * @returns {EventLogs}
+   */
+  static create(env, opts = {}) {
+    const instance = new this(env, opts);
+    instance.init();
+    return instance;
+  }
+  /** Prefer an explicit item class to keep wiring thin. */
+  get item_type() {
+    return EventLog;
+  }
+  /**
+   * Instance init
+   * - Ensure env.events exists
+   * - Register wildcard listener
+   * - Idempotent across repeated calls
+   */
+  init() {
+    if (!this.env?.events) SmartEvents.create(this.env);
+    if (this._unsub_wildcard) this._unsub_wildcard();
+    this._unsub_wildcard = this.env.events.on(WILDCARD_KEY, (event, event_key) => {
+      this.on_any_event(event_key, event);
     });
   }
   /**
-   * from_response: No post-processing needed for default user message.
-   * @returns {Promise<void>}
+   * Handle any emitted event.
+   * Persists counters and timestamps in epoch ms.
+   * @param {string} event_key
+   * @param {Record<string, unknown>} event
    */
-  async from_response() {
+  on_any_event(event_key, event) {
+    if (EXCLUDED_EVENT_KEYS[event_key]) return;
+    this.session_events.push({ event_key, event });
+    if (event_key === "notification:error") this.notification_status = "error";
+    else if (event_key === "notification:warning" && this.notification_status !== "error") this.notification_status = "warning";
+    else if (event_key === "notification:attention" && !this.notification_status) this.notification_status = "attention";
+    try {
+      if (typeof event_key !== "string") return;
+      const at_ms = Date.now();
+      let event_log = this.get(event_key);
+      if (!event_log) {
+        event_log = new EventLog(this.env, { key: event_key });
+        this.set(event_log);
+      }
+      const next = next_log_stats(
+        { ct: event_log.data.ct, first_at: event_log.data.first_at, last_at: event_log.data.last_at },
+        at_ms
+      );
+      event_log.data = { ...event_log.data, ...next };
+      if (event.event_source) {
+        if (!event_log.data.event_sources) event_log.data.event_sources = {};
+        if (!event_log.data.event_sources[event.event_source]) {
+          event_log.data.event_sources[event.event_source] = 0;
+        }
+        event_log.data.event_sources[event.event_source]++;
+      }
+      event_log.queue_save();
+      this.queue_save();
+    } catch (err) {
+      console.error("[EventLogs] record failure", event_key, err);
+    }
+  }
+  /**
+   * Cleanly detach listeners and cancel pending save.
+   */
+  unload() {
+    if (this._save_timer) {
+      clearTimeout(this._save_timer);
+      this._save_timer = null;
+    }
+    if (typeof this._unsub_wildcard === "function") {
+      this._unsub_wildcard();
+      this._unsub_wildcard = null;
+    }
+    return super.unload();
   }
 };
+var event_logs_default = {
+  class: EventLogs,
+  collection_key: "event_logs",
+  data_adapter: AjsonSingleFileCollectionDataAdapter,
+  item_type: EventLog
+};
 
-// node_modules/obsidian-smart-env/node_modules/smart-completions/adapters/action.js
-var ActionCompletionAdapter = class extends SmartCompletionAdapter {
-  static get property_name() {
-    return "action_key";
+// node_modules/obsidian-smart-env/src/modals/smart_fuzzy_suggest_modal.js
+var import_obsidian5 = require("obsidian");
+var SmartFuzzySuggestModal = class extends import_obsidian5.FuzzySuggestModal {
+  constructor(item_or_collection) {
+    const env = item_or_collection.env;
+    const plugin = env.plugin;
+    const app = plugin.app;
+    super(app);
+    this.app = app;
+    env.create_env_getter(this);
+    this.plugin = plugin;
+    this.item_or_collection = item_or_collection;
+    this.emptyStateText = "No suggestions available";
   }
-  /**
-   * @returns {Promise<void>}
-   */
-  async to_request() {
-    const action_key = this.data.action_key;
-    if (!action_key) return;
-    const thread = this.item.thread;
-    if (thread.current_completion !== this.item) return console.log("ActionCompletionAdapter: skipping tools, not the current completion");
-    const action_opts = this.data.action_opts;
-    const action_collection = this.item.env.smart_actions;
-    if (!action_collection) {
-      console.warn("No 'smart_actions' collection found; skipping action adapter.");
-      return;
-    }
-    const action_item = action_collection.get(action_key);
-    if (!action_item) {
-      console.warn(`SmartAction not found for key '${action_key}'`);
-      return;
-    }
-    let tools;
-    try {
-      const action_module = action_item.module;
-      tools = action_module.tool ? [action_module.tool] : convert_openapi_to_tools(action_module.openapi);
-    } catch (err) {
-      console.warn("Error compiling ephemeral action", err);
-      return;
-    }
-    if (!tools) return;
-    if (!this.data.actions) this.data.actions = {};
-    this.data.actions[action_key] = true;
-    this.insert_tools(tools, { force: true });
+  /** Unique type key for this modal class. Subclasses override. */
+  static get modal_type() {
+    return "smart-fuzzy-suggest";
   }
-  get default_action_params() {
-    return this.data.action_opts || {};
+  /** Human label used in commands. Subclasses override as needed. */
+  static get display_text() {
+    return "Smart Fuzzy Suggest";
   }
-  /**
-   * @returns {Promise<void>}
-   */
-  async from_response() {
-    console.log("ActionCompletionAdapter: from_response");
-    const tool_call = this.response.choices[0].message?.tool_calls?.[0];
-    if (!tool_call) return console.warn("No tool call found in response");
-    const action_key = tool_call?.function?.name;
-    const tool_arguments = tool_call?.function?.arguments;
-    if (!action_key) return;
-    const action_collection = this.item.env.smart_actions;
-    if (!action_collection) return;
-    const action_item = action_collection.get(action_key);
-    if (!action_item) return;
-    let parsed_args = tool_arguments;
-    if (typeof parsed_args === "string") {
-      try {
-        parsed_args = JSON.parse(parsed_args);
-      } catch (err) {
-        console.warn("Could not parse tool_call arguments", err);
+  /** Event name listened to on env.events to open this modal. */
+  static get event_domain() {
+    return `${this.modal_type}`;
+  }
+  /** Command id used with addCommand. */
+  static get command_id() {
+    return this.modal_type;
+  }
+  static open(item_or_collection, params) {
+    const Modal8 = (
+      /** @type {typeof SmartFuzzySuggestModal} */
+      this
+    );
+    const modal = new Modal8(item_or_collection, params);
+    modal.open(params);
+    return modal;
+  }
+  static register_modal(plugin) {
+    const Modal8 = (
+      /** @type {typeof SmartFuzzySuggestModal} */
+      this
+    );
+    const env = plugin?.env;
+    const modal_config = {
+      ...env.config.modals?.[this.modal_key] || {},
+      class: null
+    };
+    console.log(`Registering modal: ${this.display_text}`, { modal_config, Modal: Modal8 });
+    const open_handler = (payload = {}) => {
+      const item = Modal8.resolve_item_from_payload(env, payload);
+      const modal = Modal8.open(item, {
+        ...modal_config,
+        ...payload
+        // spread since event payload is locked
+      });
+      return modal;
+    };
+    const disposers = [
+      env?.events?.on?.(`${Modal8.event_domain}:open`, open_handler)
+      // env.events?.on?.(`${Modal.event_domain}:suggest`, suggest_handler),
+    ];
+    const dispose_all = () => {
+      disposers.forEach((dispose) => typeof dispose === "function" && dispose());
+    };
+    if (typeof plugin.register === "function") {
+      plugin.register(() => dispose_all());
+    }
+    return {
+      event_domain: Modal8.event_domain
+    };
+  }
+  static resolve_item_from_payload(env, payload) {
+    const item = env?.[payload.collection_key]?.items?.[payload.item_key];
+    return item;
+  }
+  open(params = {}) {
+    super.open();
+    this.modalEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") this.selectActiveSuggestion(e);
+      if (e.target !== this.inputEl || !this.inputEl.value || import_obsidian5.Keymap.isModEvent(e)) {
+        if (e.key === "ArrowLeft") {
+          this.use_arrow_left = true;
+          this.selectActiveSuggestion(e);
+          return;
+        }
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          this.use_mod_select = true;
+          this.use_arrow_right = true;
+          this.selectActiveSuggestion(e);
+          return;
+        }
+      }
+    });
+  }
+  getItems() {
+    return this.get_suggestions();
+  }
+  getItemText(suggestion_item) {
+    return suggestion_item.display;
+  }
+  filter_suggestions(suggestions) {
+    return suggestions;
+  }
+  get_suggestions() {
+    if (this.suggestions?.length) {
+      this.suggestions = this.filter_suggestions(this.suggestions);
+      if (this.suggestions.length > 0) {
+        return this.suggestions;
+      }
+    }
+    if (this.default_suggest_action_keys?.length) {
+      if (this.default_suggest_action_keys.length === 1) {
+        this.update_suggestions(this.default_suggest_action_keys[0]);
+        return [];
+      }
+      return this.get_suggest_scopes();
+    }
+    return [];
+  }
+  get_suggest_scopes() {
+    return this.default_suggest_action_keys.map((action_key) => {
+      const action_config = this.env.config.actions[action_key];
+      if (!action_config) return null;
+      const display_name4 = action_config.display_name || action_key;
+      return {
+        select_action: () => {
+          this.update_suggestions(action_key);
+        },
+        key: action_key,
+        display: display_name4
+      };
+    }).filter(Boolean);
+  }
+  async update_suggestions(suggest_ref) {
+    if (typeof suggest_ref === "string") {
+      suggest_ref = this.item_or_collection.actions[suggest_ref];
+    }
+    if (typeof suggest_ref === "function") {
+      const result = await suggest_ref({ modal: this });
+      console.log("Suggestion action result", result);
+      if (Array.isArray(result) && result.length) {
+        this.suggestions = result;
+      }
+    } else if (Array.isArray(suggest_ref)) {
+      this.suggestions = suggest_ref;
+    }
+    if (Array.isArray(this.suggestions) && this.suggestions.length) {
+      this.updateSuggestions();
+    } else {
+      this.env.events.emit("notification:error", { message: "Invalid suggestion action" });
+      console.warn("Invalid suggestion action", suggest_ref);
+    }
+  }
+  get default_suggest_action_keys() {
+    if (Array.isArray(this.params?.default_suggest_action_keys)) {
+      return this.params.default_suggest_action_keys;
+    }
+    return this.env.config.modals[this.modal_key]?.default_suggest_action_keys || [];
+  }
+  renderSuggestion(sug, el) {
+    super.renderSuggestion(sug, el);
+    if (sug.item.icon) {
+      el.addClass("sc-modal-suggestion-has-icon");
+      const icon_el = el.createEl("span");
+      (0, import_obsidian5.setIcon)(icon_el, sug.item.icon);
+    }
+    return el;
+  }
+  onChooseSuggestion(selected, evt, ...other) {
+    this.prevent_close = true;
+    const suggestion = selected.item;
+    const is_arrow_left = this.use_arrow_left;
+    const is_arrow_right = this.use_arrow_right;
+    const is_mod_select = import_obsidian5.Keymap.isModifier(evt, "Mod") || this.use_mod_select;
+    this.use_arrow_right = false;
+    this.use_mod_select = false;
+    this.use_arrow_left = false;
+    if (is_arrow_left) {
+      if (typeof suggestion.arrow_left_action === "function") {
+        this.handle_choose_action(suggestion, "arrow_left_action");
+      } else {
+        this.suggestions = null;
+        this.params.default_suggest_action_keys = null;
+        this.updateSuggestions();
         return;
       }
+    } else if (is_arrow_right && typeof suggestion.arrow_right_action === "function") {
+      this.handle_choose_action(suggestion, "arrow_right_action");
+    } else if (is_mod_select && typeof suggestion.mod_select_action === "function") {
+      this.handle_choose_action(suggestion, "mod_select_action");
+    } else if (typeof suggestion.select_action === "function") {
+      this.handle_choose_action(suggestion, "select_action");
+    } else {
+      this.env.events.emit("notification:warning", { selection_display: suggestion.display, message: "No action defined for this suggestion" });
     }
-    const action_params = {
-      ...this.default_action_params,
-      ...parsed_args
-    };
-    const result = await action_item.run_action(action_params);
-    if (result && typeof result === "object" && result.final) {
-      if (!this.item.data.completion.responses[0]) {
-        this.item.data.completion.responses[0] = { choices: [{ message: {} }] };
-      } else if (!this.item.data.completion.responses[0].choices?.[0]) {
-        this.item.data.completion.responses[0].choices = [{ message: {} }];
-      }
-      this.item.data.completion.responses[0].choices[0].message = {
-        ...this.item.data.completion.responses[0].choices[0].message,
-        role: "assistant",
-        content: result.final
-      };
-    }
-    if (!this.data.actions) this.data.actions = {};
-    this.data.actions[action_key] = result;
   }
-  /**
-   * Insert the ephemeral tools into the request
-   * @param {Array<object>} tools
-   * @param {object} opts
-   * @returns {void}
-   */
-  insert_tools(tools, opts = {}) {
-    this.request.tools = tools;
-    if (opts.force) {
-      this.request.tool_choice = {
-        type: "function",
-        function: {
-          name: tools[0].function.name
-        }
-      };
+  async handle_choose_action(suggestion, action_key) {
+    let chosen_action = suggestion[action_key];
+    const result = await chosen_action({ modal: this });
+    if (Array.isArray(result) && result.length) {
+      this.suggestions = result;
+    } else if (Array.isArray(result)) {
+      this.env.events.emit("notification:info", { message: "No suggestions returned from action" });
     }
+    const idx = this.chooser.values.findIndex((i) => i.item?.display === suggestion.display);
+    setTimeout(() => {
+      this.updateSuggestions();
+      if (idx !== -1) {
+        this.chooser.setSelectedItem(idx);
+      }
+    }, 100);
+  }
+  close() {
+    setTimeout(() => {
+      if (!this.prevent_close) super.close();
+      this.prevent_close = false;
+    }, 10);
+  }
+  onClose() {
+    this.item_or_collection.emit_event(`${this.constructor.event_domain}:closed`);
   }
 };
-function convert_openapi_to_tools(openapi_spec) {
-  const tools = [];
-  for (const path in openapi_spec.paths) {
-    const methods = openapi_spec.paths[path];
-    for (const method in methods) {
-      const endpoint = methods[method];
-      const parameters = endpoint.parameters || [];
-      const requestBody = endpoint.requestBody;
-      const properties = {};
-      const required = [];
-      parameters.forEach((param) => {
-        properties[param.name] = {
-          type: param.schema.type,
-          description: param.description || ""
-        };
-        if (param.required) required.push(param.name);
-      });
-      if (requestBody) {
-        const schema = requestBody.content["application/json"].schema;
-        Object.assign(properties, schema.properties);
-        if (schema.required) required.push(...schema.required);
-      }
-      tools.push({
-        type: "function",
-        function: {
-          name: endpoint.operationId || `${method}_${path.replace(/\//g, "_").replace(/[{}]/g, "")}`,
-          description: endpoint.summary || endpoint.description || "",
-          parameters: {
-            type: "object",
-            properties,
-            required
-          }
-        }
-      });
-    }
-  }
-  return tools;
-}
 
-// node_modules/obsidian-smart-env/node_modules/smart-completions/adapters/action_xml.js
-function scaffold_xml(root_tag, root_desc, params) {
-  return [
-    `<${root_tag} instructions="${root_desc}">`,
-    ...Object.entries(params).map(
-      ([p, v]) => `  <${p} instructions="${v.description || ""}">VALUE</${p}>`
-    ),
-    `</${root_tag}>`
-  ].join("\n");
-}
-function strip_instruction_attrs(xml) {
-  return xml.replace(/\s+instructions="[^"]*"/g, "");
-}
-var ActionXmlCompletionAdapter = class extends ActionCompletionAdapter {
-  static get property_name() {
-    return "action_xml_key";
+// node_modules/obsidian-smart-env/src/modals/context_selector.js
+var import_obsidian6 = require("obsidian");
+var ContextModal = class extends SmartFuzzySuggestModal {
+  /** Modal identity */
+  static get modal_type() {
+    return "context_selector";
   }
-  /* ────────────────────────────────────────────────────────────────────────
-     REQUEST CONSTRUCTION
-     ────────────────────────────────────────────────────────────────────── */
-  async to_request() {
-    const action_key = this.data.action_xml_key;
-    if (!action_key) return;
-    const thread = this.item.thread;
-    if (thread.current_completion !== this.item) return console.log("ActionXmlCompletionAdapter: skipping tools, not the current completion");
-    const action_item = this.env.smart_actions?.get(action_key);
-    if (!action_item) {
-      return console.warn(`SmartAction '${action_key}' not found`);
-    }
-    let tools;
-    try {
-      const mod = action_item.module;
-      tools = mod.tool ? [mod.tool] : convert_openapi_to_tools(mod.openapi);
-    } catch (err) {
-      return console.warn("Unable to compile OpenAPI \u2192 tools", err);
-    }
-    if (!tools?.length) return;
-    const func_def = tools[0].function;
-    const param_props = func_def.parameters?.properties || {};
-    const required_params = func_def.parameters?.required || [];
-    this._func_name = func_def.name;
-    this._required_params = required_params;
-    const action_instruction = [
-      "Important Instructions:",
-      `1. You must invoke the action '${func_def.name}' exactly once.`,
-      "2. You must respond *only* with XML in the exact structure provided below.",
-      "3. Replace VALUE with real arguments based on the property-specific instructions below.",
-      "4. Do not include any other text or instructions.",
-      "5. Follow these property-specific instructions for producing the XML response.",
-      "Action Instructions:",
-      `- ${func_def.description || ""}`,
-      "Property-Specific Instructions:",
-      ...Object.entries(param_props).map(
-        ([p, v]) => `- ${p}: ${v.description || ""}`
+  static get display_text() {
+    return "Context Selector";
+  }
+  static get event_domain() {
+    return "context_selector";
+  }
+  static get command_id() {
+    return this.modal_type;
+  }
+  static get modal_key() {
+    return "context_selector";
+  }
+  get modal_key() {
+    return "context_selector";
+  }
+  constructor(smart_context, params = {}) {
+    super(smart_context);
+    this.params = params;
+    this.smart_context = smart_context;
+    this.setInstructions([
+      { command: "Enter", purpose: "Add to context" },
+      { command: `\u2192 / \u2190`, purpose: "Toggle block view" },
+      { command: "Esc", purpose: "Close" }
+    ]);
+  }
+  open(params = {}) {
+    super.open();
+    this.render(params);
+  }
+  async render(params = this.params) {
+    this.modalEl.style.display = "flex";
+    this.modalEl.style.flexDirection = "column";
+    this.modalEl.style.height = "100%";
+    this.modalEl.prepend(
+      await this.env.smart_components.render_component(
+        "smart_context_item",
+        this.smart_context,
+        params
       )
-    ].join("\n");
-    const xml_scaffold = scaffold_xml(func_def.name, func_def.description, param_props);
-    const xml_template = strip_instruction_attrs(xml_scaffold);
-    const action_instruction_msg = [
-      action_instruction,
-      `You are ready to invoke the action '${func_def.name}'.`
-    ].join("\n");
-    const xml_template_msg = [
-      `To invoke the action '${func_def.name}', respond *only* with XML in this exact structure (replace VALUE with real arguments based on the action and property-specific instructions above):`,
-      xml_template
-    ].join("\n");
-    this.insert_user_message(action_instruction_msg);
-    this.insert_user_message(xml_template_msg);
-    this.data.actions ??= {};
-    this.data.actions[action_key] = true;
-    this.data.action_key = action_key;
-  }
-  /* ────────────────────────────────────────────────────────────────────────
-     RESPONSE PARSING
-     ────────────────────────────────────────────────────────────────────── */
-  async from_response() {
-    const action_key = this.data.action_xml_key;
-    if (!action_key) return;
-    const assistant_msg = this.response?.choices?.[0]?.message;
-    if (!assistant_msg) {
-      return console.warn("ActionXmlCompletionAdapter: assistant message not found");
-    }
-    const func_name = this._func_name || action_key;
-    let parsed_xml = this.item?.response_structured_output;
-    let root_node = parsed_xml[func_name];
-    if (!root_node) {
-      const candidate = Object.keys(parsed_xml)[0];
-      console.warn(`ActionXmlCompletionAdapter: expected root <${func_name}>, found <${candidate}> \u2013 using candidate`);
-      root_node = parsed_xml[candidate];
-    }
-    if (!root_node) {
-      return console.warn(`ActionXmlCompletionAdapter: root tag '${func_name}' not found`);
-    }
-    const node_to_value = (node) => {
-      if (!node || typeof node !== "object") return node;
-      const { attributes = {}, contents } = node;
-      if (contents === null || typeof contents !== "object") {
-        return Object.keys(attributes).length ? { ...attributes, value: contents } : contents;
-      }
-      const out = {};
-      for (const [k, v] of Object.entries(contents)) {
-        out[k] = Array.isArray(v) ? v.map(node_to_value) : node_to_value(v);
-      }
-      return Object.keys(attributes).length ? { ...attributes, ...out } : out;
-    };
-    const args = node_to_value(root_node);
-    const missing = (this._required_params || []).filter(
-      (p) => args[p] === void 0 || args[p] === "" || args[p] === null
     );
-    if (missing.length) {
-      return console.warn(`ActionXmlCompletionAdapter: missing ${missing.join(", ")}`);
-    }
-    assistant_msg.tool_calls = [
-      { function: { name: action_key, arguments: args } }
-    ];
-    delete assistant_msg.content;
-    await super.from_response();
   }
-};
-
-// node_modules/obsidian-smart-env/node_modules/smart-completions/adapters/system.js
-var SmartCompletionSystemAdapter = class extends SmartCompletionAdapter {
-  /**
-   * Identifies the data property that triggers this adapter.
-   * @returns {string}
-   */
-  static get property_name() {
-    return "system_message";
-  }
-  /**
-   * to_request: If `data.system_message` is present, prepends a system message to request.messages.
-   * @returns {Promise<void>}
-   */
-  async to_request() {
-    const sys_msg = this.data.system_message;
-    if (!sys_msg) return;
-    if (!this.request.messages) {
-      this.request.messages = [];
-    }
-    this.request.messages.unshift({
-      role: "system",
-      content: sys_msg
+  filter_suggestions(suggestions) {
+    return suggestions.filter((s) => {
+      if (s.key && this.smart_context?.data?.context_items[s.key]) return false;
+      return true;
     });
   }
-  /**
-   * from_response: No post-processing needed here.
-   * @returns {Promise<void>}
-   */
-  async from_response() {
+};
+
+// node_modules/obsidian-smart-env/src/modals/notifications_feed_modal.js
+var import_obsidian7 = require("obsidian");
+var NotificationsFeedModal = class extends import_obsidian7.Modal {
+  constructor(app, env) {
+    super(app);
+    this.env = env;
+  }
+  async onOpen() {
+    this.titleEl.setText("Smart Env notifications");
+    this.contentEl.empty();
+    const container = await this.env.smart_components.render_component("notifications_feed", this.env);
+    this.contentEl.appendChild(container);
+  }
+  onClose() {
+    this.contentEl.empty();
   }
 };
 
-// node_modules/obsidian-smart-env/node_modules/smart-completions/index.js
-var smart_completions_default_config = {
-  class: SmartCompletions,
-  data_adapter: AjsonSingleFileCollectionDataAdapter,
-  item_type: SmartCompletion,
-  completion_adapters: {
-    // SmartCompletionTemplateAdapter,
-    SmartCompletionContextAdapter,
-    SmartCompletionUserAdapter,
-    ActionCompletionAdapter,
-    ActionXmlCompletionAdapter,
-    SmartCompletionSystemAdapter
-  }
-};
-
-// node_modules/obsidian-smart-env/node_modules/smart-blocks/content_parsers/parse_blocks.js
-function parse_blocks(source2, content) {
-  let blocks_obj = parse_markdown_blocks(content);
-  const last_read_at = source2.data.last_read?.at || Date.now();
-  for (const [sub_key, line_range] of Object.entries(blocks_obj)) {
-    const block_key = source2.key + sub_key;
-    const existing_block = source2.block_collection.get(block_key);
-    const block_content = get_line_range2(content, line_range[0], line_range[1]);
-    if (existing_block && existing_block.lines[0] === line_range[0] && existing_block.lines[1] === line_range[1] && existing_block.size === block_content.length && existing_block.vec) {
-      continue;
+// node_modules/obsidian-smart-env/default.settings.js
+var default_settings = {
+  is_obsidian_vault: true,
+  smart_blocks: {
+    embed_blocks: true,
+    min_chars: 200
+  },
+  smart_sources: {
+    min_chars: 200,
+    embed_model: {
+      adapter: "transformers",
+      transformers: {
+        model_key: "TaylorAI/bge-micro-v2"
+      }
+    },
+    excluded_headings: "",
+    file_exclusions: "Untitled",
+    folder_exclusions: ""
+  },
+  language: "en",
+  re_import_wait_time: 13,
+  smart_chat_threads: {
+    chat_model: {
+      adapter: "ollama",
+      ollama: {}
     }
-    const block_outlinks = get_markdown_links(block_content);
-    const block_data = {
-      key: block_key,
-      lines: line_range,
-      size: block_content.length,
-      outlinks: block_outlinks,
-      last_read: {
-        at: last_read_at,
-        hash: murmur_hash_32_alphanumeric(block_content)
+  },
+  smart_notices: {},
+  smart_view_filter: {
+    expanded_view: false,
+    render_markdown: true,
+    show_full_path: false
+  },
+  version: "",
+  new_user: true,
+  // DEPRECATED: 2025-06-05 (use localStorage instead???)
+  // 2025-11-26
+  models: {
+    embedding_platform: "transformers",
+    chat_completion_platform: "open_router"
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-models/items/model.js
+var Model = class extends CollectionItem {
+  /**
+   * Default properties for an instance of CollectionItem.
+   * @returns {Object}
+   */
+  static get defaults() {
+    return {
+      data: {
+        api_key: "",
+        provider_key: "",
+        model_key: ""
       }
     };
-    if (!existing_block || existing_block?.data.last_read?.hash !== block_data.last_read.hash) {
-      const new_item = new source2.block_collection.item_type(source2.env, block_data);
-      source2.block_collection.set(new_item);
-    } else {
-      existing_block.data = {
-        ...existing_block.data,
-        ...block_data
-        // overwrites lines, last_read
+  }
+  get_key() {
+    if (!this.data.key) {
+      this.data.created_at = Date.now();
+      this.data.key = `${this.data.provider_key}#${this.data.created_at}`;
+    }
+    return this.data.key;
+  }
+  get provider_key() {
+    return this.data.provider_key;
+  }
+  get env_config() {
+    return this.collection.env_config;
+  }
+  get provider_config() {
+    return this.env_config.providers?.[this.provider_key] || {};
+  }
+  get ProviderAdapterClass() {
+    return this.provider_config.class;
+  }
+  get instance() {
+    if (!this._instance) {
+      const Class = this.ProviderAdapterClass;
+      this._instance = new Class(this);
+      this._instance.load();
+      this.once_event("model:changed", () => {
+        this._instance.unload?.();
+        this._instance = null;
+      });
+    }
+    return this._instance;
+  }
+  async count_tokens(text) {
+    return this.instance.count_tokens(text);
+  }
+  get api_key() {
+    return this.data.api_key;
+  }
+  /**
+   * Create (or reuse) a proxy around a target settings object so that
+   * any mutations trigger queue_save on the model.
+   * Proxies are cached per-target via WeakMap to support deep nested objects.
+   *
+   * @param {Object} target - The settings object or nested object to wrap.
+   * @returns {Object} Proxied object or original value if not an object.
+   * @private
+   */
+  create_settings_proxy(target) {
+    if (!target || typeof target !== "object") return target;
+    if (!this._settings_proxy_map) {
+      this._settings_proxy_map = /* @__PURE__ */ new WeakMap();
+    }
+    const existing = this._settings_proxy_map.get(target);
+    if (existing) return existing;
+    const self = this;
+    const handler = {
+      get(target_obj, prop, receiver) {
+        const value = Reflect.get(target_obj, prop, receiver);
+        if (value && typeof value === "object") {
+          return self.create_settings_proxy(value);
+        }
+        return value;
+      },
+      set(target_obj, prop, value, receiver) {
+        const previous = target_obj[prop];
+        const result = Reflect.set(target_obj, prop, value, receiver);
+        if (previous !== value) {
+          self.debounce_save();
+        }
+        return result;
+      },
+      deleteProperty(target_obj, prop) {
+        const had = Object.prototype.hasOwnProperty.call(target_obj, prop);
+        const result = Reflect.deleteProperty(target_obj, prop);
+        if (had) {
+          self.debounce_save();
+        }
+        return result;
+      }
+    };
+    const proxy = new Proxy(target, handler);
+    this._settings_proxy_map.set(target, proxy);
+    return proxy;
+  }
+  debounce_save(ms = 500) {
+    if (this._debounce_save_timeout) {
+      clearTimeout(this._debounce_save_timeout);
+    }
+    this._debounce_save_timeout = setTimeout(() => {
+      this.queue_save();
+      this.collection.process_save_queue();
+      this._debounce_save_timeout = null;
+    }, ms);
+  }
+  async get_model_key_options() {
+    const model_configs = await this.instance.get_models();
+    return Object.entries(model_configs).map(([key, model_config]) => ({
+      label: model_config.name || key,
+      value: model_config.key || key
+    })).sort((a, b) => {
+      if (a.label.toLowerCase().includes("free") && !b.label.toLowerCase().includes("free")) {
+        return -1;
+      }
+      if (!a.label.toLowerCase().includes("free") && b.label.toLowerCase().includes("free")) {
+        return 1;
+      }
+      return a.label.localeCompare(b.label);
+    });
+  }
+  model_changed(key, value, elm) {
+    if (key === "model_key") {
+      this.data.model_key = value;
+      const model_defaults = this.data.provider_models?.[this.data.model_key] || {};
+      const adapter_defaults = this.ProviderAdapterClass.defaults || {};
+      delete this.data.test_passed;
+      this.data = {
+        ...this.data,
+        ...adapter_defaults,
+        ...model_defaults
       };
     }
-  }
-  clean_and_update_source_blocks(source2, blocks_obj);
-  for (const block of source2.blocks) {
-    if (!block.vec) {
-      block.queue_embed();
+    if (!["api_key", "meta.name"].includes(key)) {
+      this.emit_event("model:changed");
     }
   }
-}
-function clean_and_update_source_blocks(source2, blocks_obj) {
-  const current_block_keys = new Set(Object.keys(blocks_obj).map((sk) => source2.key + sk));
-  const blocks = source2.blocks;
-  for (let i = 0; i < blocks.length; i++) {
-    if (!current_block_keys.has(blocks[i].key)) {
-      blocks[i].deleted = true;
-      blocks[i].queue_save();
-    }
+  /**
+   * @abstract should be implemented by subclasses
+   */
+  async test_model() {
   }
-  source2.data.blocks = blocks_obj;
-  source2.queue_save();
+  get display_name() {
+    return this.data.meta?.name || `${this.data.provider_key} - ${this.data.model_key}`;
+  }
+  get settings_config() {
+    return {
+      provider_key: {
+        type: "html",
+        value: `<p><strong>Provider:</strong> ${this.data.provider_key}</p>`
+      },
+      "meta.name": {
+        type: "text",
+        name: "Name",
+        description: "A friendly name for this model configuration."
+      },
+      model_key: {
+        type: "dropdown",
+        name: "Model",
+        description: "The model to use from the selected provider.",
+        options_callback: "get_model_key_options",
+        callback: "model_changed"
+      },
+      // add model_changed callback to each provider setting that doesn't already have callback defined 
+      ...Object.fromEntries(
+        Object.entries(this.provider_config.settings_config || {}).map(
+          ([setting_key, setting_config]) => [setting_key, { ...setting_config, callback: setting_config.callback || "model_changed" }]
+        )
+      )
+    };
+  }
+  /**
+   * Reactive settings view for this model.
+   * Mutating any property (including nested objects/arrays) via this proxy
+   * will call queue_save().
+   *
+   * @returns {Object} Proxied view of this.data.
+   */
+  get settings() {
+    return this.create_settings_proxy(this.data);
+  }
+  get model_key() {
+    return this.data.model_key;
+  }
+  /**
+   * @deprecated included for backward compatibility
+   */
+  get opts() {
+    return this.settings;
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-models/collections/models.js
+var Models = class extends Collection {
+  model_type = "Model type";
+  // replace in subclass
+  new_model(data = {}) {
+    if (!data.provider_key) throw new Error("provider_key is required to create a new model");
+    const existing_from_provider = this.filter((m) => m.provider_key === data.provider_key).sort((a, b) => b.data.created_at - a.data.created_at)[0];
+    if (existing_from_provider) {
+      if (!data.api_key && existing_from_provider.data.api_key) {
+        data.api_key = existing_from_provider.data.api_key;
+      }
+    }
+    const item = new this.item_type(this.env, {
+      ...data
+    });
+    this.set(item);
+    item.queue_save();
+    return item;
+  }
+  /**
+   * Retrieve the provider key used when creating a default model.
+   * @abstract
+   * @returns {string} provider key for the default model.
+   */
+  get default_provider_key() {
+    throw new Error("default_provider_key not implemented");
+  }
+  get default_model_key() {
+    if (!this.settings.default_model_key || !this.get(this.settings.default_model_key)) {
+      const new_default = this.new_model({ provider_key: this.default_provider_key });
+      new_default.queue_save();
+      this.process_save_queue();
+      this.settings.default_model_key = new_default.key;
+    }
+    return this.settings.default_model_key;
+  }
+  get default() {
+    return this.get(this.default_model_key);
+  }
+  get env_config() {
+    return this.env.config.collections[this.collection_key];
+  }
+  get_model_key_options() {
+    return this.filter().map((model) => ({
+      label: model.data.meta?.name || `${model.provider_key} - ${model.data.model_key}`,
+      value: model.key
+    }));
+  }
+};
+function settings_config5(scope) {
+  return {
+    default_model_key: {
+      type: "dropdown",
+      name: `${scope.model_type} model`,
+      description: `Used as the default ${scope.model_type.toLowerCase()} model when no other is specified.`,
+      options_callback: "get_model_key_options",
+      btn: "New"
+    }
+  };
 }
 
-// node_modules/obsidian-smart-env/utils/format_collection_name.js
+// node_modules/obsidian-smart-env/node_modules/smart-models/items/embedding_model.js
+var EmbeddingModel = class extends Model {
+  /**
+   * Default properties for an instance of CollectionItem.
+   * @returns {Object}
+   */
+  static get defaults() {
+    return {
+      data: {
+        api_key: "",
+        provider_key: "transformers",
+        model_key: "TaylorAI/bge-micro-v2",
+        dims: 384,
+        // ???
+        max_tokens: 512
+        // ???
+      }
+    };
+  }
+  async embed(input) {
+    if (typeof input === "string") {
+      input = [{ embed_input: input }];
+    }
+    return (await this.embed_batch(input))[0];
+  }
+  async embed_batch(inputs) {
+    return this.instance.embed_batch(inputs);
+  }
+  async test_model() {
+    try {
+      const resp = await this.embed("test input");
+      const success = !resp.error;
+      this.data.test_passed = success;
+      this.debounce_save();
+      return { success, response: resp };
+    } catch (e) {
+      this.data.test_passed = false;
+      return { error: e.message || String(e) };
+    }
+  }
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-models/collections/embedding_models.js
+var EmbeddingModels = class extends Models {
+  model_type = "Embedding";
+  get default_provider_key() {
+    return "transformers";
+  }
+};
+var embedding_models_collection = {
+  class: EmbeddingModels,
+  data_dir: "embedding_models",
+  collection_key: "embedding_models",
+  data_adapter: ajson_single_file_default,
+  item_type: EmbeddingModel,
+  providers: {
+    // transformers // replace with platform-specific import in obsidian-smart-env
+  },
+  settings_config: settings_config5
+};
+var embedding_models_default = embedding_models_collection;
+
+// node_modules/obsidian-smart-env/src/adapters/embedding-model/transformers_iframe.js
+var TransformersIframeEmbeddingModelAdapter = class extends SmartEmbedTransformersIframeAdapter {
+  constructor(model_item) {
+    super(model_item);
+  }
+  get models() {
+    return {
+      "TaylorAI/bge-micro-v2": {
+        "id": "TaylorAI/bge-micro-v2",
+        "batch_size": 1,
+        "dims": 384,
+        "max_tokens": 512,
+        "name": "BGE-micro-v2",
+        "description": "Local, 512 tokens, 384 dim (recommended)",
+        "adapter": "transformers"
+      },
+      "Snowflake/snowflake-arctic-embed-xs": {
+        "id": "Snowflake/snowflake-arctic-embed-xs",
+        "batch_size": 1,
+        "dims": 384,
+        "max_tokens": 512,
+        "name": "Snowflake Arctic Embed XS",
+        "description": "Local, 512 tokens, 384 dim",
+        "adapter": "transformers"
+      }
+    };
+  }
+};
+var transformers_iframe_default = {
+  class: TransformersIframeEmbeddingModelAdapter,
+  settings_config: settings_config4
+};
+
+// node_modules/obsidian-smart-env/src/collections/embedding_models.js
+embedding_models_default.providers = {
+  transformers: transformers_iframe_default
+};
+var embedding_models_default2 = embedding_models_default;
+
+// node_modules/obsidian-smart-env/src/items/lookup_list.js
+var LookupList = class extends CollectionItem {
+  static key = "lookup_list";
+  static get defaults() {
+    return { data: {} };
+  }
+  async pre_process(params) {
+    if (typeof this.actions.lookup_list_pre_process === "function") {
+      await this.actions.lookup_list_pre_process(params);
+    }
+  }
+  async get_results(params = {}) {
+    await this.pre_process(params);
+    let results = this.filter_and_score(params);
+    if (this.should_post_process) results = await this.post_process(results, params);
+    return results;
+  }
+  filter_and_score(params = {}) {
+    const collection = this.env[params.results_collection_key] || this.env[this.collection.results_collection_key];
+    const score_errors = [];
+    const { results: raw_results } = Object.values(collection.items).reduce((acc, target) => {
+      const scored = target.filter_and_score(params);
+      if (!scored?.score) {
+        if (scored?.error) score_errors.push(scored.error);
+        return acc;
+      }
+      results_acc(acc, scored, params.limit || 20);
+      return acc;
+    }, { min: 0, results: /* @__PURE__ */ new Set() });
+    const results = Array.from(raw_results).sort(sort_by_score_descending);
+    if (!results.length) return results;
+    while (!results.some((r) => r.score > 0.5)) {
+      results.forEach((r) => r.score *= 2);
+    }
+    return results;
+  }
+  async post_process(results, params = {}) {
+    return results;
+  }
+  get should_post_process() {
+    return this.settings.lookup_post_process && this.settings.lookup_post_process !== "none";
+  }
+  // for compatibility with v3 connections list item
+  get item() {
+    return this;
+  }
+};
+
+// node_modules/obsidian-smart-env/src/collections/lookup_lists.js
+var settings_config6 = {
+  results_collection_key: {
+    name: "Lookup results type",
+    type: "dropdown",
+    description: "Choose whether results should be sources or blocks.",
+    option_1: "smart_sources|Sources",
+    option_2: "smart_blocks|Blocks"
+  }
+};
+var LookupLists = class extends Collection {
+  static get default_settings() {
+    return {
+      results_collection_key: "smart_blocks",
+      score_algo_key: "similarity",
+      results_limit: 20
+    };
+  }
+  static version = 0.01;
+  new_item({ query, filter }) {
+    if (!query || typeof query !== "string" || !query.trim()) {
+      throw new Error("LookupLists.new_item requires a non-empty query string.");
+    }
+    const date = format_ymd(/* @__PURE__ */ new Date());
+    const hash = murmur_hash_32_alphanumeric(query);
+    const key = `${date}+${hash}`;
+    if (this.items[key]) return this.items[key];
+    const list = new LookupList(this.env, {
+      key,
+      query,
+      filter
+    });
+    this.set(list);
+    return list;
+  }
+  get settings_config() {
+    return { ...settings_config6 };
+  }
+  process_load_queue() {
+  }
+  get results_collection_key() {
+    const stored_key = this.settings?.results_collection_key;
+    if (this.env.collections?.[stored_key]) return stored_key;
+    return "smart_sources";
+  }
+};
+function format_ymd(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+var lookup_lists_default = {
+  class: LookupLists,
+  collection_key: "lookup_lists",
+  item_type: LookupList,
+  settings_config: settings_config6
+};
+
+// node_modules/obsidian-smart-env/src/utils/format_collection_name.js
 function format_collection_name(key) {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// node_modules/obsidian-smart-env/components/collection_settings.js
-async function build_html3(collection, opts = {}) {
+// node_modules/obsidian-smart-env/src/components/collection_settings.js
+async function build_html2(collection, opts = {}) {
   const settings_html = Object.entries(collection.settings_config).map(([setting_key, setting_config]) => {
     if (!setting_config.setting) setting_config.setting = setting_key;
     return this.render_setting_html(setting_config);
@@ -14795,8 +16714,8 @@ async function build_html3(collection, opts = {}) {
   </div></div></div>`;
   return html;
 }
-async function render5(collection, opts = {}) {
-  const html = await build_html3.call(this, collection, opts);
+async function render2(collection, opts = {}) {
+  const html = await build_html2.call(this, collection, opts);
   const frag = this.create_doc_fragment(html);
   await this.render_setting_components(frag, { scope: collection });
   if (opts.settings_container) {
@@ -14808,388 +16727,148 @@ async function render5(collection, opts = {}) {
   return collection.settings_container;
 }
 
-// node_modules/obsidian-smart-env/modals/exclude_folders_fuzzy.js
-var import_obsidian4 = require("obsidian");
-var ExcludedFoldersFuzzy = class extends import_obsidian4.FuzzySuggestModal {
-  /**
-   * @param {App} app - The Obsidian app
-   * @param {Object} env - An environment-like object, must have .settings and .fs.folder_paths
-   */
-  constructor(app, env) {
-    super(app);
-    this.env = env;
-    this.setPlaceholder("Select a folder to exclude...");
-  }
-  open(callback) {
-    this.callback = callback;
-    super.open();
-  }
-  getItems() {
-    return this.env.smart_sources?.fs?.folder_paths || [];
-  }
-  getItemText(item) {
-    return item;
-  }
-  onChooseItem(item) {
-    if (!item) return;
-    const oldVal = this.env.settings.folder_exclusions || "";
-    const splitted = oldVal.split(",").map((s) => s.trim()).filter(Boolean);
-    if (!splitted.includes(item)) splitted.push(item);
-    this.env.settings.folder_exclusions = splitted.join(",");
-    this.callback?.();
-  }
-};
-
-// node_modules/obsidian-smart-env/modals/excluded_sources.js
-var import_obsidian5 = require("obsidian");
-var ExcludedSourcesModal = class extends import_obsidian5.Modal {
-  /**
-   * @param {Object} app - Obsidian app
-   * @param {Object} env - The environment instance
-   */
-  constructor(app, env) {
-    super(app);
-    this.env = env;
-  }
-  async onOpen() {
-    this.titleEl.setText("Excluded Sources");
-    this.contentEl.addClass("excluded-sources-modal");
-    this.render_excluded_list();
-  }
-  async render_excluded_list() {
-    this.contentEl.empty();
-    const list_el = this.contentEl.createEl("ul");
-    const excluded_file_paths = this.env.smart_sources.excluded_file_paths;
-    for (const file_path of excluded_file_paths) {
-      const li = list_el.createEl("li");
-      li.setText(file_path);
+// node_modules/obsidian-smart-env/src/utils/register_block_hover_popover.js
+var import_obsidian8 = require("obsidian");
+function register_block_hover_popover(parent, target, env, block_key) {
+  const app = env?.plugin?.app || window.app;
+  target.addEventListener("mouseover", async (ev) => {
+    if (import_obsidian8.Keymap.isModEvent(ev)) {
+      const block = env.smart_blocks.get(block_key);
+      const markdown = await block?.read();
+      if (markdown) {
+        const popover = new import_obsidian8.HoverPopover(parent, target);
+        const frag = env.smart_view.create_doc_fragment(`<div class="markdown-embed is-loaded">
+                <div class="markdown-embed-content node-insert-event">
+                  <div class="markdown-preview-view markdown-rendered node-insert-event show-indentation-guide allow-fold-headings allow-fold-lists">
+                    <div class="markdown-preview-sizer markdown-preview-section">
+                    </div>
+                  </div>
+                </div>
+              </div>`);
+        popover.hoverEl.classList.add("smart-block-popover");
+        popover.hoverEl.appendChild(frag);
+        const sizer = popover.hoverEl.querySelector(".markdown-preview-sizer");
+        import_obsidian8.MarkdownRenderer.render(app, markdown, sizer, "/", popover);
+      }
     }
-  }
-};
-
-// node_modules/obsidian-smart-env/modals/env_stats.js
-var import_obsidian6 = require("obsidian");
-var EnvStatsModal = class extends import_obsidian6.Modal {
-  constructor(app, env) {
-    super(app);
-    this.env = env;
-  }
-  async onOpen() {
-    this.titleEl.setText("Smart Environment");
-    const frag = await this.env.render_component("env_stats", this.env);
-    this.contentEl.appendChild(frag);
-  }
-};
-
-// node_modules/obsidian-smart-env/modals/exclude_files_fuzzy.js
-var import_obsidian7 = require("obsidian");
-var ExcludedFilesFuzzy = class extends import_obsidian7.FuzzySuggestModal {
-  /**
-   * @param {App} app - The Obsidian app
-   * @param {Object} env - An environment-like object, must have .settings and .fs.file_paths
-   */
-  constructor(app, env) {
-    super(app);
-    this.env = env;
-    this.setPlaceholder("Select a file to exclude...");
-  }
-  open(callback) {
-    this.callback = callback;
-    super.open();
-  }
-  getItems() {
-    const fileExclusions = (this.env.settings.file_exclusions || "").split(",").map((s) => s.trim()).filter(Boolean);
-    const candidates = (this.env.smart_sources?.fs?.file_paths || []).filter((path) => !fileExclusions.includes(path));
-    return candidates;
-  }
-  getItemText(item) {
-    return item;
-  }
-  onChooseItem(item) {
-    if (!item) return;
-    const oldVal = this.env.settings.file_exclusions || "";
-    const splitted = oldVal.split(",").map((s) => s.trim()).filter(Boolean);
-    if (!splitted.includes(item)) splitted.push(item);
-    this.env.settings.file_exclusions = splitted.join(",");
-    this.callback?.();
-  }
-};
-
-// node_modules/obsidian-smart-env/components/env_settings.css
-var css_sheet = new CSSStyleSheet();
-css_sheet.replaceSync(`.sc-env-settings-container {
-  margin: 1rem 0;
+  });
 }
 
-.sc-env-settings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
+// node_modules/obsidian-smart-env/src/utils/register_item_hover_popover.js
+function register_item_hover_popover(container, item) {
+  const app = item.env?.plugin?.app || window.app;
+  if (item.key.indexOf("{") === -1) {
+    container.addEventListener("mouseover", (event) => {
+      const linktext_path = item.key.replace(/#$/, "");
+      app.workspace.trigger("hover-link", {
+        event,
+        source: "smart-connections-view",
+        hoverParent: container.parentElement,
+        targetEl: container,
+        linktext: linktext_path
+      });
+    });
+  } else {
+    register_block_hover_popover(container.parentElement, container, item.env, item.key);
+  }
 }
 
-.toggle-env-settings-btn {
-  cursor: pointer;
+// node_modules/obsidian-smart-env/src/components/context-item/leaf.js
+var import_obsidian9 = require("obsidian");
+
+// node_modules/obsidian-smart-env/src/components/context-item/leaf.css
+var leaf_default = ".sc-context-item-leaf {\n  cursor: pointer;\n}\n.sc-context-item-score,\n.sc-context-item-size {\n  display: inline-block;\n  min-width: 4.5ch;\n  height: 1.7em;\n  line-height: 1.7em;\n  text-align: center;\n  font-weight: 600 !important;\n  font-size: 0.8em !important;\n  color: var(--nav-item-color) !important;\n  background: var(--background-modifier-hover);\n  border-radius: 6px;\n  padding: 0 0.4em;\n  margin-right: 0.35em;\n}\n.sc-context-item-size {\n  min-width: 0;\n}\n";
+
+// node_modules/obsidian-smart-env/src/components/context-item/leaf.js
+function format_score(score) {
+  const numeric_score = typeof score === "number" ? score : Number.parseFloat(score);
+  if (!Number.isFinite(numeric_score)) return null;
+  return Number.parseFloat(numeric_score.toFixed(2)).toString();
 }
-
-.smart-env-settings-header {
-  margin-bottom: 1rem;
+function format_size(size) {
+  const numeric_size = typeof size === "number" ? size : Number.parseFloat(size);
+  if (!Number.isFinite(numeric_size) || numeric_size < 0) return null;
+  const units = ["B", "KB", "MB", "GB"];
+  let size_value = numeric_size;
+  let unit_index = 0;
+  while (size_value >= 1024 && unit_index < units.length - 1) {
+    size_value /= 1024;
+    unit_index += 1;
+  }
+  const precision = size_value >= 10 || Number.isInteger(size_value) ? 0 : 1;
+  const rounded_value = Number.parseFloat(size_value.toFixed(precision));
+  return `${rounded_value.toString()} ${units[unit_index]}`;
 }
-
-.excluded-folder-item,
-.excluded-file-item {
-  margin: 0.3rem 0;
+function build_badge_html(label, class_name) {
+  if (!label) return "";
+  return `<span class="${class_name}">${label}</span>`;
 }
-`);
-var env_settings_default = css_sheet;
-
-// node_modules/obsidian-smart-env/components/env_settings.js
-async function build_html4(env, opts = {}) {
-  const env_settings_html = Object.entries(env.settings_config).map(([setting_key, setting_config]) => {
-    if (setting_key === "file_exclusions" || setting_key === "folder_exclusions") return false;
-    if (!setting_config.setting) setting_config.setting = setting_key;
-    return this.render_setting_html(setting_config);
-  }).filter(Boolean).join("\n");
-  const add_excluded_folders_btn = `
-    <button class="sc-add-excluded-folder-btn" type="button">Add excluded folder</button>
-  `;
-  const add_excluded_files_btn = `
-    <button class="sc-add-excluded-file-btn" type="button">Add excluded file</button>
-  `;
-  const excluded_folders_list = `<div class="sc-excluded-folders-list"></div>`;
-  const excluded_files_list = `<div class="sc-excluded-files-list"></div>`;
-  return `
-    <div class="sc-env-settings-container">
-      <div class="sc-env-settings-header">
-        <h2>Smart Environment</h2>
-        <button type="button" class="toggle-env-settings-btn">Show environment settings</button>
-      </div>
-      <div class="sc-env-settings-body" style="display: none;">
-        <div class="smart-env-settings-header" id="smart-env-buttons">
-          <button class="sc-collection-stats-btn" type="button">Show stats</button>
-          <button class="smart-env_reload-sources-btn" type="button">Reload sources</button>
-          <button class="smart-env_clean-up-data-btn" type="button">Clean-up data</button>
-          <button class="smart-env_clear-sources-data-btn" type="button">Clear sources data</button>
-        </div>
-
-        ${env_settings_html}
-
-        <div class="smart-env-settings-header">
-          <h2>Excluded folders</h2>
-          ${add_excluded_folders_btn}
-        </div>
-        ${excluded_folders_list}
-
-        <div class="smart-env-settings-header">
-          <h2>Excluded files</h2>
-          ${add_excluded_files_btn}
-        </div>
-        ${excluded_files_list}
-
-        <button class="sc-excluded-sources-btn" type="button">Show excluded</button>
-
-        <div data-smart-settings="smart_sources"></div>
-        <div data-smart-settings="smart_blocks"></div>
-        <p>Notes about embedding models:</p>
-        <ul>
-          <li>IMPORTANT: make sure local <code>BGE-micro-v2</code> embedding model works before trying other local models.</li>
-          <li>API models require an API key and send your notes to third-party servers for processing.</li>
-        </ul>
-        <div data-smart-notices></div>
-        <hr>
-      </div>
-      ${render_sign_in_or_open_smart_plugins(env)}
-    </div>
-  `;
+function build_html3(context_item, params = {}) {
+  let name;
+  if (context_item.item_ref) {
+    if (context_item.item_ref.key.includes("#")) {
+      const name_pcs = context_item.item_ref.key.split("/").pop().split("#").filter(Boolean);
+      const last_pc = name_pcs.pop();
+      const segments = [];
+      if (last_pc && last_pc.startsWith("{")) {
+        segments.push(name_pcs.pop());
+        segments.push(context_item.item_ref.lines.join("-"));
+        name = segments.join(" > Lines: ");
+      }
+    } else {
+      name = context_item.item_ref.key.split("/").pop();
+    }
+  } else {
+    name = context_item.key.split("/").pop();
+  }
+  const score = format_score(context_item?.data?.score);
+  const size = format_size(context_item?.size || context_item?.data?.size);
+  const score_html = build_badge_html(score, "sc-context-item-score");
+  const size_html = build_badge_html(size, "sc-context-item-size");
+  return `<span class="sc-context-item-leaf">
+  <span class="sc-context-item-remove" data-path="${context_item.key}">\xD7</span>
+  ${score_html}
+  <span class="sc-context-item-name">${name || context_item.key}</span>
+  ${size_html}
+  </span>`;
 }
-async function render6(env, opts = {}) {
-  const html = await build_html4.call(this, env, opts);
+async function render3(context_item, params = {}) {
+  this.apply_style_sheet(leaf_default);
+  const html = build_html3(context_item, params);
   const frag = this.create_doc_fragment(html);
-  this.apply_style_sheet(env_settings_default);
-  await this.render_setting_components(frag, { scope: env });
-  env.settings_container = frag.querySelector(".sc-env-settings-container");
-  const lean_coffee_callout = await env.render_component("lean_coffee_callout", env);
-  env.settings_container.appendChild(lean_coffee_callout);
-  post_process5.call(this, env, env.settings_container, opts);
-  return frag;
+  const container = frag.firstElementChild;
+  post_process2.call(this, context_item, container, params);
+  return container;
 }
-async function post_process5(env, container, opts = {}) {
-  const heading_btn = container.querySelector(".toggle-env-settings-btn");
-  const body_el = container.querySelector(".sc-env-settings-body");
-  if (heading_btn && body_el) {
-    heading_btn.addEventListener("click", () => {
-      const is_hidden = body_el.style.display === "none";
-      body_el.style.display = is_hidden ? "block" : "none";
-      heading_btn.textContent = is_hidden ? "Hide environment settings" : "Show environment settings";
+async function post_process2(context_item, container, params = {}) {
+  const env = context_item.env;
+  const remove_btn = container.querySelector(".sc-context-item-remove");
+  if (remove_btn) {
+    remove_btn.addEventListener("click", (event) => {
+      const target = event.currentTarget;
+      const tree_container = target.closest("[data-context-key]");
+      const ctx_key = tree_container?.getAttribute("data-context-key");
+      const ctx = env.smart_contexts.get(ctx_key);
+      ctx.remove_item(context_item.key);
     });
   }
-  const muted_notices_frag = await env.render_component("muted_notices", env);
-  await this.render_setting_components(muted_notices_frag, { scope: env });
-  container.querySelector("[data-smart-notices]").appendChild(muted_notices_frag);
-  const add_folder_btn = container.querySelector(".sc-add-excluded-folder-btn");
-  if (add_folder_btn) {
-    add_folder_btn.addEventListener("click", () => {
-      const fuzzy = new ExcludedFoldersFuzzy(env.main.app, env);
-      fuzzy.open(() => {
-        render_excluded_dir_list(env, container);
-        env.update_exclusions();
-      });
-    });
+  if (context_item.item_ref) {
+    const name2 = container.querySelector(".sc-context-item-name");
+    name2.setAttribute("title", `Hold ${import_obsidian9.Platform.isMacOS ? "\u2318" : "Ctrl"} to preview`);
+    register_item_hover_popover(name2, context_item.item_ref);
   }
-  const add_file_btn = container.querySelector(".sc-add-excluded-file-btn");
-  if (add_file_btn) {
-    add_file_btn.addEventListener("click", () => {
-      const fuzzy = new ExcludedFilesFuzzy(env.main.app, env);
-      fuzzy.open(() => {
-        render_excluded_file_list(env, container);
-        env.update_exclusions();
-      });
-    });
-  }
-  const show_excluded_btn = container.querySelector(".sc-excluded-sources-btn");
-  if (show_excluded_btn) {
-    show_excluded_btn.addEventListener("click", () => {
-      const modal = new ExcludedSourcesModal(env.main.app, env);
-      modal.open();
-    });
-  }
-  const show_stats_btn = container.querySelector(".sc-collection-stats-btn");
-  if (show_stats_btn) {
-    show_stats_btn.addEventListener("click", () => {
-      const modal = new EnvStatsModal(env.main.app, env);
-      modal.open();
-    });
-  }
-  const reload_sources_btn = container.querySelector(".smart-env_reload-sources-btn");
-  if (reload_sources_btn) {
-    reload_sources_btn.addEventListener("click", async () => {
-      const start = Date.now();
-      env.smart_sources.unload();
-      env.smart_blocks.unload();
-      await env.init_collections();
-      await env.load_collections();
-      await env.smart_sources.process_embed_queue();
-      const end = Date.now();
-      env.main.notices?.show("reload_sources", { time_ms: end - start });
-    });
-  }
-  const clean_up_data_btn = container.querySelector(".smart-env_clean-up-data-btn");
-  if (clean_up_data_btn) {
-    clean_up_data_btn.addEventListener("click", async () => {
-      await env.smart_sources.run_clean_up_data();
-    });
-  }
-  const smart_env_buttons = container.querySelector("#smart-env-buttons");
-  const clear_sources_data_btn = smart_env_buttons.querySelector(".smart-env_clear-sources-data-btn");
-  if (clear_sources_data_btn) {
-    const inline_confirm_html = `
-      <div class="sc-inline-confirm-row" style="display: none;">
-        <span style="margin-right: 10px;">
-          Are you sure you want to clear all sources data? This cannot be undone.
-        </span>
-        <span class="sc-inline-confirm-row-buttons">
-          <button class="sc-inline-confirm-yes">Yes</button>
-          <button class="sc-inline-confirm-cancel">Cancel</button>
-        </span>
-      </div>
-    `;
-    const inline_confirm_frag = this.create_doc_fragment(inline_confirm_html);
-    smart_env_buttons.appendChild(inline_confirm_frag);
-    const confirm_yes = smart_env_buttons.querySelector(".sc-inline-confirm-yes");
-    const confirm_cancel = smart_env_buttons.querySelector(".sc-inline-confirm-cancel");
-    clear_sources_data_btn.addEventListener("click", () => {
-      const confirm_row = smart_env_buttons.querySelector(".sc-inline-confirm-row");
-      confirm_row.style.display = "block";
-      clear_sources_data_btn.style.display = "none";
-    });
-    confirm_yes.addEventListener("click", async (e) => {
-      const confirm_row = e.target.closest(".sc-inline-confirm-row");
-      await env.smart_sources.run_clear_all();
-      confirm_row.style.display = "none";
-      clear_sources_data_btn.style.display = "inline-block";
-    });
-    confirm_cancel.addEventListener("click", (e) => {
-      const confirm_row = e.target.closest(".sc-inline-confirm-row");
-      confirm_row.style.display = "none";
-      clear_sources_data_btn.style.display = "inline-block";
-    });
-  }
-  const env_collections_containers = container.querySelectorAll("[data-smart-settings]");
-  for (const el of env_collections_containers) {
-    const collection_key = el.dataset.smartSettings;
-    const collection = env[collection_key];
-    if (!collection) continue;
-    const collection_settings_frag = await env.render_component("collection_settings", collection);
-    el.appendChild(collection_settings_frag);
-  }
-  render_excluded_dir_list(env, container);
-  render_excluded_file_list(env, container);
-}
-function render_excluded_dir_list(env, container) {
-  const list_container = container.querySelector(".sc-excluded-folders-list");
-  if (!list_container) return;
-  list_container.empty();
-  const ul = list_container.createEl("ul");
-  const excluded_csv = env.settings.folder_exclusions || "";
-  const arr = excluded_csv.split(",").map((s) => s.trim()).filter(Boolean);
-  arr.forEach((folder) => {
-    const li = ul.createEl("li", { cls: "excluded-folder-item" });
-    li.setText(folder + "  ");
-    const remove_btn = li.createEl("button", { text: "(x)", cls: "remove-folder-btn" });
-    remove_btn.addEventListener("click", () => {
-      const splitted = excluded_csv.split(",").map((x) => x.trim()).filter(Boolean);
-      const new_arr = splitted.filter((f) => f !== folder);
-      env.settings.folder_exclusions = new_arr.join(",");
-      render_excluded_dir_list(env, container);
-    });
+  const name = container.querySelector(".sc-context-item-name");
+  name.addEventListener("click", (event) => {
+    context_item.open(event);
   });
-  if (!arr.length) {
-    ul.createEl("li", { text: "No folders excluded yet." });
-  }
-}
-function render_excluded_file_list(env, container) {
-  const list_container = container.querySelector(".sc-excluded-files-list");
-  if (!list_container) return;
-  list_container.empty();
-  const ul = list_container.createEl("ul");
-  const excluded_csv = env.settings.file_exclusions || "";
-  const arr = excluded_csv.split(",").map((s) => s.trim()).filter(Boolean);
-  arr.forEach((file_path) => {
-    const li = ul.createEl("li", { cls: "excluded-file-item" });
-    li.setText(file_path + "  ");
-    const remove_btn = li.createEl("button", { text: "(x)", cls: "remove-file-btn" });
-    remove_btn.addEventListener("click", () => {
-      const splitted = excluded_csv.split(",").map((s) => s.trim()).filter(Boolean);
-      const new_arr = splitted.filter((f) => f !== file_path);
-      env.settings.file_exclusions = new_arr.join(",");
-      render_excluded_file_list(env, container);
-    });
-  });
-  if (!arr.length) {
-    ul.createEl("li", { text: "No files excluded yet." });
-  }
-}
-function render_sign_in_or_open_smart_plugins(env) {
-  const oauth_storage_prefix = env.plugin.app.vault.getName().toLowerCase().replace(/[^a-z0-9]/g, "_") + "_smart_plugins_oauth_";
-  const isLoggedIn = !!localStorage.getItem(oauth_storage_prefix + "token");
-  const buttonLabel = isLoggedIn ? "Open Smart Plugins" : "Sign in";
-  const buttonCallback = isLoggedIn ? "open_smart_plugins_settings" : "initiate_smart_plugins_oauth";
-  return `
-    <div class="setting-component"
-      data-name="Smart Plugins - Early Access"
-      data-type="button"
-      data-btn-text="${buttonLabel}"
-      data-description="Supporters can sign in to access early-release Smart Plugins"
-      data-callback="${buttonCallback}"
-    ></div>
-  `;
+  return container;
 }
 
-// node_modules/obsidian-smart-env/components/env_stats.js
-async function build_html5(env, opts = {}) {
+// node_modules/obsidian-smart-env/src/components/env_stats.js
+async function build_html4(env, opts = {}) {
   const lines = [];
   lines.push(`<h2>Collections</h2>`);
-  const collection_keys = Object.keys(env.collections).sort((a, b) => {
+  const collection_keys = Object.keys(env.collections).filter((key) => ["smart_sources", "smart_blocks"].includes(key)).sort((a, b) => {
     if (a === "smart_sources" || a === "smart_blocks") return -1;
     if (b === "smart_sources" || b === "smart_blocks") return 1;
     return a.localeCompare(b);
@@ -15214,12 +16893,12 @@ async function build_html5(env, opts = {}) {
     </div>
   `;
 }
-async function render7(env, opts = {}) {
-  const html = await build_html5.call(this, env, opts);
+async function render4(env, opts = {}) {
+  const html = await build_html4.call(this, env, opts);
   const frag = this.create_doc_fragment(html);
-  return await post_process6.call(this, env, frag, opts);
+  return await post_process3.call(this, env, frag, opts);
 }
-async function post_process6(env, frag, opts = {}) {
+async function post_process3(env, frag, opts = {}) {
   return frag;
 }
 function generate_collection_stats(collection, collectionKey) {
@@ -15234,14 +16913,9 @@ function generate_collection_stats(collection, collectionKey) {
       </div>
     `;
   }
-  const load_time_html = collection.load_time_ms ? `<span>Load time: ${collection.load_time_ms}ms</span>` : "";
-  const state_html = `<span>State: ${state}</span>`;
-  let html = "";
-  if (collectionKey === "smart_sources") {
-    html = get_smart_sources_stats(collection, niceName, total_items);
-  } else {
-    html = get_generic_collection_stats(collection, niceName, total_items);
-  }
+  const load_time_html = collection.load_time_ms ? `<p>Load time: ${collection.load_time_ms}ms</p>` : "";
+  const state_html = `<p>State: ${state}</p>`;
+  let html = get_generic_collection_stats(collection, niceName, total_items);
   let embed_stats = "";
   if (typeof collection.process_embed_queue === "function") {
     embed_stats = calculate_embed_coverage(collection, total_items);
@@ -15256,16 +16930,6 @@ function generate_collection_stats(collection, collectionKey) {
     </div>
   `;
 }
-function get_smart_sources_stats(collection, niceName, total_items, load_time_html) {
-  const totalFiles = collection.total_files ?? total_items;
-  const included = collection.included_files ?? "Error calculating included files";
-  const excluded = totalFiles - included;
-  return `
-      <p><strong>Total Files:</strong> ${totalFiles}</p>
-      <p><strong>Excluded:</strong> ${excluded}</p>
-      <p><strong>Included:</strong> ${included}</p>
-  `;
-}
 function get_generic_collection_stats(collection, niceName, total_items, load_time_html) {
   return `
       <p><strong>Total:</strong> ${total_items}</p>
@@ -15274,15 +16938,100 @@ function get_generic_collection_stats(collection, niceName, total_items, load_ti
 function calculate_embed_coverage(collection, total_items) {
   const embedded_items = Object.values(collection.items).filter((item) => item.vec);
   if (!embedded_items.length) return "<p>No items embedded</p>";
-  const is_unembedded = Object.values(collection.items).filter((i) => i.should_embed && i.is_unembedded);
-  const pct = embedded_items.length / total_items * 100;
+  const stats = Object.values(collection.items).reduce((acc, i) => {
+    if (i.should_embed) acc.should_embed += 1;
+    else acc.should_not_embed += 1;
+    if (i.vec) acc.embedded += 1;
+    if (i.should_embed && !i.vec) acc.missing_embed += 1;
+    if (!i.should_embed && i.vec) acc.extraneous_embed += 1;
+    return acc;
+  }, { should_embed: 0, embedded: 0, missing_embed: 0, extraneous_embed: 0, should_not_embed: 0 });
+  const pct = stats.embedded / stats.should_embed * 100;
   const percent = Math.round(pct);
-  const display = `${percent}% (${embedded_items.length} / ${total_items})`;
-  return `<p><strong>Embedding coverage:</strong> ${display}</p>` + (is_unembedded.length ? `<p><strong>Unembedded:</strong> ${is_unembedded.length}</p>` : "");
+  return `<p><strong>Embedding coverage:</strong> ${percent}% (${stats.embedded} / ${stats.should_embed})</p>` + (stats.missing_embed ? `<p><strong>Missing embeddings:</strong> ${stats.missing_embed}</p>` : "") + (stats.extraneous_embed ? `<p><strong>Extraneous embeddings:</strong> ${stats.extraneous_embed}</p>` : "") + (stats.should_not_embed ? `<p><strong>Other items (e.g. less than minimum length to embed):</strong> ${stats.should_not_embed}</p>` : "");
 }
 
-// node_modules/obsidian-smart-env/components/lean_coffee_callout.js
-var import_obsidian8 = require("obsidian");
+// node_modules/obsidian-smart-env/src/components/form/dropdown.js
+var import_obsidian10 = require("obsidian");
+function build_html5(scope, params = {}) {
+  return `<div class="smart-form-dropdown-component"></div>`;
+}
+async function render5(scope, params = {}) {
+  const html = build_html5.call(this, scope, params);
+  const frag = this.create_doc_fragment(html);
+  return await post_process4.call(this, scope, frag, params);
+}
+async function post_process4(scope, container, params = {}) {
+  if (!scope) {
+    container.textContent = "Error: scope is required for dropdown component.";
+    return container;
+  }
+  const settings = scope.settings;
+  if (!settings || typeof settings !== "object") {
+    container.textContent = "Error: scope.settings{} is required for dropdown component.";
+    return container;
+  }
+  const setting_key = params.setting_key;
+  if (!setting_key) {
+    container.textContent = "Error: setting_key is required for dropdown component.";
+    return container;
+  }
+  const options = params.options;
+  if (!Array.isArray(options) || options.length === 0) {
+    container.textContent = "Error: options[] is required for dropdown component.";
+    return container;
+  }
+  const setting = new import_obsidian10.Setting(container);
+  if (params.label && typeof setting.setName === "function") {
+    setting.setName(params.label);
+  }
+  if (params.description && typeof setting.setDesc === "function") {
+    setting.setDesc(params.description);
+  }
+  if (params.tooltip && typeof setting.setTooltip === "function") {
+    setting.setTooltip(params.tooltip);
+  }
+  const current_value = get_by_path(settings, setting_key) ?? "";
+  let select_el = null;
+  setting.addDropdown((dropdown) => {
+    console.log({ dropdown, current_value, scope, options });
+    select_el = dropdown.selectEl;
+    if (params.required) {
+      select_el.setAttribute("required", "true");
+    }
+    options.forEach((opt) => {
+      dropdown.addOption(opt.value, opt.label);
+    });
+    select_el.childNodes.forEach((option_el) => {
+      if (option_el.value === current_value) {
+        option_el.selected = true;
+      }
+      if (options.find((o) => o.value === option_el.value)?.disabled) {
+        option_el.disabled = true;
+      }
+    });
+    if (select_el) {
+      select_el.value = current_value;
+    }
+  });
+  const handler = () => {
+    const value = select_el.value;
+    if (typeof params.on_change === "function") {
+      params.on_change(value, { scope, setting_key, select_el, container });
+    } else {
+      set_by_path(scope.settings, setting_key, value);
+    }
+  };
+  select_el.addEventListener("change", handler);
+  this.attach_disposer(select_el, () => {
+    select_el.removeEventListener("change", handler);
+  });
+  return container;
+}
+render5.version = 0.2;
+
+// node_modules/obsidian-smart-env/src/components/lean_coffee_callout.js
+var import_obsidian11 = require("obsidian");
 function build_html6(env, opts = {}) {
   return `<div class="wrapper">
     <div id="lean-coffee-callout" data-callout-metadata="" data-callout-fold="" data-callout="info" class="callout" style="mix-blend-mode: unset;">
@@ -15310,24 +17059,930 @@ function build_html6(env, opts = {}) {
     </div>
   </div>`;
 }
-function render8(env, opts = {}) {
+function render6(env, opts = {}) {
   const html = build_html6.call(this, env, opts);
   const frag = this.create_doc_fragment(html);
   const callout = frag.querySelector("#lean-coffee-callout");
   const icon_container = callout.querySelector(".callout-icon");
-  const icon = (0, import_obsidian8.getIcon)("smart-chat");
+  const icon = (0, import_obsidian11.getIcon)("smart-chat");
   if (icon) {
     this.empty(icon_container);
     icon_container.appendChild(icon);
   }
-  post_process7.call(this, env, callout, opts);
+  post_process5.call(this, env, callout, opts);
   return callout;
 }
-function post_process7(env, callout) {
+function post_process5(env, callout) {
 }
 
-// node_modules/obsidian-smart-env/components/muted_notices.js
-async function build_html7(env, opts = {}) {
+// node_modules/obsidian-smart-env/src/components/notifications_feed.js
+function build_html7() {
+  return `<div>
+    <button class="copy-all-notifications-btn">Copy All Notifications</button>
+    <div class="smart-env-notifications-feed"></div>
+  </div>`;
+}
+async function render7(env, params = {}) {
+  const frag = this.create_doc_fragment(build_html7());
+  const container = frag.firstElementChild;
+  post_process6.call(this, env, container, params);
+  return frag;
+}
+async function post_process6(env, container, params = {}) {
+  const feed_container = container.querySelector(".smart-env-notifications-feed");
+  this.empty(feed_container);
+  const entries = Array.isArray(env.event_logs.session_events) ? [...env.event_logs.session_events] : [];
+  if (!entries.length) {
+    const empty2 = feed_container.ownerDocument.createElement("p");
+    empty2.className = "smart-env-notifications-empty";
+    empty2.textContent = "No Smart Env notifications yet.";
+    feed_container.appendChild(empty2);
+    return;
+  }
+  entries.slice(-100).reverse().forEach((entry) => {
+    append_entry(feed_container, entry);
+  });
+  const copy_btn = container.querySelector(".copy-all-notifications-btn");
+  copy_btn.addEventListener("click", () => {
+    const all_text = feed_container.textContent;
+    navigator.clipboard.writeText(all_text).then(() => {
+      copy_btn.textContent = "Copied!";
+      setTimeout(() => {
+        copy_btn.textContent = "Copy All Notifications";
+      }, 2e3);
+    });
+  });
+}
+function get_level(entry) {
+  const [event_domain, event_type] = entry.event_key.split(":");
+  if (event_domain === "notification") {
+    return event_type;
+  }
+  if (event_type === "error") {
+    return "error";
+  }
+  return "info";
+}
+function append_entry(feed_container, entry) {
+  const row = feed_container.ownerDocument.createElement("div");
+  row.className = "smart-env-notification";
+  row.dataset.level = get_level(entry);
+  feed_container.appendChild(row);
+  const meta = feed_container.ownerDocument.createElement("div");
+  meta.className = "smart-env-notification__meta";
+  const timestamp = typeof entry.event.at === "number" ? entry.event.at : Date.now();
+  meta.textContent = `${entry.event.collection_key ? entry.event.collection_key + " - " : ""}${entry.event_key} - ${to_time_ago(timestamp)}
+`;
+  row.appendChild(meta);
+  const event_payload_content = Object.entries(entry.event).filter(([k, v]) => !["at", "collection_key"].includes(k)).map(([k, v]) => `  ${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n");
+  if (event_payload_content.trim().length) {
+    row.style.cursor = "pointer";
+    const message = feed_container.ownerDocument.createElement("pre");
+    message.className = "smart-env-notification__message";
+    message.textContent = event_payload_content;
+    message.textContent += "\n\n";
+    message.style.display = "none";
+    row.appendChild(message);
+    row.addEventListener("click", () => {
+      if (message.style.display === "none") {
+        message.style.display = "block";
+      } else {
+        message.style.display = "none";
+      }
+    });
+  } else {
+    meta.textContent += "\n";
+  }
+}
+function to_time_ago(ms) {
+  const now_ms = Date.now();
+  const seconds = Math.floor((now_ms - ms) / 1e3);
+  if (seconds < 60) return `${seconds} seconds ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} days ago`;
+}
+
+// node_modules/obsidian-smart-env/src/components/pro-plugins/list.js
+var import_obsidian13 = require("obsidian");
+
+// node_modules/obsidian-smart-env/src/utils/smart_plugins.js
+var import_obsidian12 = require("obsidian");
+var SMART_CHAT_REPO = "brianpetro/smart-chat-obsidian";
+var SMART_CHAT_RELEASE_BASE_URL = `https://github.com/${SMART_CHAT_REPO}/releases`;
+var SMART_CHAT_RELEASE_API_URL = `https://api.github.com/repos/${SMART_CHAT_REPO}/releases/latest`;
+function get_smart_server_url() {
+  if (typeof window !== "undefined" && window.SMART_SERVER_URL_OVERRIDE) {
+    return window.SMART_SERVER_URL_OVERRIDE;
+  }
+  return "https://connect.smartconnections.app";
+}
+function try_get_zlib() {
+  if (typeof window?.require === "function") {
+    try {
+      return window.require("zlib");
+    } catch {
+    }
+  }
+  return null;
+}
+function inflate_deflate_data(compressed) {
+  const zlib = try_get_zlib();
+  if (!zlib) {
+    throw new Error("zlib not available (maybe Obsidian mobile?).");
+  }
+  const buf = Buffer.from(compressed);
+  const out = zlib.inflateRawSync(buf);
+  return new Uint8Array(out.buffer, out.byteOffset, out.length);
+}
+async function parse_zip_into_files(zipBuffer) {
+  const dv = new DataView(zipBuffer);
+  let offset = 0;
+  const length = dv.byteLength;
+  const files = [];
+  let pluginManifest = null;
+  while (offset + 4 <= length) {
+    const localSig = dv.getUint32(offset, true);
+    if (localSig === 33639248 || localSig === 134695760) {
+      break;
+    }
+    if (localSig !== 67324752) {
+      break;
+    }
+    offset += 4;
+    const versionNeeded = dv.getUint16(offset, true);
+    const generalPurposeBitFlag = dv.getUint16(offset + 2, true);
+    const compressionMethod = dv.getUint16(offset + 4, true);
+    offset += 6;
+    const lastModTimeDate = dv.getUint32(offset, true);
+    offset += 4;
+    let crc32 = dv.getUint32(offset, true);
+    let compressedSize = dv.getUint32(offset + 4, true);
+    let uncompressedSize = dv.getUint32(offset + 8, true);
+    offset += 12;
+    const fileNameLen = dv.getUint16(offset, true);
+    const extraLen = dv.getUint16(offset + 2, true);
+    offset += 4;
+    const fileNameBytes = new Uint8Array(zipBuffer.slice(offset, offset + fileNameLen));
+    const fileName = new TextDecoder("utf-8").decode(fileNameBytes);
+    offset += fileNameLen;
+    offset += extraLen;
+    const hasDataDescriptor = (generalPurposeBitFlag & 8) !== 0;
+    let compDataStart = offset;
+    let compDataEnd;
+    if (!hasDataDescriptor) {
+      compDataEnd = compDataStart + compressedSize;
+    } else {
+      let scanPos = compDataStart;
+      let foundSig = false;
+      while (scanPos + 4 <= length) {
+        const sig = dv.getUint32(scanPos, true);
+        if (sig === 134695760 || sig === 67324752 || sig === 33639248) {
+          foundSig = true;
+          break;
+        }
+        scanPos++;
+      }
+      compDataEnd = foundSig ? scanPos : length;
+    }
+    if (compDataEnd > length) {
+      break;
+    }
+    const fileDataCompressed = new Uint8Array(zipBuffer.slice(compDataStart, compDataEnd));
+    offset = compDataEnd;
+    if (hasDataDescriptor) {
+      if (offset + 4 <= length) {
+        const ddSig = dv.getUint32(offset, true);
+        if (ddSig === 134695760) {
+          offset += 4;
+        }
+        if (offset + 12 <= length) {
+          crc32 = dv.getUint32(offset, true);
+          compressedSize = dv.getUint32(offset + 4, true);
+          uncompressedSize = dv.getUint32(offset + 8, true);
+          offset += 12;
+        } else {
+          break;
+        }
+      }
+    }
+    let rawData;
+    if (compressionMethod === 0) {
+      rawData = fileDataCompressed;
+    } else if (compressionMethod === 8) {
+      rawData = inflate_deflate_data(fileDataCompressed);
+    } else {
+      continue;
+    }
+    files.push({ fileName, data: rawData });
+    if (fileName.toLowerCase().endsWith("manifest.json") && !fileName.includes("/")) {
+      try {
+        pluginManifest = JSON.parse(new TextDecoder("utf-8").decode(rawData));
+      } catch {
+      }
+    }
+  }
+  return { files, pluginManifest };
+}
+function validate_zip_buffer(zip_buffer, source_label = "Response") {
+  if (!zip_buffer || zip_buffer.byteLength < 4) {
+    throw new Error(`${source_label} returned too few bytes, not a valid ZIP.`);
+  }
+  const dv = new DataView(zip_buffer);
+  if (dv.getUint32(0, true) !== 67324752) {
+    const txt = new TextDecoder().decode(new Uint8Array(zip_buffer));
+    throw new Error(`${source_label} did not return a valid ZIP. Text:
+${txt}`);
+  }
+  return zip_buffer;
+}
+async function write_files_with_adapter(adapter, baseFolder, files) {
+  const hasWriteBinary = typeof adapter.writeBinary === "function";
+  if (!await adapter.exists(baseFolder)) {
+    await adapter.mkdir(baseFolder);
+  }
+  for (const { fileName, data } of files) {
+    const fullPath = baseFolder + "/" + fileName;
+    if (hasWriteBinary) {
+      await adapter.writeBinary(fullPath, data);
+    } else {
+      const base642 = btoa(String.fromCharCode(...data));
+      await adapter.write(fullPath, base642);
+    }
+  }
+}
+function is_server_version_newer(localVer, serverVer) {
+  if (!serverVer || serverVer === "unknown") return false;
+  const lv = localVer.replace(/[^\d.]/g, "");
+  const sv = serverVer.replace(/[^\d.]/g, "");
+  const la = lv.split(".").map(Number);
+  const sa = sv.split(".").map(Number);
+  for (let i = 0; i < Math.max(la.length, sa.length); i++) {
+    const l = la[i] || 0;
+    const s = sa[i] || 0;
+    if (s > l) return true;
+    if (s < l) return false;
+  }
+  return false;
+}
+async function fetch_plugin_zip(repoName, token) {
+  const resp = await (0, import_obsidian12.requestUrl)({
+    url: `${get_smart_server_url()}/plugin_download`,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({ repo: repoName })
+  });
+  if (resp.status !== 200) {
+    throw new Error(`plugin_download error ${resp.status}: ${resp.text}`);
+  }
+  return validate_zip_buffer(resp.arrayBuffer, "Smart Plugins server");
+}
+async function fetch_zip_from_url(download_url, request_fn = import_obsidian12.requestUrl) {
+  console.log(`[smart_plugins] download plugin from URL: ${download_url}`);
+  const resp = await request_fn({
+    url: download_url,
+    method: "GET",
+    headers: { Accept: "application/zip" }
+  });
+  if (resp.status && resp.status !== 200) {
+    throw new Error(`Download error ${resp.status}: ${resp.text || ""}`);
+  }
+  return validate_zip_buffer(resp.arrayBuffer, "Download");
+}
+async function fetch_plugin_readme(repo, token, request_fn = import_obsidian12.requestUrl) {
+  const resp = await request_fn({
+    url: `${get_smart_server_url()}/plugin_readme`,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({ repo })
+  });
+  if (resp.status !== 200) {
+    throw new Error(`plugin_readme error ${resp.status}: ${resp.text}`);
+  }
+  return resp.json.readme;
+}
+async function enable_plugin(app, plugin_id) {
+  await app.plugins.enablePlugin(plugin_id);
+  app.plugins.enabledPlugins.add(plugin_id);
+  app.plugins.requestSaveConfig();
+  app.plugins.loadManifests();
+}
+function get_oauth_storage_prefix(app) {
+  const vault_name = app?.vault?.getName?.() || "";
+  const safe = vault_name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+  return `${safe}_smart_plugins_oauth_`;
+}
+async function fetch_server_plugin_list(token) {
+  const resp = await (0, import_obsidian12.requestUrl)({
+    url: `${get_smart_server_url()}/plugin_list`,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({})
+  });
+  if (resp.status !== 200) {
+    throw new Error(`plugin_list error ${resp.status}: ${resp.text}`);
+  }
+  return resp.json;
+}
+
+// node_modules/obsidian-smart-env/src/components/pro-plugins/style.css
+var style_default = ".get-core-link {\r\n  text-wrap: nowrap;\r\n  font-size: var(--font-ui-small);\r\n}\r\n.core-installed-text {\r\n  text-wrap: nowrap;\r\n  font-size: var(--font-ui-small);\r\n  color: var(--text-muted);\r\n}\r\n\r\n.pro-plugins-list {\r\n  display: flex;\r\n  flex-direction: column;\r\n  row-gap: var(--size-4-3);\r\n  margin-top: var(--size-5);\r\n}\r\n\r\n.pro-plugins-list-item {\r\n  display: flex;\r\n  align-items: center;\r\n  padding: 0.75em 0;\r\n  border-top: 1px solid var(--background-modifier-border);\r\n  row-gap: var(--size-4-3);\r\n}";
+
+// node_modules/obsidian-smart-env/src/components/pro-plugins/list.js
+var PRO_PLUGINS_DESC = `<a href="https://smartconnections.app/core-plugins/" target="_external">Core plugins</a> provide essential functionality and a "just works" experience. <a href="https://smartconnections.app/pro-plugins/" target="_external">Pro plugins</a> enable advanced configuration and features for Obsidian AI experts.`;
+var PRO_PLUGINS_FOOTER = `All Pro plugins include advanced configurations and additional model providers. Pro users get priority support via email. <a href="https://smartconnections.app/introducing-pro-plugins/" target="_external">Learn more</a> about Pro plugins.`;
+function derive_fallback_plugins() {
+  const pro_placeholders = [
+    {
+      name: "Chat Pro",
+      description: "Configure chat to use Local and Cloud API providers (Ollama, LM Studio, OpenAI, Gemini, Anthropic, Open Router, and more).",
+      core_id: "smart-chatgpt"
+    },
+    {
+      name: "Connections Pro",
+      description: "More opportunities for connections. Graph view for visualizing. Inline and footer views (great for mobile!). Configurable algorithms and additional embedding model providers.",
+      core_id: "smart-connections"
+    },
+    {
+      name: "Context Pro",
+      description: "Advanced tools for context engineering. Utilize Bases, images, and external sources (great for coders!) in your contexts.",
+      core_id: "smart-context"
+    }
+  ];
+  return pro_placeholders;
+}
+function build_html8(env, params = {}) {
+  return `
+    <div class="pro-plugins-container">
+      <h1>Pro plugins</h1>
+      <p>${PRO_PLUGINS_DESC}</p>
+      <section class="smart-plugins-list">
+        <div class="pro-plugins-list"></div>
+      </section>
+      <footer class="smart-plugins-footer">${PRO_PLUGINS_FOOTER}</footer>
+      <h2>Account</h2>
+      <section class="smart-plugins-login">
+      </section>
+    </div>
+  `;
+}
+async function render8(env, params = {}) {
+  this.apply_style_sheet(style_default);
+  const html = build_html8.call(this, env, params);
+  const frag = this.create_doc_fragment(html);
+  const container = frag.firstElementChild;
+  await post_process7.call(this, env, container, params);
+  return container;
+}
+async function post_process7(env, container, params = {}) {
+  const plugin = env.plugin || null;
+  const app = plugin?.app || window.app;
+  const oauth_storage_prefix = get_oauth_storage_prefix(app);
+  const login_container = container.querySelector(".smart-plugins-login");
+  const pro_list_el = container.querySelector(".pro-plugins-list");
+  const placeholders = derive_fallback_plugins();
+  const get_installed_info = async () => {
+    const installed_map = {};
+    let { manifests } = app.plugins;
+    while (Object.keys(manifests).length === 0) {
+      manifests = app.plugins.manifests;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    for (const plugin_id in manifests) {
+      if (!Object.prototype.hasOwnProperty.call(manifests, plugin_id)) continue;
+      const { name, version } = manifests[plugin_id];
+      installed_map[plugin_id] = { name, version };
+    }
+    return installed_map;
+  };
+  const initiate_oauth_login = () => {
+    if (env && typeof env.initiate_smart_plugins_oauth === "function") {
+      env.initiate_smart_plugins_oauth();
+      new import_obsidian13.Notice("Please complete the login in your browser.");
+    }
+  };
+  const render_oauth_login_section = () => {
+    this.empty(login_container);
+    const token = localStorage.getItem(oauth_storage_prefix + "token") || "";
+    if (!token) {
+      const setting = new import_obsidian13.Setting(login_container).setName("Connect Account").setDesc("Log in with your Smart Connections supporter key.");
+      setting.addButton((btn) => {
+        btn.setButtonText("Login");
+        btn.onClick(() => initiate_oauth_login());
+      });
+    } else {
+      const setting = new import_obsidian13.Setting(login_container).setName("OAuth Token").setDesc(token.slice(0, 16) + "...");
+      setting.addButton((btn) => {
+        btn.setButtonText("Logout");
+        btn.onClick(() => {
+          localStorage.removeItem(oauth_storage_prefix + "token");
+          localStorage.removeItem(oauth_storage_prefix + "refresh");
+          new import_obsidian13.Notice("Logged out of Smart Plugins");
+          render_oauth_login_section();
+          render_plugin_list_section();
+        });
+      });
+    }
+  };
+  const render_fallback_plugin_list = async () => {
+    this.empty(pro_list_el);
+    if (!pro_list_el || placeholders.length === 0) return;
+    for (const item of placeholders) {
+      const row = await env.smart_components.render_component("pro_plugins_list_item", item, {
+        env,
+        app,
+        installed_map: {}
+      });
+      pro_list_el.appendChild(row);
+    }
+  };
+  const add_update_sub_to_login_section = () => {
+    const setting = new import_obsidian13.Setting(login_container).setName("Subscription Expired").setDesc("Your Smart Connections Pro subscription has expired. Please update your subscription to retain access to Pro plugins.");
+    setting.addButton((btn) => {
+      btn.setButtonText("Get Pro");
+      btn.onClick(() => {
+        window.open("https://smartconnections.app/subscribe/", "_external");
+      });
+    });
+    setting.addButton((btn) => {
+      btn.setButtonText("Update subscription");
+      btn.onClick(() => {
+        window.open("https://smartconnections.app/subscription-update/", "_external");
+      });
+    });
+    setting.addButton((btn) => {
+      btn.setButtonText("Refresh");
+      btn.onClick(() => {
+        env.events.emit("pro_plugins:refresh");
+      });
+    });
+  };
+  const render_plugin_list_section = async () => {
+    this.empty(pro_list_el);
+    const token = localStorage.getItem(oauth_storage_prefix + "token") || "";
+    if (!token) {
+      await render_fallback_plugin_list();
+      return;
+    }
+    try {
+      const installed_map = await get_installed_info();
+      const resp = await fetch_server_plugin_list(token);
+      const { list = [], unauthorized = [], sub_exp } = resp;
+      if (typeof sub_exp === "number" && sub_exp < Date.now()) {
+        add_update_sub_to_login_section();
+        await render_fallback_plugin_list();
+        return;
+      }
+      if (!Array.isArray(list) || list.length === 0) {
+        await render_fallback_plugin_list();
+        return;
+      }
+      for (const item of list) {
+        const row = await env.smart_components.render_component("pro_plugins_list_item", item, {
+          env,
+          app,
+          token,
+          installed_map,
+          on_installed: render_plugin_list_section
+        });
+        pro_list_el.appendChild(row);
+      }
+    } catch (err) {
+      console.error("[pro-plugins:list] Failed to fetch plugin list:", err);
+      pro_list_el.textContent = "Error fetching plugin list. Check console.";
+    }
+  };
+  const render_smart_plugins = async () => {
+    render_oauth_login_section();
+    await render_plugin_list_section();
+  };
+  env.events.on("smart_plugins_oauth_completed", () => {
+    render_smart_plugins();
+  });
+  await render_smart_plugins();
+  return container;
+}
+
+// node_modules/obsidian-smart-env/src/components/pro-plugins/list_item.js
+var import_obsidian14 = require("obsidian");
+var PRO_PLUGINS_URL = "https://smartconnections.app/pro-plugins/";
+function build_html9(item, params = {}) {
+  return `<div class="pro-plugins-list-item"></div>`;
+}
+function is_fallback_item(item) {
+  return !item || !item.repo;
+}
+function compute_display_state(item, local_info) {
+  const repo_name = item.repo;
+  const server_version = item.version || "unknown";
+  const plugin_id = item.manifest_id || repo_name.replace("/", "_");
+  const local_version = local_info?.version || null;
+  const display_name4 = local_info?.name || item.name || repo_name;
+  let desc = `Server version: ${server_version}`;
+  let button_label = "Install";
+  let is_disabled = false;
+  if (local_version) {
+    desc += ` | Installed version: ${local_version}`;
+    const is_update = is_server_version_newer(local_version, server_version);
+    if (is_update) {
+      button_label = "Update";
+    } else {
+      button_label = "Installed";
+      is_disabled = true;
+    }
+  }
+  if (item.description) {
+    desc += `
+${item.description}`;
+  }
+  return { plugin_id, display_name: display_name4, desc, button_label, is_disabled, server_version, local_version };
+}
+async function render9(item, params = {}) {
+  const html = build_html9(item, params);
+  const frag = this.create_doc_fragment(html);
+  const container = frag.firstElementChild;
+  await post_process8.call(this, item, container, params);
+  return container;
+}
+async function post_process8(item, container, params = {}) {
+  const { app, token, installed_map = {}, on_installed } = params;
+  if (is_fallback_item(item)) {
+    const row2 = new import_obsidian14.Setting(container).setName(item.name || "Pro plugin").setDesc(item.description || "Login to unlock Pro plugins.");
+    if (item.core_id) {
+      if (app.plugins.manifests[item.core_id]) {
+        const core_installed_text = document.createElement("i");
+        core_installed_text.classList.add("core-installed-text");
+        core_installed_text.textContent = "Core installed!";
+        row2.controlEl.appendChild(core_installed_text);
+      } else {
+        const get_core_link = document.createElement("a");
+        get_core_link.setAttribute("href", `obsidian://show-plugin?id=${item.core_id}`);
+        get_core_link.setAttribute("target", "_external");
+        get_core_link.textContent = "Install Core";
+        get_core_link.style.marginLeft = "10px";
+        get_core_link.classList.add("get-core-link");
+        row2.controlEl.appendChild(get_core_link);
+      }
+    }
+    row2.addButton((btn) => {
+      btn.setButtonText("Get Pro");
+      btn.onClick(() => {
+        window.open(PRO_PLUGINS_URL, "_external");
+      });
+    });
+    return container;
+  }
+  const plugin_id = item.manifest_id || item.repo.replace("/", "_");
+  const local = installed_map[plugin_id] || null;
+  const state = compute_display_state(item, local);
+  const row = new import_obsidian14.Setting(container).setName(state.display_name).setDesc(state.desc);
+  row.addButton((btn) => {
+    btn.setButtonText(state.button_label);
+    btn.setDisabled(state.is_disabled);
+    btn.onClick(() => install_plugin(item, { app, token, on_installed }));
+  });
+  row.addButton((btn) => {
+    btn.setButtonText("Learn more");
+    btn.onClick(() => show_plugin_readme(item, { app, token, display_name: state.display_name }));
+  });
+  return container;
+}
+var download_plugin_zip = async (item, token) => {
+  const resolved_download_url = typeof item.resolve_download_url === "function" ? await item.resolve_download_url() : item.download_url;
+  if (resolved_download_url) {
+    return fetch_zip_from_url(resolved_download_url);
+  }
+  if (!token) {
+    throw new Error("Login required to install this plugin.");
+  }
+  return fetch_plugin_zip(item.repo, token);
+};
+var install_plugin = async (item, params = {}) => {
+  const { app, token, on_installed } = params;
+  try {
+    new import_obsidian14.Notice(`Installing "${item.repo}" ...`);
+    const zip_data = await download_plugin_zip(item, token);
+    const { files, pluginManifest } = await parse_zip_into_files(zip_data);
+    const folder_name = item.plugin_id;
+    const base_folder = `${app.vault.configDir}/plugins/${folder_name}`;
+    await write_files_with_adapter(app.vault.adapter, base_folder, files);
+    await app.plugins.loadManifests();
+    const plugin_id = pluginManifest?.id || item.manifest_id || folder_name;
+    if (app.plugins.enabledPlugins.has(plugin_id)) {
+      await app.plugins.disablePlugin(plugin_id);
+    }
+    await enable_plugin(app, plugin_id);
+    new import_obsidian14.Notice(`${item.repo} installed successfully.`);
+    if (typeof on_installed === "function") {
+      await on_installed();
+    }
+  } catch (err) {
+    console.error("[pro-plugins:list_item] Install error:", err);
+    new import_obsidian14.Notice(`Install failed: ${err.message}`);
+  }
+};
+var show_plugin_readme = async (item, params = {}) => {
+  const { app, token, display_name: display_name4 } = params;
+  try {
+    const readme = await fetch_plugin_readme(item.repo, token);
+    const modal = new import_obsidian14.Modal(app);
+    modal.setTitle(display_name4 || item.name || item.repo);
+    await import_obsidian14.MarkdownRenderer.render(app, readme, modal.contentEl, "", new import_obsidian14.Component());
+    modal.open();
+  } catch (err) {
+    console.error("[pro-plugins:list_item] Failed to load README:", err);
+    new import_obsidian14.Notice("Failed to load README");
+  }
+};
+
+// node_modules/obsidian-smart-env/src/components/settings/env_models.js
+var import_obsidian16 = require("obsidian");
+
+// node_modules/obsidian-smart-env/src/modals/smart_model_modal.js
+var import_obsidian15 = require("obsidian");
+var SmartModelModal = class extends import_obsidian15.Modal {
+  /**
+   * @param {App} app
+   * @param {EditModelModalOpts} opts
+   */
+  constructor(model, params = {}) {
+    const app = model.env.plugin.app || window.app;
+    super(app);
+    this.model = model;
+    this.collection = this.model.collection;
+    this.env = this.model.env;
+    this.params = params;
+  }
+  onOpen() {
+    this.titleEl.setText("Edit model");
+    this.contentEl.addClass("smart-model-modal");
+    this.render_form();
+  }
+  onClose() {
+    this.contentEl.empty();
+    if (typeof this.params.on_close === "function") {
+      this.params.on_close();
+    }
+  }
+  async render_form() {
+    const container = this.contentEl;
+    container.empty();
+    const model = this.model;
+    const settings = model.settings_config;
+    const form = await this.env.smart_view.render_settings(settings, {
+      scope: model
+    });
+    container.appendChild(form);
+    const test_btn = container.createEl("button", { text: "Test model" });
+    test_btn.addEventListener("click", async () => {
+      await this.run_test(container, model);
+    });
+    if (this.params.test_on_open) {
+      await this.run_test(container, model);
+    }
+  }
+  async run_test(container, model) {
+    const test_result_el = container.createEl("pre", { cls: "model-test-result", text: "Testing..." });
+    container.appendChild(test_result_el);
+    const test_result = await model.test_model();
+    test_result_el.textContent = JSON.stringify(test_result, null, 2);
+  }
+};
+
+// node_modules/obsidian-smart-env/src/utils/smart-models/provider_options.js
+var provider_options = {
+  chat_completion_models: [
+    {
+      label: "Open Router (cloud)",
+      value: "open_router"
+    },
+    {
+      label: "PRO: LM Studio (local, requires LM Studio app)",
+      value: "lm_studio",
+      disabled: true
+    },
+    {
+      label: "PRO: Ollama (local, requires Ollama app)",
+      value: "ollama",
+      disabled: true
+    },
+    {
+      label: "PRO: OpenAI (cloud)",
+      value: "openai",
+      disabled: true
+    },
+    {
+      label: "PRO: Google Gemini (cloud)",
+      value: "google",
+      disabled: true
+    },
+    {
+      label: "PRO: Cohere (cloud)",
+      value: "cohere",
+      disabled: true
+    },
+    {
+      label: "PRO: xAI Grok (cloud)",
+      value: "xai",
+      disabled: true
+    },
+    {
+      label: "PRO: Anthropic Claude (cloud)",
+      value: "anthropic",
+      disabled: true
+    },
+    {
+      label: "PRO: Deepseek (cloud)",
+      value: "deepseek",
+      disabled: true
+    }
+  ],
+  embedding_models: [
+    {
+      label: "Transformers (easy, local, built-in)",
+      value: "transformers"
+    },
+    {
+      label: "PRO: LM Studio (local, requires LM Studio app)",
+      value: "lm_studio",
+      disabled: true
+    },
+    {
+      label: "PRO: Ollama (local, requires Ollama app)",
+      value: "ollama",
+      disabled: true
+    },
+    {
+      label: "PRO: OpenAI (cloud)",
+      value: "openai",
+      disabled: true
+    },
+    {
+      label: "PRO: Google Gemini (cloud)",
+      value: "google",
+      disabled: true
+    },
+    {
+      label: "PRO: Open Router (cloud)",
+      value: "open_router",
+      disabled: true
+    }
+  ],
+  ranking_models: [
+    {
+      label: "PRO: Cohere (cloud)",
+      value: "cohere",
+      disabled: true
+    }
+  ]
+};
+
+// node_modules/obsidian-smart-env/src/components/settings/env_models.css
+var env_models_default = '.model-settings .model-info {\r\n  border-radius: var(--radius-m);\r\n  padding: 1rem;\r\n  margin-bottom: 1rem;\r\n  background-color: var(--background-secondary);\r\n  pre {\r\n    margin: 0;\r\n    font-size: 0.9rem;\r\n  }\r\n  .test-result-icon {\r\n    vertical-align: middle;\r\n    margin-left: 0.5rem;\r\n  }\r\n  .test-result-icon[data-icon="square-check-big"]{\r\n    color: var(--color-green);\r\n  }\r\n  .test-result-icon[data-icon="circle-x"]{\r\n    color: var(--color-red);\r\n  }\r\n}';
+
+// node_modules/obsidian-smart-env/src/components/settings/env_models.js
+function build_html10(env, params) {
+  return `<div class="model-settings">
+    <div class="settings-group">Loading model options...</div>
+  </div>`;
+}
+async function render10(env, params) {
+  this.apply_style_sheet(env_models_default);
+  const frag = this.create_doc_fragment(build_html10(env, params));
+  const container = frag.firstElementChild;
+  post_process9.call(this, env, container, params);
+  return container;
+}
+async function post_process9(env, container, params) {
+  const settings_group = container.querySelector(".settings-group");
+  const render_model_type_settings = async (models_collection) => {
+    let type_container;
+    const existing_type_container = settings_group.querySelector(`[data-model-type="${models_collection.collection_key}"]`);
+    if (existing_type_container) {
+      type_container = existing_type_container;
+      this.empty(type_container);
+    } else {
+      type_container = this.create_doc_fragment(`<div data-model-type="${models_collection.collection_key}"></div>`).firstElementChild;
+      settings_group.appendChild(type_container);
+    }
+    const smart_env_heading_container = this.create_doc_fragment(`<div class="smart-env-settings-header">
+      <h2>${models_collection.model_type} models</h2>
+    </div>`).firstElementChild;
+    type_container.appendChild(smart_env_heading_container);
+    const default_setting = await this.render_settings(models_collection.env_config.settings_config, {
+      scope: models_collection
+    });
+    type_container.appendChild(default_setting);
+    type_container.querySelector("select").addEventListener("change", async (e) => {
+      render_model_type_settings(models_collection);
+    });
+    const new_model_btn = type_container.querySelector("button");
+    new_model_btn.addEventListener("click", async (e) => {
+      const providers = (provider_options[models_collection.collection_key] || []).map((p) => ({ ...p, disabled: !models_collection.env_config.providers[p.value] }));
+      if (providers.length === 0) {
+        new_model_btn.disabled = true;
+        return;
+      }
+      const menu = new import_obsidian16.Menu();
+      providers.forEach((provider) => {
+        menu.addItem((item) => {
+          item.setTitle(provider.label);
+          if (provider.disabled) {
+            item.setDisabled(true);
+          }
+          item.onClick(async () => {
+            const model = models_collection.new_model({ provider_key: provider.value });
+            const on_new_close = async () => {
+              models_collection.settings.default_model_key = model.key;
+              model.emit_event("model:changed");
+              await render_model_type_settings(models_collection);
+            };
+            new SmartModelModal(model, { on_close: on_new_close }).open();
+          });
+        });
+      });
+      menu.showAtMouseEvent(e);
+    });
+    smart_env_heading_container.appendChild(new_model_btn);
+    const info_container = this.create_doc_fragment(build_model_info_html(models_collection.default)).firstElementChild;
+    type_container.appendChild(info_container);
+    const icon_el = info_container.querySelector(".test-result-icon");
+    (0, import_obsidian16.setIcon)(icon_el, get_test_result_icon_name(models_collection.default));
+    const on_edit_close = async () => {
+      await render_model_type_settings(models_collection);
+    };
+    info_container.querySelector(".open-model-modal").addEventListener("click", () => {
+      new SmartModelModal(models_collection.default, { on_close: on_edit_close }).open();
+    });
+    info_container.querySelector(".test-model").addEventListener("click", () => {
+      new SmartModelModal(models_collection.default, { on_close: on_edit_close, test_on_open: true }).open();
+    });
+  };
+  const render_settings_group = async () => {
+    this.empty(settings_group);
+    if (params.only_show) {
+      const collection = env[params.only_show];
+      if (collection) {
+        await render_model_type_settings(collection);
+        return;
+      } else {
+        settings_group.innerText = "No models found for the specified type: " + params.only_show;
+        return;
+      }
+    }
+    const models_collections = [
+      env.embedding_models,
+      env.chat_completion_models,
+      env.ranking_models
+    ].filter(Boolean);
+    for (const collection of models_collections) {
+      await render_model_type_settings(collection);
+    }
+  };
+  await render_settings_group();
+  return container;
+}
+function build_model_info_html(model) {
+  const details = [
+    `Provider: ${model.data.provider_key}`,
+    `Model: ${model.data.model_key || "**MISSING - EDIT & SELECT MODEL**"}`
+  ];
+  return `<div class="model-info">
+    <div class="smart-env-settings-header">
+      <b>Current: ${model.display_name} <span class="test-result-icon" data-icon="${get_test_result_icon_name(model)}"></span></b>
+      <div>
+        <button class="open-model-modal">Edit</button>
+        <button class="test-model">Test</button>
+      </div>
+    </div>
+    <pre>${details.join("\n")}</pre>
+  </div>`;
+}
+function get_test_result_icon_name(model) {
+  switch (model.data.test_passed) {
+    case true:
+      return "square-check-big";
+    case false:
+      return "circle-x";
+    default:
+      return "square";
+  }
+}
+
+// node_modules/obsidian-smart-env/src/components/settings/notifications.js
+async function build_html11(env, opts = {}) {
   let html = `<div class="muted-notice-container" style="display: flex; flex-direction: column; gap: 10px;">
     <h2>Muted notices</h2>
   `;
@@ -15335,7 +17990,7 @@ async function build_html7(env, opts = {}) {
     for (const notice in env.notices.settings?.muted) {
       html += `<div class="muted-notice" data-notice="${notice}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
         <span>${notice}</span>
-        <button class="unmute-button">Remove</button>
+        <button class="unmute-button">Unmute</button>
       </div>`;
     }
   } else {
@@ -15344,13 +17999,14 @@ async function build_html7(env, opts = {}) {
   html += `</div>`;
   return html;
 }
-async function render9(env, opts = {}) {
-  let html = await build_html7.call(this, env, opts);
+async function render11(env, opts = {}) {
+  let html = await build_html11.call(this, env, opts);
   const frag = this.create_doc_fragment(html);
-  post_process8.call(this, env, frag, opts);
-  return frag;
+  const container = frag.firstElementChild;
+  post_process10.call(this, env, container, opts);
+  return container;
 }
-async function post_process8(env, frag, opts = {}) {
+async function post_process10(env, frag, opts = {}) {
   const unmute_buttons = frag.querySelectorAll(".unmute-button");
   unmute_buttons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -15362,9 +18018,1045 @@ async function post_process8(env, frag, opts = {}) {
   });
 }
 
-// node_modules/obsidian-smart-env/components/supporter_callout.js
-var import_obsidian9 = require("obsidian");
-function build_html8(plugin, opts = {}) {
+// node_modules/obsidian-smart-env/src/components/settings/reimport_sources.js
+function build_html12(env, params = {}) {
+  return `<div>
+    <div class="setting-item">
+      <div class="info setting-item-info">
+        <div class="setting-item-name">Re-import sources</div>
+        <div class="setting-item-description">Clear and reload all source data.</div>
+      </div>
+      <div class="control setting-item-control">
+        <button class="smart-env-re-import-sources-btn" type="button">Re-import sources</button>
+        <div class="sc-inline-confirm-row" style="display: none;">
+          <span style="margin-right: 10px;">
+            Are you sure you want to clear all sources data? This cannot be undone.
+          </span>
+          <span class="sc-inline-confirm-row-buttons">
+            <button class="sc-inline-confirm-yes">Yes</button>
+            <button class="sc-inline-confirm-cancel">Cancel</button>
+          </span>
+        </div>
+      </div>
+    </div>
+    <em class="reimport-notice"></em>
+  </div>`;
+}
+async function render12(env, params = {}) {
+  const html = await build_html12.call(this, env, params);
+  const frag = this.create_doc_fragment(html);
+  const container = frag.firstElementChild;
+  post_process11.call(this, env, container, params);
+  return container;
+}
+async function post_process11(env, container, params = {}) {
+  const reimport_btn = container.querySelector(".smart-env-re-import-sources-btn");
+  const confirm_row = container.querySelector(".sc-inline-confirm-row");
+  const confirm_yes = container.querySelector(".sc-inline-confirm-yes");
+  const confirm_cancel = container.querySelector(".sc-inline-confirm-cancel");
+  reimport_btn.addEventListener("click", async () => {
+    confirm_row.style.display = "block";
+    reimport_btn.style.display = "none";
+  });
+  confirm_yes.addEventListener("click", async (e) => {
+    confirm_cancel.style.display = "none";
+    confirm_yes.textContent = "Re-importing...";
+    confirm_yes.disabled = true;
+    const confirm_row2 = e.target.closest(".sc-inline-confirm-row");
+    await env.smart_sources.run_clear_all();
+    const start = Date.now();
+    env.smart_sources.unload();
+    env.smart_blocks.unload();
+    await env.init_collections();
+    await env.load_collections();
+    await env.smart_sources.process_embed_queue();
+    const end = Date.now();
+    env.events?.emit("sources:reimported", { time_ms: end - start });
+    env.main.notices?.show("reload_sources", { time_ms: end - start });
+    confirm_row2.style.display = "none";
+    reimport_btn.style.display = "inline-block";
+    confirm_yes.textContent = "Yes";
+    confirm_yes.disabled = false;
+  });
+  confirm_cancel.addEventListener("click", (e) => {
+    const confirm_row2 = e.target.closest(".sc-inline-confirm-row");
+    confirm_row2.style.display = "none";
+    reimport_btn.style.display = "inline-block";
+  });
+  const disposers = [];
+  disposers.push(env.events?.on("model:changed", async (payload) => {
+    if (payload.collection_key !== "embedding_models") return;
+    container.classList.add("env-setting-highlight");
+    const notice = container.querySelector(".reimport-notice");
+    notice.textContent = "Embedding model changed. Please re-import your sources to update their embeddings.";
+    container.appendChild(notice);
+    env.events.once("sources:reimported", () => {
+      container.classList.remove("env-setting-highlight");
+    });
+  }));
+  this.attach_disposer(container, disposers);
+}
+
+// node_modules/obsidian-smart-env/src/components/settings/style.css
+var style_default2 = ".sc-env-settings-container {\r\n  margin: 1rem 0;\r\n}\r\n\r\n.smart-env-settings-header {\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: space-between;\r\n  margin-bottom: 0.5rem;\r\n}\r\n\r\n.toggle-env-settings-btn {\r\n  cursor: pointer;\r\n}\r\n\r\n\r\n.env-setting-highlight {\r\n  border: 1px solid var(--interactive-accent);\r\n  background-color: var(--interactive-hover);\r\n  padding: 0.5rem;\r\n  margin: 0.5rem 0;\r\n}\r\n\r\n.settings-group {\r\n  .setting-item {\r\n    border-top: none;\r\n  }\r\n}";
+
+// node_modules/obsidian-smart-env/src/components/settings/smart_env.js
+async function build_html13(env, params = {}) {
+  return `<div class="smart-env-settings-container">
+    <div class="sources-container">
+      <h1>Sources</h1>
+    </div>
+    <div class="models-container">
+      <h1>Models</h1>
+    </div>
+    <div class="notifications-container">
+      <h1>Notifications</h1>
+    </div>
+  </div>`;
+}
+async function render13(env, params = {}) {
+  this.apply_style_sheet(style_default2);
+  const html = await build_html13.call(this, env, params);
+  const frag = this.create_doc_fragment(html);
+  const container = frag.firstElementChild;
+  post_process12.call(this, env, container, params);
+  return container;
+}
+async function post_process12(env, container, opts = {}) {
+  const models_container = container.querySelector(".models-container");
+  const sources_container = container.querySelector(".sources-container");
+  const notifications_container = container.querySelector(".notifications-container");
+  render_if_available.call(this, "settings_reimport_sources", env, sources_container);
+  render_if_available.call(this, "settings_sources_folder_exclusions", env, sources_container);
+  render_if_available.call(this, "settings_sources_file_exclusions", env, sources_container);
+  render_if_available.call(this, "settings_sources_excluded_info", env, sources_container);
+  render_if_available.call(this, "settings_sources_pro", env, sources_container);
+  render_if_available.call(this, "settings_env_models", env, models_container);
+  render_if_available.call(this, "settings_notifications", env, notifications_container);
+  return container;
+}
+function render_if_available(component_key, env, container) {
+  if (env.config.components[component_key]) {
+    const placeholder = this.create_doc_fragment(`<div data-component="${component_key}"></div>`).firstElementChild;
+    container.appendChild(placeholder);
+    env.smart_components.render_component(component_key, env).then((comp_el) => {
+      this.empty(placeholder);
+      placeholder.appendChild(comp_el);
+    });
+  }
+}
+
+// node_modules/obsidian-smart-env/src/modals/excluded_sources.js
+var import_obsidian17 = require("obsidian");
+var ExcludedSourcesModal = class extends import_obsidian17.Modal {
+  /**
+   * @param {Object} app - Obsidian app
+   * @param {Object} env - The environment instance
+   */
+  constructor(app, env) {
+    super(app);
+    this.env = env;
+  }
+  async onOpen() {
+    this.titleEl.setText("Excluded Sources");
+    this.contentEl.addClass("excluded-sources-modal");
+    this.render_excluded_list();
+  }
+  async render_excluded_list() {
+    this.contentEl.empty();
+    const list_el = this.contentEl.createEl("ul");
+    const excluded_file_paths = this.env.smart_sources.excluded_file_paths;
+    const too_long_files = this.app.vault.getMarkdownFiles().filter((file) => file.path.length > 200).map((file) => file.path);
+    for (const file_path of excluded_file_paths) {
+      const li = list_el.createEl("li");
+      li.setText(file_path);
+    }
+    this.contentEl.createEl("hr");
+    this.contentEl.createEl("h3", { text: "Paths too long to import into Smart Environment" });
+    const too_long_list_ul = this.contentEl.createEl("ul", { cls: "too-long-exclusions" });
+    for (const file_path of too_long_files) {
+      const li = too_long_list_ul.createEl("li");
+      li.setText(file_path);
+    }
+  }
+};
+
+// node_modules/obsidian-smart-env/src/components/settings/sources_excluded_info.js
+async function build_html14(env, opts = {}) {
+  return `
+      <div class="setting-component">
+        <div class="setting-item">
+          <div class="info setting-item-info">
+            <div class="setting-item-name">Excluded</div>
+            <div class="setting-item-description">View all excluded sources.</div>
+          </div>
+          <div class="control setting-item-control">
+            <button class="sc-excluded-sources-btn" type="button">Show all excluded</button>
+          </div>
+        </div>
+      </div>
+  `;
+}
+async function render14(env, opts = {}) {
+  const html = await build_html14.call(this, env, opts);
+  const frag = this.create_doc_fragment(html);
+  const container = frag.firstElementChild;
+  post_process13.call(this, env, container, opts);
+  return container;
+}
+async function post_process13(env, container, opts = {}) {
+  const show_excluded_btn = container.querySelector(".sc-excluded-sources-btn");
+  if (show_excluded_btn) {
+    show_excluded_btn.addEventListener("click", () => {
+      const modal = new ExcludedSourcesModal(env.main.app, env);
+      modal.open();
+    });
+  }
+  return container;
+}
+
+// node_modules/obsidian-smart-env/src/modals/exclude_folders_fuzzy.js
+var import_obsidian18 = require("obsidian");
+
+// node_modules/obsidian-smart-env/src/utils/exclusions.js
+function ensure_smart_sources_settings(env) {
+  if (!env.settings) env.settings = {};
+  if (!env.settings.smart_sources) env.settings.smart_sources = {};
+  const smart_sources_settings = env.settings.smart_sources;
+  if (!smart_sources_settings.folder_exclusions) smart_sources_settings.folder_exclusions = "";
+  if (!smart_sources_settings.file_exclusions) smart_sources_settings.file_exclusions = "";
+  return smart_sources_settings;
+}
+function parse_exclusions_csv(exclusions = "") {
+  return exclusions.split(",").map((value) => value.trim()).filter(Boolean);
+}
+function add_exclusion(exclusions, value) {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return exclusions || "";
+  const current = parse_exclusions_csv(exclusions);
+  if (!current.includes(trimmed)) current.push(trimmed);
+  return current.join(",");
+}
+function remove_exclusion(exclusions, value) {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return exclusions?.trim() || "";
+  const filtered = parse_exclusions_csv(exclusions).filter((entry) => entry !== trimmed);
+  return filtered.join(",");
+}
+
+// node_modules/obsidian-smart-env/src/modals/exclude_folders_fuzzy.js
+var ExcludedFoldersFuzzy = class extends import_obsidian18.FuzzySuggestModal {
+  /**
+   * @param {App} app - The Obsidian app
+   * @param {Object} env - An environment-like object, must have .settings and .fs.folder_paths
+   */
+  constructor(app, env) {
+    super(app);
+    this.env = env;
+    this.setPlaceholder("Select a folder to exclude...");
+  }
+  /**
+   * Open the modal with an optional callback invoked after an item is chosen.
+   * The current exclusion list is rendered at the top of the modal.
+   * @param {Function} [callback]
+   */
+  open(callback) {
+    this.callback = callback;
+    super.open();
+    this.render_excluded_list();
+  }
+  /**
+   * Return candidate folder paths that are not already excluded.
+   * @returns {string[]}
+   */
+  getItems() {
+    const smart_sources_settings = ensure_smart_sources_settings(this.env);
+    const folder_exclusions = parse_exclusions_csv(smart_sources_settings.folder_exclusions);
+    const candidates = (this.env.smart_sources?.fs?.folder_paths || []).filter((path) => !folder_exclusions.includes(path));
+    return candidates;
+  }
+  getItemText(item) {
+    return item;
+  }
+  /**
+   * Handle selecting a folder to exclude.
+   * @param {string} item
+   */
+  onChooseItem(item) {
+    this.prevent_close = true;
+    if (!item) return;
+    const smart_sources_settings = ensure_smart_sources_settings(this.env);
+    smart_sources_settings.folder_exclusions = add_exclusion(smart_sources_settings.folder_exclusions, item);
+    this.render_excluded_list();
+    this.updateSuggestions();
+    this.callback?.();
+  }
+  /**
+   * Render the current list of excluded folders at the top of the modal,
+   * with inline remove buttons.
+   */
+  render_excluded_list() {
+    if (!this.modalEl) return;
+    const smart_sources_settings = ensure_smart_sources_settings(this.env);
+    const excluded_folders = parse_exclusions_csv(smart_sources_settings.folder_exclusions);
+    let header = this.modalEl.querySelector(".sc-excluded-folders-header");
+    if (!header) {
+      header = this.modalEl.createEl("div", { cls: "sc-excluded-folders-header" });
+      this.modalEl.prepend(header);
+    }
+    header.empty();
+    const title_el = header.createEl("h3");
+    title_el.setText("Excluded folders");
+    if (!excluded_folders.length) {
+      const empty_el = header.createEl("p");
+      empty_el.setText("No folders excluded yet.");
+      return;
+    }
+    const list_el = header.createEl("ul");
+    excluded_folders.forEach((folder_path) => {
+      const li = list_el.createEl("li", { cls: "excluded-folder-item" });
+      li.setText(folder_path + "  ");
+      const remove_btn = li.createEl("button", {
+        text: "(x)",
+        cls: "remove-excluded-folder-btn"
+      });
+      remove_btn.addEventListener("click", () => {
+        smart_sources_settings.folder_exclusions = remove_exclusion(
+          smart_sources_settings.folder_exclusions,
+          folder_path
+        );
+        this.env.update_exclusions?.();
+        this.render_excluded_list();
+        this.updateSuggestions();
+      });
+    });
+  }
+  close() {
+    setTimeout(() => {
+      if (!this.prevent_close) super.close();
+      this.prevent_close = false;
+    }, 10);
+  }
+};
+
+// node_modules/obsidian-smart-env/src/components/settings/sources_folder_exclusions.js
+async function build_html15(env, opts = {}) {
+  return `
+      <div class="setting-component">
+        <div class="setting-item">
+          <div class="info setting-item-info">
+            <div class="setting-item-name">Excluded folders</div>
+            <div class="setting-item-description">Manage folders to exclude from the environment.</div>
+          </div>
+          <div class="control setting-item-control">
+            <button class="sc-add-excluded-folder-btn" type="button">Edit excluded folders</button>
+          </div>
+        </div>
+      </div>
+  `;
+}
+async function render15(env, opts = {}) {
+  const html = await build_html15.call(this, env, opts);
+  const frag = this.create_doc_fragment(html);
+  const container = frag.firstElementChild;
+  post_process14.call(this, env, container, opts);
+  return container;
+}
+async function post_process14(env, container, opts = {}) {
+  const add_folder_btn = container.querySelector(".sc-add-excluded-folder-btn");
+  if (add_folder_btn) {
+    add_folder_btn.addEventListener("click", () => {
+      const fuzzy = new ExcludedFoldersFuzzy(env.main.app, env);
+      fuzzy.open(() => {
+        env.update_exclusions();
+      });
+    });
+  }
+  return container;
+}
+
+// node_modules/obsidian-smart-env/src/components/smart-context/actions.js
+function build_html16() {
+  return `<div>
+    <div class="sc-context-view-actions">
+      <input
+        type="text"
+        class="sc-context-name-input"
+        placeholder="Context name\u2026"
+        aria-label="Context name"
+      />
+      <span class="sc-context-actions-right">
+        <button class="sc-add-context-btn" type="button">Add context</button>
+        <button class="sc-clear-context-btn" type="button" style="display:none;">Clear</button>
+        <button class="sc-copy-clipboard" type="button" style="display:none;">Copy to clipboard</button>
+      </span>
+    </div>
+  </div>`;
+}
+function sanitize_context_name(name) {
+  const str = String(name ?? "").trim();
+  if (!str) return "";
+  const collapsed = str.replace(/\s+/g, " ");
+  const max = 120;
+  return collapsed.length > max ? collapsed.slice(0, max) : collapsed;
+}
+async function render16(ctx, opts = {}) {
+  const html = build_html16();
+  const frag = this.create_doc_fragment(html);
+  const container = frag.querySelector(".sc-context-view-actions");
+  post_process15.call(this, ctx, container, opts);
+  return container;
+}
+async function post_process15(ctx, container, opts = {}) {
+  const render_ctx_actions = () => {
+    const name_input = container.querySelector(".sc-context-name-input");
+    const refresh_name = () => {
+      name_input.value = ctx?.data?.name ? String(ctx.data.name) : "";
+    };
+    const save_name = () => {
+      const next = sanitize_context_name(name_input.value);
+      if (next === (ctx.data.name || "")) return;
+      ctx.name = next;
+    };
+    refresh_name();
+    name_input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        save_name();
+        name_input.blur();
+      }
+      if (e.key === "Escape") {
+        refresh_name();
+        name_input.blur();
+      }
+    });
+    name_input.addEventListener("blur", () => save_name());
+    const add_btn = container.querySelector(".sc-add-context-btn");
+    add_btn.addEventListener("click", () => {
+      ctx.emit_event("context_selector:open");
+    });
+    if (ctx.has_context_items) {
+      const copy_btn = container.querySelector(".sc-copy-clipboard");
+      copy_btn.style.display = "inline-block";
+      copy_btn.addEventListener("click", async () => {
+        ctx.actions.context_copy_to_clipboard();
+      });
+      const clear_btn = container.querySelector(".sc-clear-context-btn");
+      clear_btn.style.display = "inline-block";
+      clear_btn.addEventListener("click", () => {
+        ctx.clear_all();
+      });
+    }
+  };
+  render_ctx_actions();
+  const disposers = [];
+  disposers.push(ctx.on_event("context:updated", render_ctx_actions));
+  this.attach_disposer(container, disposers);
+  return container;
+}
+
+// node_modules/obsidian-smart-env/src/components/smart-context/styles.css
+var styles_default = "/* Modal view adjustments */\r\n.modal-container .sc-context-view {\r\n  max-height: 60%;\r\n  display: flex;\r\n  flex-direction: column;\r\n  .sc-context-view-body {\r\n    overflow: auto;\r\n  }\r\n  .sc-add-context-btn {\r\n    display: none;\r\n  }\r\n}";
+
+// node_modules/obsidian-smart-env/utils/copy_to_clipboard.js
+var import_obsidian19 = require("obsidian");
+async function copy_to_clipboard(text) {
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else if (!import_obsidian19.Platform.isMobile) {
+      const { clipboard } = require("electron");
+      clipboard.writeText(text);
+    } else {
+      new import_obsidian19.Notice("Unable to copy text: no valid method found.");
+    }
+  } catch (err) {
+    console.error("Failed to copy text:", err);
+    new import_obsidian19.Notice("Failed to copy.");
+  }
+}
+
+// node_modules/obsidian-smart-env/src/components/smart-context/item.js
+function build_html17(ctx, opts = {}) {
+  return `<div>
+    <div class="sc-context-view" data-context-key="${ctx.data.key}">
+      <div class="sc-context-view-header">
+        <div class="sc-context-view-actions"></div>
+      </div>
+      <div class="sc-context-view-body">
+        <div class="sc-context-view-tree"></div>
+      </div>
+      <div class="sc-context-view-footer">
+        <div class="sc-context-view-meta"></div>
+      </div>
+    </div>
+  </div>`;
+}
+async function render17(ctx, opts = {}) {
+  const html = build_html17(ctx, opts);
+  this.apply_style_sheet(styles_default);
+  const frag = this.create_doc_fragment(html);
+  const container = frag.querySelector(".sc-context-view");
+  post_process16.call(this, ctx, container, opts);
+  return container;
+}
+async function post_process16(ctx, container, opts = {}) {
+  const disposers = [];
+  const actions_el = container.querySelector(".sc-context-view-actions");
+  const tree_el = container.querySelector(".sc-context-view-tree");
+  const meta_el = container.querySelector(".sc-context-view-meta");
+  const render_children = async () => {
+    const actions = await ctx.env.render_component("smart_context_actions", ctx, opts);
+    this.empty(actions_el);
+    actions_el.appendChild(actions);
+    const tree = await ctx.env.render_component("smart_context_tree", ctx, opts);
+    this.empty(tree_el);
+    tree_el.appendChild(tree);
+    const meta = await ctx.env.render_component("smart_context_meta", ctx, opts);
+    this.empty(meta_el);
+    meta_el.appendChild(meta);
+  };
+  const plugin = ctx.env.plugin;
+  const app = plugin?.app || window.app;
+  const register = plugin?.registerDomEvent?.bind(plugin) || ((el, evt, cb) => el.addEventListener(evt, cb));
+  register(container, "contextmenu", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (!app) return;
+    const menu = new Menu(app);
+    menu.addItem(
+      (mi) => mi.setTitle("Copy link tree").setIcon("copy").onClick(async () => {
+        const md = tree_dom_to_wikilinks(container);
+        await copy_to_clipboard(md);
+      })
+    );
+    menu.showAtMouseEvent(ev);
+  });
+  await render_children();
+  disposers.push(ctx.on_event("context:updated", render_children));
+  this.attach_disposer(container, disposers);
+  return container;
+}
+function tree_dom_to_wikilinks(container) {
+  const lines = [];
+  const walk = (li, depth) => {
+    const path = li.dataset.path;
+    if (!path) return;
+    let rel = path.replace(/^external:/, "").replace(/^selection:/, "");
+    const label = li.querySelector(":scope > .sc-tree-label")?.textContent?.trim() || "";
+    if (li.classList.contains("file")) {
+      let file = rel.split("/").pop().replace(/\.md$/, "");
+      lines.push(`${"	".repeat(depth)}- [[${file}]]`);
+    } else if (li.classList.contains("dir")) {
+      lines.push(`${"	".repeat(depth)}- ${label}`);
+    }
+    li.querySelectorAll(":scope > ul > li").forEach((child) => walk(child, depth + 1));
+  };
+  container.querySelectorAll(":scope > ul > li").forEach((li) => walk(li, 0));
+  return lines.join("\n");
+}
+
+// node_modules/obsidian-smart-env/src/components/smart-context/meta.js
+function estimate_tokens(char_count) {
+  return Math.ceil((char_count || 0) / 4);
+}
+function build_html18() {
+  return `<div>
+    <div class="sc-context-view-meta" aria-live="polite"></div>
+  </div>`;
+}
+async function render18(ctx, params = {}) {
+  const html = build_html18();
+  const frag = this.create_doc_fragment(html);
+  const container = frag.querySelector(".sc-context-view-meta");
+  post_process17.call(this, ctx, container, params);
+  return container;
+}
+async function post_process17(ctx, container, params = {}) {
+  const render_meta = () => {
+    if (ctx?.has_context_items) {
+      const chars = ctx.size || 0;
+      const tokens = estimate_tokens(chars);
+      container.textContent = `\u2248 ${chars.toLocaleString()} chars \xB7 ${tokens.toLocaleString()} tokens`;
+    } else {
+      container.textContent = "No context items selected";
+    }
+  };
+  render_meta();
+  const disposers = [];
+  disposers.push(ctx.on_event("context:updated", render_meta));
+  this.attach_disposer(container, disposers);
+  return container;
+}
+
+// node_modules/obsidian-smart-env/src/utils/smart-context/build_tree_item.js
+function build_tree_item(item, selected_paths, child_html = "") {
+  let { key, path, name, is_file } = item;
+  const has_children = child_html.trim() !== "";
+  let remove_btn = "";
+  let connections_btn = "";
+  let links_btn = "";
+  if (!key) key = path;
+  if (selected_paths.has(key) || has_children) {
+    remove_btn = `<span class="sc-tree-remove" data-path="${key}">\xD7</span>`;
+  }
+  if (selected_paths.has(key) && !key.startsWith("external:../")) {
+    connections_btn = `<span class="sc-tree-connections" data-path="${key}" title="Connections for ${name}"></span>`;
+    links_btn = `<span class="sc-tree-links" data-path="${key}" title="Links for ${name}"></span>`;
+  }
+  const label_classes = ["sc-tree-label"];
+  if (item.exists === false) label_classes.push("missing");
+  return `<li data-path="${key}" class="sc-tree-item ${is_file ? "file" : "dir"}${key.startsWith("external:") ? " sc-external" : ""}">
+    ${is_file ? remove_btn : ""}
+    <span class="${label_classes.join(" ")}">${name}</span>
+    ${connections_btn}
+    ${links_btn}
+    ${child_html}
+  </li>`;
+}
+
+// node_modules/obsidian-smart-env/src/utils/smart-context/build_tree_html.js
+function build_tree_html(items) {
+  const tree_root = build_path_tree(items);
+  const selected_set = new Set(items.map((it) => it.key || it.path));
+  const tree_list_html = tree_to_html(tree_root, selected_set);
+  return tree_list_html;
+}
+function build_path_tree(selected_items = []) {
+  const split_path_segments = (item_path) => {
+    const BLOCK_ID_RE = /#\{\d+\}$/u;
+    let remainder = item_path;
+    let block_id_seg = null;
+    let block_key_seg = null;
+    let has_block = false;
+    const id_match = remainder.match(BLOCK_ID_RE);
+    if (id_match) {
+      block_id_seg = id_match[0];
+      remainder = remainder.slice(0, -block_id_seg.length);
+      has_block = true;
+    }
+    const key_idx = remainder.indexOf("##");
+    if (key_idx !== -1) {
+      block_key_seg = remainder.slice(key_idx);
+      remainder = remainder.slice(0, key_idx);
+      has_block = true;
+    }
+    const segments = [];
+    if (remainder) {
+      let seg = "";
+      let in_wikilink = false;
+      for (let i = 0; i < remainder.length; i++) {
+        if (!in_wikilink && remainder.slice(i, i + 2) === "[[") {
+          in_wikilink = true;
+          seg += "[[";
+          i++;
+        } else if (in_wikilink && remainder.slice(i, i + 2) === "]]") {
+          in_wikilink = false;
+          seg += "]]";
+          i++;
+        } else if (!in_wikilink && remainder[i] === "/") {
+          segments.push(seg);
+          seg = "";
+        } else {
+          seg += remainder[i];
+        }
+      }
+      if (seg) segments.push(seg);
+    }
+    if (block_key_seg) segments.push(block_key_seg);
+    if (block_id_seg) segments.push(block_id_seg);
+    return { segments, has_block };
+  };
+  const root = { name: "", children: {}, selected: false };
+  const is_redundant = (p, selected_folders2) => selected_folders2.some((folder) => p.startsWith(`${folder}/`));
+  const selected_folders = selected_items.filter((it) => {
+    const for_ext_check = it.key.includes("#") ? it.key.split("#")[0] : it.key;
+    return !for_ext_check.match(/\.[a-zA-Z0-9]+$/u);
+  }).map((it) => it.key);
+  for (const { key, exists } of selected_items) {
+    if (is_redundant(key, selected_folders.filter((p) => p !== key))) continue;
+    const { segments, has_block } = split_path_segments(key);
+    let node = root;
+    let running = "";
+    segments.forEach((seg, idx) => {
+      running = running ? `${running}/${seg}` : seg;
+      if (seg.startsWith("external:..")) return;
+      const is_last = idx === segments.length - 1;
+      const is_block_leaf = is_last && has_block;
+      if (!node.children[seg]) {
+        node.children[seg] = {
+          name: seg,
+          path: is_block_leaf ? key : running,
+          // For blocks we store an empty *array* so AVA can assert `children.length === 0`
+          children: is_block_leaf ? [] : {},
+          selected: false,
+          is_file: is_block_leaf || is_last && seg.includes(".")
+        };
+      }
+      node = node.children[seg];
+      if (is_last) {
+        node.selected = true;
+        node.exists = exists;
+      }
+    });
+  }
+  return root;
+}
+function tree_to_html(node, selected_paths) {
+  if (!node.children || !Object.keys(node.children).length) return "";
+  const child_html = Object.values(node.children).sort((a, b) => {
+    if (a.is_file !== b.is_file) return a.is_file ? 1 : -1;
+    return a.name.localeCompare(b.name);
+  }).map((child) => build_tree_item(child, selected_paths, tree_to_html(child, selected_paths))).join("");
+  return `<ul>${child_html}</ul>`;
+}
+
+// node_modules/obsidian-smart-env/src/components/smart-context/tree.js
+function build_html19(ctx, params = {}) {
+  return `<div>
+    <div class="sc-context-tree" data-context-key="${ctx.data.key}"></div>
+  </div>`;
+}
+async function render19(ctx, params = {}) {
+  const html = build_html19(ctx, params);
+  const frag = this.create_doc_fragment(html);
+  const container = frag.querySelector(".sc-context-tree");
+  post_process18.call(this, ctx, container, params);
+  return container;
+}
+async function post_process18(ctx, container, params = {}) {
+  const render_tree_leaves = () => {
+    const env = ctx.env;
+    const items = ctx.context_items.filter(params.filter);
+    const list_html = build_tree_html(items);
+    const list_frag = this.create_doc_fragment(list_html);
+    this.empty(container);
+    container.appendChild(list_frag);
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const li = container.querySelector(`.sc-tree-item[data-path="${item.key}"]`);
+      if (!li) {
+        console.warn(`Smart Context: Could not find tree item for path: ${item.key}`);
+        continue;
+      }
+      env.smart_components.render_component("context_item_leaf", item).then((leaf) => {
+        this.empty(li);
+        li.appendChild(leaf);
+      });
+    }
+  };
+  render_tree_leaves();
+  const disposers = [];
+  disposers.push(ctx.on_event("context:updated", render_tree_leaves));
+  this.attach_disposer(container, disposers);
+  return container;
+}
+
+// node_modules/obsidian-smart-env/src/components/source_inspector.css
+var source_inspector_default = ".source-inspector {\r\n  background-color: var(--background-secondary-alt);\r\n  margin: var(--size-4-3) 0;\r\n  padding: var(--size-4-3);\r\n  border-radius: var(--radius-m);\r\n}\r\n\r\n.source-inspector-blocks-container {\r\n  margin-top: var(--size-4-2);\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: var(--size-4-3);\r\n}\r\n\r\n.source-inspector-blocks-container blockquote {\r\n  margin-left: var(--size-4-3);\r\n  padding-left: var(--size-4-3);\r\n  border-left: 2px solid var(--text-faint);\r\n}\r\n";
+
+// node_modules/obsidian-smart-env/src/components/source_inspector.js
+function build_html20(source, opts = {}) {
+  return `<div>
+    <div class="source-inspector-source-info">
+      <button class="source-inspector-show-data-btn" type="button">Show source data</button>
+      <div class="source-inspector-source-data" style="display:none; margin: 0.5em 0;">
+        <pre style="max-height:300px; overflow:auto; background:#222; color:#fff; padding:0.5em; border-radius:4px;"></pre>
+      </div>
+    </div>
+    <div class="smart-chat-message source-inspector">
+      <h2>Blocks</h2>
+      <div class="source-inspector-blocks-container"></div>
+    </div>
+  </div>`;
+}
+async function render20(source, opts = {}) {
+  const html = build_html20(source, opts);
+  const frag = this.create_doc_fragment(html);
+  this.apply_style_sheet(source_inspector_default);
+  await post_process19.call(this, source, frag, opts);
+  return frag;
+}
+async function post_process19(source, frag, opts = {}) {
+  const container = frag.querySelector(".source-inspector .source-inspector-blocks-container");
+  if (!container) return frag;
+  const source_info = frag.querySelector(".source-inspector-source-info");
+  const btn = frag.querySelector(".source-inspector-show-data-btn");
+  const data_div = frag.querySelector(".source-inspector-source-data");
+  const pre = data_div?.querySelector("pre");
+  if (btn && data_div && pre) {
+    btn.addEventListener("click", () => {
+      if (data_div.style.display === "none") {
+        pre.textContent = JSON.stringify(source.data, null, 2);
+        data_div.style.display = "";
+        btn.textContent = "Hide source data";
+      } else {
+        data_div.style.display = "none";
+        btn.textContent = "Show source data";
+      }
+    });
+  }
+  const source_should_embed = source.should_embed ? `<span style="color: green;">should embed</span>` : `<span style="color: orange;">embedding skipped</span>`;
+  const source_embed_status = source.vec ? `<span style="color: green;">vectorized</span>` : `<span style="color: orange;">not vectorized</span>`;
+  const source_info_frag = this.create_doc_fragment(`<p>${source_should_embed} | ${source_embed_status}</p>`);
+  source_info.appendChild(source_info_frag);
+  if (!source || !source.blocks || source.blocks.length === 0) {
+    this.safe_inner_html(container, `<p>No blocks</p>`);
+    return frag;
+  }
+  const sorted_blocks = source.blocks.sort((a, b) => a.line_start - b.line_start);
+  for (const block of sorted_blocks) {
+    const sub_key_display = block.sub_key.split("#").join(" > ");
+    const block_info = `${sub_key_display} (${block.size} chars; lines: ${block.line_start}-${block.line_end})`;
+    const should_embed = block.should_embed ? `<span style="color: green;">should embed</span>` : `<span style="color: orange;">embedding skipped</span>`;
+    const embed_status = block.vec ? `<span style="color: green;">vectorized</span>` : `<span style="color: orange;">not vectorized</span>`;
+    let block_content = "";
+    let embed_input = "";
+    try {
+      const raw = await block.read();
+      block_content = raw.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>").replace(/\t/g, "&nbsp;&nbsp;");
+      const embed_raw = await block.get_embed_input(raw);
+      embed_input = embed_raw.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    } catch (err) {
+      console.error("[source_inspector] Error reading block:", err);
+      block_content = `<em style="color:red;">Error reading block content</em>`;
+    }
+    const block_frag = this.create_doc_fragment(`
+      <p>
+        ${block_info}<br>
+        ${should_embed} | ${embed_status}
+      </p>
+      <details class="source-inspector-embed-input">
+        <summary>Embed input</summary>
+        <pre style="max-height:300px; overflow:auto; background:#222; color:#fff; padding:0.5em; border-radius:4px;">${embed_input}</pre>
+      </details>
+      <blockquote>${block_content}</blockquote>
+      <hr>
+    `);
+    container.appendChild(block_frag);
+  }
+  return frag;
+}
+
+// node_modules/obsidian-smart-env/src/components/status_bar.js
+var import_obsidian23 = require("obsidian");
+
+// node_modules/obsidian-smart-env/src/utils/register_status_bar_context_menu.js
+var import_obsidian22 = require("obsidian");
+
+// node_modules/obsidian-smart-env/views/source_inspector.js
+var import_obsidian20 = require("obsidian");
+var SmartNoteInspectModal = class extends import_obsidian20.Modal {
+  constructor(smart_connections_plugin, entity) {
+    super(smart_connections_plugin.app);
+    this.smart_connections_plugin = smart_connections_plugin;
+    this.entity = entity;
+  }
+  get env() {
+    return this.smart_connections_plugin.env;
+  }
+  onOpen() {
+    this.titleEl.innerText = this.entity.key;
+    this.render();
+  }
+  async render() {
+    this.contentEl.empty();
+    const frag = await this.env.render_component("source_inspector", this.entity);
+    this.contentEl.appendChild(frag);
+  }
+};
+
+// node_modules/obsidian-smart-env/src/modals/env_stats.js
+var import_obsidian21 = require("obsidian");
+var EnvStatsModal = class extends import_obsidian21.Modal {
+  constructor(app, env) {
+    super(app);
+    this.env = env;
+  }
+  onOpen() {
+    this.titleEl.setText("Smart Environment");
+    this.contentEl.empty();
+    this.contentEl.createEl("p", { text: "Loading stats..." });
+    setTimeout(this.render.bind(this), 100);
+  }
+  async render() {
+    const frag = await this.env.render_component("env_stats", this.env);
+    this.contentEl.empty();
+    if (frag) {
+      this.contentEl.appendChild(frag);
+    } else {
+      this.contentEl.createEl("p", { text: "Failed to load stats." });
+    }
+  }
+};
+
+// node_modules/obsidian-smart-env/src/utils/register_status_bar_context_menu.js
+function register_status_bar_context_menu(env, status_container, deps = {}) {
+  const { Menu: MenuClass = import_obsidian22.Menu } = deps;
+  const plugin = env.main;
+  const on_context_menu = (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const menu = new MenuClass(plugin.app);
+    menu.addItem(
+      (item) => item.setTitle("Inspect active note").setIcon("search").onClick(async () => {
+        const active_file = plugin.app.workspace.getActiveFile();
+        if (!active_file) {
+          new import_obsidian22.Notice("No active note found");
+          return;
+        }
+        const src = env.smart_sources?.get(active_file.path);
+        if (!src) {
+          new import_obsidian22.Notice("Active note is not indexed by Smart Environment");
+          return;
+        }
+        new SmartNoteInspectModal(plugin, src).open();
+      })
+    );
+    menu.addItem(
+      (item) => item.setTitle("Show stats").setIcon("chart-pie").onClick(() => {
+        const modal = new EnvStatsModal(plugin.app, env);
+        modal.open();
+      })
+    );
+    menu.addItem(
+      (item) => item.setTitle("Export data").setIcon("download").onClick(() => {
+        env.export_json();
+        new import_obsidian22.Notice("Smart Env exported");
+      })
+    );
+    menu.addItem(
+      (item) => item.setTitle("Notifications").setIcon("bell").onClick(() => {
+        env.open_notifications_feed_modal();
+      })
+    );
+    menu.addSeparator();
+    menu.addItem(
+      (item) => item.setTitle("Learn about Community Supporters").setIcon("hand-heart").onClick(() => {
+        const url = "https://smartconnections.app/community-supporters/?utm_source=status-bar";
+        window.open(url, "_external");
+      })
+    );
+    menu.showAtPosition({ x: ev.pageX, y: ev.pageY });
+  };
+  plugin.registerDomEvent(status_container, "contextmenu", on_context_menu);
+  return on_context_menu;
+}
+
+// node_modules/obsidian-smart-env/src/components/status_bar.css
+var status_bar_default = ".status-bar-item:has(.smart-env-status-container) {\n  padding: 0 0.5em;\n\n  &:hover {\n    background-color: var(--background-modifier-hover);\n  }\n  &> .smart-env-status-container {\n    display: flex;\n    align-items: center;\n    gap: 0.5em;\n    text-decoration: none;\n    color: var(--status-bar-text-color);\n  }\n}\n\n.smart-env-status-indicator {\n  width: 0.6em;\n  height: 0.6em;\n  border-radius: 999px;\n  background-color: var(--interactive-accent);\n  opacity: 0;\n  transform: scale(0.3);\n  transition: opacity 150ms ease, transform 150ms ease;\n}\n.smart-env-status-indicator[data-level='info'] {\n  background-color: var(--interactive-accent);\n}\n.smart-env-status-indicator[data-level='attention'] {\n  background-color: var(--color-yellow);\n}\n.smart-env-status-indicator[data-level='warning'] {\n  background-color: var(--color-orange);\n}\n.smart-env-status-indicator[data-level='error'] {\n  background-color: var(--color-red);\n}\n\n.smart-env-status-indicator[data-count] {\n  opacity: 1;\n  transform: scale(1);\n}\n\n.smart-env-notifications-feed {\n  display: flex;\n  flex-direction: column;\n  padding: 0.5rem 0;\n  gap: 0.42rem;\n}\n\n.smart-env-notifications-empty {\n  margin: 0;\n  color: var(--text-muted);\n}\n\n.smart-env-notification {\n  font-size: var(--font-smaller);\n  display: flex;\n  flex-direction: column;\n  border-left: 3px solid var(--interactive-accent);\n  padding-left: 0.75rem;\n}\n\n.smart-env-notification[data-level='attention'] {\n  border-color: var(--color-yellow);\n}\n\n.smart-env-notification[data-level='warning'] {\n  border-color: var(--color-orange);\n}\n\n.smart-env-notification[data-level='error'] {\n  border-color: var(--color-red);\n}\n\n.smart-env-notification__message {\n  margin: 0;\n  font-weight: 500;\n  white-space: pre-wrap;\n}\n\n.smart-env-notification__meta {\n  color: var(--text-muted);\n  padding: 0.37rem 0;\n}\n\n.status-bar-mobile {\n  position: var(--status-bar-position);\n  bottom: 0;\n  border-radius: 0 8px 0 0;\n  border-style: solid;\n  border-width: 1px;\n  border-color: var(--status-bar-border-color);\n  background-color: var(--status-bar-background);\n  color: var(--status-bar-text-color);\n  font-size: var(--status-bar-font-size);\n  min-height: 18px;\n  padding: var(--size-4-1);\n  user-select: none;\n  z-index: var(--layer-status-bar);\n  font-variant-numeric: tabular-nums;\n  &> .smart-env-status-container {\n    padding: 5px 5px 5px 0;\n  }\n}\n\n/* footer view on mobile */\n.embedded-backlinks > .status-bar-mobile {\n  position: relative;\n  border-style: none;\n}";
+
+// node_modules/obsidian-smart-env/src/components/status_bar.js
+function build_html21() {
+  return `
+    <a
+      class="smart-env-status-container"
+      role="button"
+      title="Smart Environment status"
+      aria-label="Smart Environment status"
+      tabindex="0"
+    >
+      <span class="smart-env-status-icon" aria-hidden="true"></span>
+      <span class="smart-env-status-msg" aria-live="polite"></span>
+      <span
+        class="smart-env-status-indicator"
+        title="Open notifications"
+        aria-label="Open notifications feed"
+        role="button"
+        tabindex="0"
+      ></span>
+    </a>
+  `;
+}
+async function render21(env, opts = {}) {
+  this.apply_style_sheet(status_bar_default);
+  const frag = this.create_doc_fragment(build_html21());
+  const anchor = frag.firstElementChild;
+  post_process20.call(this, env, anchor, opts);
+  return anchor;
+}
+function post_process20(env, container, opts = {}) {
+  const icon_slot = container?.querySelector?.(".smart-env-status-icon");
+  const status_indicator = container?.querySelector?.(".smart-env-status-indicator");
+  const status_msg = container?.querySelector?.(".smart-env-status-msg");
+  const version = env.is_pro ? "Pro" : env.constructor?.version;
+  const get_session_event_count = () => {
+    return env.event_logs?.session_events?.length || 0;
+  };
+  const get_embed_queue = () => {
+    return Object.keys(env.smart_sources.sources_re_import_queue || {}).length;
+  };
+  const render_status_elm = () => {
+    const embed_queue = get_embed_queue();
+    let message = `Smart Env${version ? " " + version : ""}`;
+    let title = "Smart Environment status";
+    let indicator_count = get_session_event_count();
+    let indicator_level = env.event_logs?.notification_status || "info";
+    if (embed_queue > 0) {
+      message = `Embed now (${embed_queue})`;
+      title = "Click to re-import.";
+      indicator_level = "attention";
+    }
+    if (icon_slot) {
+      (0, import_obsidian23.setIcon)(icon_slot, "smart-connections");
+    }
+    if (status_indicator) {
+      if (!status_indicator._click_handler) {
+        status_indicator._click_handler = (event) => {
+          event.stopPropagation();
+          env.open_notifications_feed_modal?.();
+        };
+        status_indicator.addEventListener("click", status_indicator._click_handler);
+      }
+      if (indicator_count > 0) {
+        status_indicator.dataset.count = String(indicator_count);
+      } else {
+        delete status_indicator.dataset.count;
+      }
+      if (indicator_level) {
+        status_indicator.dataset.level = String(indicator_level);
+      } else {
+        delete status_indicator.dataset.level;
+      }
+    }
+    status_msg.setText?.(message);
+    container.setAttribute?.("title", title);
+    container.removeAttribute?.("href");
+    container.removeAttribute?.("target");
+    if (!container._click_handler) {
+      container._click_handler = (event) => {
+        const curr_embed_queue = get_embed_queue();
+        if (curr_embed_queue > 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          status_msg?.setText?.("Embedding...");
+          env.run_re_import?.();
+        } else {
+          const context_event = new MouseEvent("contextmenu", event);
+          container.dispatchEvent?.(context_event);
+        }
+      };
+      container.addEventListener("click", container._click_handler);
+    }
+  };
+  register_status_bar_context_menu(env, container);
+  render_status_elm();
+  let debounce_timeout = null;
+  const debounce_refresh_status_bar = () => {
+    if (debounce_timeout) clearTimeout(debounce_timeout);
+    debounce_timeout = setTimeout(() => {
+      render_status_elm();
+      debounce_timeout = null;
+    }, 100);
+  };
+  const disposers = [];
+  disposers.push(env.events.on("*", debounce_refresh_status_bar));
+  this.attach_disposer(container, disposers);
+}
+
+// node_modules/obsidian-smart-env/src/components/supporter_callout.js
+var import_obsidian24 = require("obsidian");
+function build_html22(plugin, opts = {}) {
   const { plugin_name = plugin.manifest.name } = opts;
   return `<div class="wrapper">
     <div id="footer-callout" data-callout-metadata="" data-callout-fold="" data-callout="info" class="callout" style="mix-blend-mode: unset;">
@@ -15421,25 +19113,29 @@ function build_html8(plugin, opts = {}) {
     </div>
   </div>`;
 }
-function render10(plugin, opts = {}) {
-  const html = build_html8.call(this, plugin, opts);
+function render22(plugin, opts = {}) {
+  const html = build_html22.call(this, plugin, opts);
   const frag = this.create_doc_fragment(html);
-  const callout = frag.querySelector("#footer-callout");
-  const icon_container = callout.querySelector(".callout-icon");
-  const icon = (0, import_obsidian9.getIcon)("hand-heart");
+  const container = frag.querySelector(".wrapper");
+  post_process21.call(this, plugin, container, opts);
+  return container;
+}
+async function post_process21(plugin, container) {
+  const icon_container = container.querySelector(".callout-icon");
+  const icon = (0, import_obsidian24.getIcon)("hand-heart");
   if (icon) {
     this.empty(icon_container);
     icon_container.appendChild(icon);
   }
-  post_process9.call(this, plugin, callout, opts);
-  return callout;
-}
-function post_process9(plugin, callout) {
+  const oauth_storage_prefix = plugin.app.vault.getName().toLowerCase().replace(/[^a-z0-9]/g, "_") + "_smart_plugins_oauth_";
+  const is_logged_in = !!localStorage.getItem(oauth_storage_prefix + "token");
+  if (is_logged_in) container.querySelector("#footer-callout").style.display = "none";
+  await this.render_setting_components(container, { scope: plugin.env });
 }
 
-// node_modules/obsidian-smart-env/components/user_agreement_callout.js
-var import_obsidian10 = require("obsidian");
-function build_html9(plugin, opts = {}) {
+// node_modules/obsidian-smart-env/src/components/user_agreement_callout.js
+var import_obsidian25 = require("obsidian");
+function build_html23(plugin, opts = {}) {
   const { plugin_name = plugin.manifest.name } = opts;
   return `<div class="wrapper">
     <div id="footer-callout" data-callout-metadata="" data-callout-fold="" data-callout="info" class="callout" style="mix-blend-mode: unset;">
@@ -15461,34 +19157,438 @@ function build_html9(plugin, opts = {}) {
     </div>
   </div>`;
 }
-function render11(plugin, opts = {}) {
-  const html = build_html9.call(this, plugin, opts);
+function render23(plugin, opts = {}) {
+  const html = build_html23.call(this, plugin, opts);
   const frag = this.create_doc_fragment(html);
   const callout = frag.querySelector("#footer-callout");
   const icon_container = callout.querySelector(".callout-icon");
-  const icon = (0, import_obsidian10.getIcon)("smart-connections");
+  const icon = (0, import_obsidian25.getIcon)("smart-connections");
   if (icon) {
     this.empty(icon_container);
     icon_container.appendChild(icon);
   }
-  post_process10.call(this, plugin, callout, opts);
+  post_process22.call(this, plugin, callout, opts);
   return callout;
 }
-function post_process10(plugin, callout) {
+function post_process22(plugin, callout) {
+}
+
+// node_modules/obsidian-smart-env/src/actions/context/copy_to_clipboard.js
+var import_obsidian26 = require("obsidian");
+async function copy_to_clipboard2(params = {}) {
+  const context_items = this.context_items.filter(params.filter);
+  if (!context_items.length) {
+    this.emit_event("notification:warning", { message: "No context items to copy." });
+    return new import_obsidian26.Notice("No context items to copy.");
+  }
+  const content = await this.get_text(params);
+  await copy_to_clipboard(content);
+  const message = format_stats_message({
+    item_count: context_items.length,
+    char_count: content.length,
+    max_depth: params.max_depth,
+    exclusions: params.exclusions
+  });
+  new import_obsidian26.Notice(message);
+}
+function format_stats_message(stats = {}) {
+  const item_count = Number.isFinite(stats.item_count) ? stats.item_count : 0;
+  const char_count = Number.isFinite(stats.char_count) ? stats.char_count : 0;
+  const segments = [];
+  segments.push(`${item_count} file(s)`);
+  segments.push(`${format_char_count(char_count)} chars`);
+  if (Number.isFinite(stats.max_depth)) {
+    segments.push(`depth\u2264${stats.max_depth}`);
+  }
+  const excluded_total = sum_exclusions(stats.exclusions);
+  if (excluded_total > 0) {
+    segments.push(`${excluded_total} section(s) excluded`);
+  }
+  return `Copied to clipboard! (${segments.join(", ")})`;
+}
+function format_char_count(char_count) {
+  if (!Number.isFinite(char_count)) return "0";
+  if (char_count >= 1e5) {
+    return `~${Math.round(char_count / 1e3)}k`;
+  }
+  return char_count.toLocaleString();
+}
+function sum_exclusions(exclusions) {
+  if (!exclusions) return 0;
+  return Object.values(exclusions).reduce((total, value) => {
+    const numeric = Number.isFinite(value) ? value : 0;
+    return total + numeric;
+  }, 0);
+}
+
+// node_modules/obsidian-smart-env/src/actions/context-item/merge_template.js
+async function merge_template(context_items_text, context_items) {
+  const MERGE_VARS = {
+    "KEY": this.key,
+    "TIME_AGO": convert_to_time_ago(this.mtime) || "Missing",
+    "LINK_DEPTH": this.data.d || 0
+  };
+  const replace_vars = async (template) => {
+    const re_var = /{{([\w_]+)}}/g;
+    const number_of_var_matches = (template.match(re_var) || []).length;
+    for (let i = 0; i < number_of_var_matches; i++) {
+      template = template.replace(/{{(\w+)}}/g, (match, p1) => {
+        return MERGE_VARS[p1] || "";
+      });
+    }
+    return template;
+  };
+  const before = await replace_vars(this.settings.template_before || default_settings2.template_before);
+  const after = await replace_vars(this.settings.template_after || default_settings2.template_after);
+  return ["", before, context_items_text, after, ""].join("\n");
+}
+var settings_config7 = {
+  item_explanation: {
+    type: "html",
+    value: `
+      <div class="setting-explanation">
+        <h5>Item templates</h5>
+        <ul>
+          <li><code>{{KEY}}</code> - Full path of the item</li>
+          <li><code>{{TIME_AGO}}</code> - Time since the item was last modified</li>
+          <li><code>{{LINK_DEPTH}}</code> - Depth level of the item</li>
+        </ul>
+      </div>
+    `
+  },
+  template_before: {
+    type: "textarea",
+    name: "Template Before",
+    description: "Template to wrap before the context item content."
+  },
+  template_after: {
+    type: "textarea",
+    name: "Template After",
+    description: "Template to wrap after the context item content."
+  }
+};
+var default_settings2 = {
+  template_before: '<item loc="{{KEY}}" at="{{TIME_AGO}}">',
+  template_after: "</item>"
+};
+
+// node_modules/obsidian-smart-env/node_modules/smart-utils/file_tree.js
+function build_file_tree_string(paths = []) {
+  if (!Array.isArray(paths) || paths.length === 0) return "";
+  const root = {};
+  for (const path of paths) {
+    const isFolder = is_folder_path(path);
+    const parts = path.split("/").filter(Boolean);
+    let node = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isLast = i === parts.length - 1;
+      if (isLast) {
+        if (isFolder) {
+          node[part] = node[part] ?? { __isExplicitFolder: true };
+        } else {
+          node[part] = null;
+        }
+      } else {
+        node = node[part] ??= {};
+      }
+    }
+  }
+  compress_single_child_dirs(root);
+  return build_tree_string(root).trimEnd();
+}
+function is_folder_path(path) {
+  return typeof path === "string" && path.endsWith("/");
+}
+function compress_single_child_dirs(node) {
+  if (!node || typeof node !== "object") return;
+  for (const key of Object.keys(node)) {
+    const child = node[key];
+    if (child && typeof child === "object") {
+      if (child.__isExplicitFolder) {
+        delete child.__isExplicitFolder;
+        compress_single_child_dirs(child);
+        continue;
+      }
+      const childKeys = Object.keys(child);
+      if (childKeys.length === 1 && child[childKeys[0]] !== null && !child[childKeys[0]].__isExplicitFolder) {
+        const mergedKey = `${key}/${childKeys[0]}`;
+        node[mergedKey] = child[childKeys[0]];
+        delete node[key];
+        compress_single_child_dirs(node[mergedKey]);
+      } else {
+        compress_single_child_dirs(child);
+      }
+    }
+  }
+}
+function build_tree_string(node, prefix = "") {
+  let output = "";
+  const entries = Object.entries(node).sort((a, b) => {
+    const aIsDir = a[1] !== null;
+    const bIsDir = b[1] !== null;
+    if (aIsDir && !bIsDir) return -1;
+    if (!aIsDir && bIsDir) return 1;
+    return a[0].localeCompare(b[0]);
+  });
+  entries.forEach(([name, child], idx) => {
+    const isLast = idx === entries.length - 1;
+    const connector = isLast ? "\u2514\u2500\u2500 " : "\u251C\u2500\u2500 ";
+    if (child === null) {
+      output += `${prefix}${connector}${name}
+`;
+    } else {
+      output += `${prefix}${connector}${name}/
+`;
+      output += build_tree_string(child, prefix + (isLast ? "    " : "\u2502   "));
+    }
+  });
+  return output;
+}
+
+// node_modules/obsidian-smart-env/src/actions/context/merge_template.js
+async function merge_template2(context_items_text, context_items) {
+  const MERGE_VARS = {
+    "FILE_TREE": () => {
+      return build_file_tree_string(context_items.map((c) => c.key));
+    }
+  };
+  const replace_vars = async (template) => {
+    const number_of_var_matches = (template.match(/{{(\w+)}}/g) || []).length;
+    for (let i = 0; i < number_of_var_matches; i++) {
+      template = template.replace(/{{(\w+)}}/gi, (match, p1) => {
+        return MERGE_VARS[p1]?.() || "";
+      });
+    }
+    return template;
+  };
+  const before = await replace_vars(this.settings.template_before || default_settings3.template_before);
+  const after = await replace_vars(this.settings.template_after || default_settings3.template_after);
+  return [before, context_items_text, after].join("\n");
+}
+var settings_config8 = {
+  context_explanation: {
+    type: "html",
+    value: `
+      <div class="setting-explanation">
+        <h5>Context templates</h5>
+        <ul>
+          <li><code>{{FILE_TREE}}</code> - Shows hierarchical view of all files</li>
+        </ul>
+      </div>
+    `
+  },
+  template_before: {
+    type: "textarea",
+    name: "Template Before",
+    description: "Template to wrap before the context."
+  },
+  template_after: {
+    type: "textarea",
+    name: "Template After",
+    description: "Template to wrap after the context."
+  }
+};
+var default_settings3 = {
+  template_before: "<context>\n{{FILE_TREE}}",
+  template_after: "</context>"
+};
+
+// node_modules/obsidian-smart-env/src/actions/context-suggest/blocks.js
+function context_suggest_blocks(params = {}) {
+  let blocks = [];
+  if (params.source_key) {
+    const src = this.env.smart_sources.get(params.source_key);
+    blocks = src.blocks;
+  } else {
+    blocks = Object.values(this.env.smart_blocks.items);
+  }
+  return blocks.map((block) => ({
+    key: block.key,
+    display: get_block_display_name2(block, { show_full_path: false }),
+    select_action: () => {
+      this.add_item(block.key);
+    }
+  }));
+}
+function get_block_display_name2(item, settings = {}) {
+  if (!item?.key) return "";
+  const show_full_path = settings.show_full_path ?? true;
+  if (show_full_path) {
+    return item.key.replace(/#/g, " > ").replace(/\//g, " > ");
+  }
+  const pcs = [];
+  const [source_key, ...block_parts] = item.key.split("#");
+  const filename = source_key.split("/").pop();
+  pcs.push(filename);
+  if (block_parts.length) {
+    const last = block_parts[block_parts.length - 1];
+    if (last.startsWith("{") && last.endsWith("}")) {
+      block_parts.pop();
+      pcs.push(block_parts.pop());
+      if (item.lines) pcs.push(`Lines: ${item.lines.join("-")}`);
+    } else {
+      pcs.push(block_parts.pop());
+    }
+  }
+  return pcs.filter(Boolean).join(" > ");
+}
+var display_name = "Add blocks";
+
+// node_modules/obsidian-smart-env/src/actions/context-suggest/sources.js
+function context_suggest_sources(params = {}) {
+  const unselected = Object.values(this.env.smart_sources.items).map((src) => ({
+    key: src.key,
+    // DEPRECATED???
+    display: src.key,
+    select_action: () => {
+      this.add_item(src.key);
+    },
+    mod_select_action: () => {
+      return context_suggest_blocks.call(this, { source_key: src.key });
+    },
+    arrow_right_action: () => {
+      return context_suggest_blocks.call(this, { source_key: src.key });
+    }
+  }));
+  return unselected;
+}
+var display_name2 = "Add sources";
+
+// node_modules/obsidian-smart-env/src/actions/lookup-list/pre_process.js
+async function pre_process(params) {
+  const query = params.query;
+  if (!query || typeof query !== "string" || query.trim().length === 0) {
+    throw new Error("Invalid or empty query provided to lookup list.");
+  }
+  const embed_model = this.env.smart_sources.embed_model;
+  if (!embed_model) {
+    throw new Error("No embed model available in environment for lookup list.");
+  }
+  const embedding = await embed_model.embed(query);
+  params.to_item = { ...embedding };
+  if (!params.score_algo_key) params.score_algo_key = "similarity";
+  return params;
+}
+
+// node_modules/obsidian-smart-env/src/actions/similarity.js
+function similarity(params) {
+  if (!this.vec) return { score: null, error: `Missing this.vec for ${this.key}` };
+  if (!params.to_item?.vec) return { score: null, error: "Missing params.to_item.vec" };
+  return {
+    score: cos_sim(this.vec || [], params.to_item.vec || [])
+  };
+}
+similarity.action_type = "score";
+var display_name3 = "Cosine Similarity";
+var display_description = "Ranks by cosine similarity between the current note and candidates.";
+var settings_config9 = {
+  score_algo_description: {
+    type: "html",
+    value: `<p><small><b>${display_name3}</b>: ${display_description}</small></p>`
+  }
+};
+
+// node_modules/obsidian-smart-env/src/utils/open_source.js
+var import_obsidian27 = require("obsidian");
+async function open_source(item, event = null) {
+  try {
+    const env = item.env;
+    const obsidian_app = env.obsidian_app;
+    let target_path = item.key;
+    if (target_path.endsWith("#")) target_path = target_path.slice(0, -1);
+    let target_file;
+    if (target_path.includes("#")) {
+      const [file_path] = target_path.split("#");
+      target_file = obsidian_app.metadataCache.getFirstLinkpathDest(file_path, "");
+    } else {
+      target_file = obsidian_app.metadataCache.getFirstLinkpathDest(target_path, "");
+    }
+    if (!target_file) {
+      console.warn(`[open_note] Unable to resolve file for ${target_path}`);
+      return;
+    }
+    let leaf;
+    if (event) {
+      const is_mod = import_obsidian27.Keymap.isModEvent(event);
+      const is_alt = import_obsidian27.Keymap.isModifier(event, "Alt");
+      if (is_mod && is_alt) {
+        leaf = obsidian_app.workspace.splitActiveLeaf("vertical");
+      } else if (is_mod) {
+        leaf = obsidian_app.workspace.getLeaf(true);
+      } else {
+        leaf = obsidian_app.workspace.getMostRecentLeaf();
+      }
+    } else {
+      leaf = obsidian_app.workspace.getMostRecentLeaf();
+    }
+    await leaf.openFile(target_file);
+    if (typeof item?.line_start === "number") {
+      const { editor } = leaf.view;
+      const pos = { line: item.line_start, ch: 0 };
+      editor.setCursor(pos);
+      editor.scrollIntoView({ to: pos, from: pos }, true);
+    }
+    item.emit_event("sources:opened", { event_source: "open_source method" });
+  } catch (e) {
+    console.error("Error in open_source:", e);
+    item.emit_event("notification:error", { message: e.message, event_source: "open_source method" });
+  }
+}
+
+// node_modules/obsidian-smart-env/src/actions/source/open.js
+async function source_open(event = null) {
+  await open_source(this, event);
 }
 
 // node_modules/obsidian-smart-env/smart_env.config.js
 var smart_env_config = {
-  collections: {},
-  item_types: {},
+  collections: {
+    embedding_models: embedding_models_default2,
+    lookup_lists: lookup_lists_default
+  },
+  item_types: {
+    EmbeddingModel,
+    LookupList
+  },
+  items: {
+    embedding_model: { class: EmbeddingModel },
+    lookup_list: { class: LookupList }
+  },
+  modules: {},
   components: {
-    collection_settings: render5,
-    env_settings: render6,
-    env_stats: render7,
-    lean_coffee_callout: render8,
-    muted_notices: render9,
-    supporter_callout: render10,
-    user_agreement_callout: render11
+    collection_settings: { render: render2 },
+    context_item_leaf: { render: render3 },
+    env_stats: { render: render4 },
+    form_dropdown: { render: render5 },
+    lean_coffee_callout: { render: render6 },
+    notifications_feed: { render: render7 },
+    pro_plugins_list: { render: render8 },
+    pro_plugins_list_item: { render: render9 },
+    settings_env_models: { render: render10 },
+    settings_notifications: { render: render11 },
+    settings_reimport_sources: { render: render12 },
+    settings_smart_env: { render: render13 },
+    settings_sources_excluded_info: { render: render14 },
+    settings_sources_folder_exclusions: { render: render15 },
+    smart_context_actions: { render: render16 },
+    smart_context_item: { render: render17 },
+    smart_context_meta: { render: render18 },
+    smart_context_tree: { render: render19 },
+    source_inspector: { render: render20 },
+    status_bar: { render: render21 },
+    supporter_callout: { render: render22 },
+    user_agreement_callout: { render: render23 }
+  },
+  actions: {
+    context_copy_to_clipboard: { action: copy_to_clipboard2 },
+    context_item_merge_template: { action: merge_template, settings_config: settings_config7, default_settings: default_settings2 },
+    context_merge_template: { action: merge_template2, settings_config: settings_config8, default_settings: default_settings3 },
+    context_suggest_blocks: { action: context_suggest_blocks, display_name },
+    context_suggest_sources: { action: context_suggest_sources, display_name: display_name2 },
+    lookup_list_pre_process: { action: pre_process, pre_process },
+    similarity: { action: similarity, settings_config: settings_config9, display_name: display_name3, display_description },
+    source_open: { action: source_open }
   }
 };
 
@@ -15497,8 +19597,8 @@ var smart_env_config2 = {
   env_path: "",
   modules: {
     smart_fs: {
-      class: SmartFs2,
-      adapter: SmartFsObsidianAdapter2
+      class: SmartFs,
+      adapter: ObsidianFsAdapter
     },
     smart_view: {
       class: SmartView,
@@ -15513,7 +19613,9 @@ var smart_env_config2 = {
       adapters: {
         transformers: SmartEmbedTransformersIframeAdapter,
         openai: SmartEmbedOpenAIAdapter,
-        ollama: SmartEmbedOllamaAdapter
+        ollama: SmartEmbedOllamaAdapter,
+        gemini: GeminiEmbedModelAdapter,
+        lm_studio: LmStudioEmbedModelAdapter
       }
     },
     smart_chat_model: {
@@ -15523,27 +19625,41 @@ var smart_env_config2 = {
         anthropic: SmartChatModelAnthropicAdapter,
         azure: SmartChatModelAzureAdapter,
         custom: SmartChatModelCustomAdapter,
+        google: SmartChatModelGoogleAdapter,
         gemini: SmartChatModelGeminiAdapter,
         groq: SmartChatModelGroqAdapter,
         lm_studio: SmartChatModelLmStudioAdapter,
         ollama: SmartChatModelOllamaAdapter,
         open_router: SmartChatModelOpenRouterAdapter,
-        openai: SmartChatModelOpenaiAdapter
+        openai: SmartChatModelOpenaiAdapter,
+        xai: SmartChatModelXaiAdapter,
+        deepseek: SmartChatModelDeepseekAdapter
       },
       http_adapter: new SmartHttpRequest({
         adapter: SmartHttpObsidianRequestAdapter,
-        obsidian_request_url: import_obsidian13.requestUrl
+        obsidian_request_url: import_obsidian30.requestUrl
       })
+    },
+    http_adapter: {
+      class: SmartHttpRequest,
+      adapter: SmartHttpObsidianRequestAdapter,
+      obsidian_request_url: import_obsidian30.requestUrl
     }
   },
   collections: {
+    context_items: context_items_default,
+    event_logs: event_logs_default,
+    smart_components: smart_components_default2,
+    smart_contexts: smart_contexts_default,
     smart_sources: {
       collection_key: "smart_sources",
       class: SmartSources,
       data_adapter: AjsonMultiFileSourcesDataAdapter,
       source_adapters: {
         "md": ObsidianMarkdownSourceContentAdapter,
-        "txt": ObsidianMarkdownSourceContentAdapter
+        "txt": ObsidianMarkdownSourceContentAdapter,
+        "excalidraw.md": ExcalidrawSourceContentAdapter,
+        "base": BasesSourceContentAdapter
         // "canvas": MarkdownSourceContentAdapter,
         // "default": MarkdownSourceContentAdapter,
       },
@@ -15551,8 +19667,10 @@ var smart_env_config2 = {
         parse_blocks
       ],
       // process_embed_queue: false,
-      process_embed_queue: true
+      process_embed_queue: true,
       // trigger embedding on load
+      load_order: 100
+      // load last
     },
     smart_blocks: {
       collection_key: "smart_blocks",
@@ -15560,74 +19678,41 @@ var smart_env_config2 = {
       data_adapter: AjsonMultiFileBlocksDataAdapter,
       block_adapters: {
         "md": MarkdownBlockContentAdapter,
-        "txt": MarkdownBlockContentAdapter
+        "txt": MarkdownBlockContentAdapter,
+        "excalidraw.md": MarkdownBlockContentAdapter
         // "canvas": MarkdownBlockContentAdapter,
       }
-    },
-    smart_completions: smart_completions_default_config
+    }
   },
   item_types: {
     SmartSource,
-    SmartBlock,
-    SmartCompletion
+    SmartBlock
   },
   items: {
     smart_source: smart_source_default,
     smart_block: smart_block_default
   },
-  components: {
-    smart_blocks: {
-      settings: render3
+  default_settings,
+  // begin obsidian-smart-env specific modules (need to update build_env_config.js to handle)
+  modals: {
+    context_selector: {
+      class: ContextModal,
+      default_suggest_action_keys: [
+        "context_suggest_sources"
+      ]
     },
-    smart_embed_model: {
-      settings: render4
+    notifications_feed_modal: {
+      class: NotificationsFeedModal
     }
-  },
-  default_settings: {
-    is_obsidian_vault: true,
-    smart_blocks: {
-      embed_blocks: true,
-      min_chars: 200
-    },
-    smart_sources: {
-      min_chars: 200,
-      embed_model: {
-        adapter: "transformers",
-        transformers: {
-          legacy_transformers: false,
-          model_key: "TaylorAI/bge-micro-v2"
-        }
-      }
-    },
-    excluded_headings: "",
-    file_exclusions: "Untitled",
-    folder_exclusions: "",
-    language: "en",
-    new_user: true,
-    // DEPRECATED: 2025-06-05 (use localStorage instead)
-    re_import_wait_time: 13,
-    smart_chat_threads: {
-      chat_model: {
-        adapter: "ollama",
-        ollama: {}
-      }
-    },
-    smart_notices: {},
-    smart_view_filter: {
-      expanded_view: false,
-      render_markdown: true,
-      show_full_path: false
-    },
-    version: ""
   }
 };
 merge_env_config(smart_env_config2, smart_env_config);
 var default_config_default = smart_env_config2;
 
 // node_modules/obsidian-smart-env/utils/add_icons.js
-var import_obsidian14 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 function add_smart_chat_icon() {
-  (0, import_obsidian14.addIcon)("smart-chat", `<defs>
+  (0, import_obsidian31.addIcon)("smart-chat", `<defs>
   <symbol id="smart-chat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
     <path d="M2 4c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2v11c0 1.1-.9 2-2 2h-8l-5 4v-4H4c-1.1 0-2-.9-2-2Z" stroke-width="2"></path>
     <path d="M7 8c.5.3 1.3.3 1.8 0" stroke-width="2"></path>
@@ -15638,7 +19723,7 @@ function add_smart_chat_icon() {
 <use href="#smart-chat-icon" />`);
 }
 function add_smart_connections_icon() {
-  (0, import_obsidian14.addIcon)("smart-connections", `<path d="M50,20 L80,40 L80,60 L50,100" stroke="currentColor" stroke-width="4" fill="none"/>
+  (0, import_obsidian31.addIcon)("smart-connections", `<path d="M50,20 L80,40 L80,60 L50,100" stroke="currentColor" stroke-width="4" fill="none"/>
     <path d="M30,50 L55,70" stroke="currentColor" stroke-width="5" fill="none"/>
     <circle cx="50" cy="20" r="9" fill="currentColor"/>
     <circle cx="80" cy="40" r="9" fill="currentColor"/>
@@ -15646,9 +19731,30 @@ function add_smart_connections_icon() {
     <circle cx="50" cy="100" r="9" fill="currentColor"/>
     <circle cx="30" cy="50" r="9" fill="currentColor"/>`);
 }
+function add_smart_lookup_icon() {
+  (0, import_obsidian31.addIcon)("smart-lookup", `<defs>
+  <clipPath id="sc-in-search-clip" clipPathUnits="userSpaceOnUse">
+    <circle cx="11" cy="11" r="8"></circle>
+  </clipPath>
+  <symbol id="smart-lookup-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+    <g clip-path="url(#sc-in-search-clip)">
+      <path d="M10.3,5.4 L14.5,8.2 L14.5,11.0 L10.3,16.6" stroke="currentColor" stroke-width="0.56" fill="none"></path>
+      <path d="M7.5,9.6 L11.0,12.4" stroke="currentColor" stroke-width="0.7" fill="none"></path>
+      <circle cx="10.3" cy="5.4" r="0.3" fill="currentColor"></circle>
+      <circle cx="14.5" cy="8.2" r="0.3" fill="currentColor"></circle>
+      <circle cx="14.5" cy="12.4" r="0.3" fill="currentColor"></circle>
+      <circle cx="10.3" cy="16.6" r="0.3" fill="currentColor"></circle>
+      <circle cx="7.5" cy="9.6" r="0.3" fill="currentColor"></circle>
+    </g>
+    <circle cx="11" cy="11" r="8"></circle>
+    <path d="m21 21-4.3-4.3"></path>
+  </symbol>
+</defs>
+<use href="#smart-lookup-icon" />`);
+}
 
 // node_modules/obsidian-smart-env/node_modules/smart-notices/smart_notices.js
-var import_obsidian15 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 
 // node_modules/obsidian-smart-env/node_modules/smart-notices/notices.js
 var NOTICES = {
@@ -15965,7 +20071,7 @@ var SmartNotices = class {
    */
   _add_mute_button(id, container) {
     const btn = document.createElement("button");
-    (0, import_obsidian15.setIcon)(btn, "bell-off");
+    (0, import_obsidian32.setIcon)(btn, "bell-off");
     btn.addEventListener("click", () => {
       if (!this.settings.muted) this.settings.muted = {};
       this.settings.muted[id] = true;
@@ -15993,198 +20099,21 @@ var SmartNotices = class {
   }
 };
 
-// node_modules/obsidian-smart-env/styles.css
-var css_sheet2 = new CSSStyleSheet();
-css_sheet2.replaceSync(`.status-bar-item:has(.smart-env-status-container) {
-  padding: 0 0.5em;
-
-  &:hover {
-    background-color: var(--background-modifier-hover);
-  }
-  &> .smart-env-status-container {
-    display: flex;
-    align-items: center;
-    gap: 0.5em;
-    text-decoration: none;
-    color: var(--status-bar-text-color);
-  }
-}`);
-var styles_default = css_sheet2;
-
-// node_modules/obsidian-smart-env/sc_oauth.js
-var import_obsidian17 = require("obsidian");
+// node_modules/obsidian-smart-env/utils/sc_oauth.js
+var import_obsidian34 = require("obsidian");
 
 // node_modules/obsidian-smart-env/node_modules/smart-plugins-obsidian/utils.js
-var import_obsidian16 = require("obsidian");
-function get_smart_server_url() {
+var import_obsidian33 = require("obsidian");
+function get_smart_server_url2() {
   if (typeof window !== "undefined" && window.SMART_SERVER_URL_OVERRIDE) {
     return window.SMART_SERVER_URL_OVERRIDE;
   }
   return "https://connect.smartconnections.app";
 }
-function try_get_zlib() {
-  if (typeof window?.require === "function") {
-    try {
-      return window.require("zlib");
-    } catch {
-    }
-  }
-  return null;
-}
-function inflate_deflate_data(compressed) {
-  const zlib = try_get_zlib();
-  if (!zlib) {
-    throw new Error("zlib not available (maybe Obsidian mobile?).");
-  }
-  const buf = Buffer.from(compressed);
-  const out = zlib.inflateRawSync(buf);
-  return new Uint8Array(out.buffer, out.byteOffset, out.length);
-}
-async function parse_zip_into_files(zipBuffer) {
-  const dv = new DataView(zipBuffer);
-  let offset = 0;
-  const length = dv.byteLength;
-  const files = [];
-  let pluginManifest = null;
-  while (offset + 4 <= length) {
-    const localSig = dv.getUint32(offset, true);
-    if (localSig === 33639248 || localSig === 134695760) {
-      break;
-    }
-    if (localSig !== 67324752) {
-      break;
-    }
-    offset += 4;
-    const versionNeeded = dv.getUint16(offset, true);
-    const generalPurposeBitFlag = dv.getUint16(offset + 2, true);
-    const compressionMethod = dv.getUint16(offset + 4, true);
-    offset += 6;
-    const lastModTimeDate = dv.getUint32(offset, true);
-    offset += 4;
-    let crc32 = dv.getUint32(offset, true);
-    let compressedSize = dv.getUint32(offset + 4, true);
-    let uncompressedSize = dv.getUint32(offset + 8, true);
-    offset += 12;
-    const fileNameLen = dv.getUint16(offset, true);
-    const extraLen = dv.getUint16(offset + 2, true);
-    offset += 4;
-    const fileNameBytes = new Uint8Array(zipBuffer.slice(offset, offset + fileNameLen));
-    const fileName = new TextDecoder("utf-8").decode(fileNameBytes);
-    offset += fileNameLen;
-    offset += extraLen;
-    const hasDataDescriptor = (generalPurposeBitFlag & 8) !== 0;
-    let compDataStart = offset;
-    let compDataEnd;
-    if (!hasDataDescriptor) {
-      compDataEnd = compDataStart + compressedSize;
-    } else {
-      let scanPos = compDataStart;
-      let foundSig = false;
-      while (scanPos + 4 <= length) {
-        const sig = dv.getUint32(scanPos, true);
-        if (sig === 134695760 || sig === 67324752 || sig === 33639248) {
-          foundSig = true;
-          break;
-        }
-        scanPos++;
-      }
-      compDataEnd = foundSig ? scanPos : length;
-    }
-    if (compDataEnd > length) {
-      break;
-    }
-    const fileDataCompressed = new Uint8Array(zipBuffer.slice(compDataStart, compDataEnd));
-    offset = compDataEnd;
-    if (hasDataDescriptor) {
-      if (offset + 4 <= length) {
-        const ddSig = dv.getUint32(offset, true);
-        if (ddSig === 134695760) {
-          offset += 4;
-        }
-        if (offset + 12 <= length) {
-          crc32 = dv.getUint32(offset, true);
-          compressedSize = dv.getUint32(offset + 4, true);
-          uncompressedSize = dv.getUint32(offset + 8, true);
-          offset += 12;
-        } else {
-          break;
-        }
-      }
-    }
-    let rawData;
-    if (compressionMethod === 0) {
-      rawData = fileDataCompressed;
-    } else if (compressionMethod === 8) {
-      rawData = inflate_deflate_data(fileDataCompressed);
-    } else {
-      continue;
-    }
-    files.push({ fileName, data: rawData });
-    if (fileName.toLowerCase().endsWith("manifest.json") && !fileName.includes("/")) {
-      try {
-        pluginManifest = JSON.parse(new TextDecoder("utf-8").decode(rawData));
-      } catch {
-      }
-    }
-  }
-  return { files, pluginManifest };
-}
-async function write_files_with_adapter(adapter, baseFolder, files) {
-  const hasWriteBinary = typeof adapter.writeBinary === "function";
-  if (!await adapter.exists(baseFolder)) {
-    await adapter.mkdir(baseFolder);
-  }
-  for (const { fileName, data } of files) {
-    const fullPath = baseFolder + "/" + fileName;
-    if (hasWriteBinary) {
-      await adapter.writeBinary(fullPath, data);
-    } else {
-      const base642 = btoa(String.fromCharCode(...data));
-      await adapter.write(fullPath, base642);
-    }
-  }
-}
-async function fetch_plugin_zip(repoName, token) {
-  const resp = await (0, import_obsidian16.requestUrl)({
-    url: `${get_smart_server_url()}/plugin_download`,
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`
-    },
-    body: JSON.stringify({ repo: repoName })
-  });
-  if (resp.status !== 200) {
-    throw new Error(`plugin_download error ${resp.status}: ${resp.text}`);
-  }
-  const ab = resp.arrayBuffer;
-  if (ab.byteLength < 4) {
-    throw new Error("Server returned too few bytes, not a valid ZIP.");
-  }
-  const dv = new DataView(ab);
-  if (dv.getUint32(0, true) !== 67324752) {
-    const txt = new TextDecoder().decode(new Uint8Array(ab));
-    throw new Error(`Server did not return a valid ZIP. Text:
-${txt}`);
-  }
-  return ab;
-}
-async function enable_plugin(app, plugin_id) {
-  await app.plugins.enablePlugin(plugin_id);
-  app.plugins.enabledPlugins.add(plugin_id);
-  app.plugins.requestSaveConfig();
-  app.plugins.loadManifests();
-}
 
-// node_modules/obsidian-smart-env/sc_oauth.js
+// node_modules/obsidian-smart-env/utils/sc_oauth.js
 var CLIENT_ID = "smart-plugins-op";
 var CLIENT_SECRET = "smart-plugins-op-secret";
-function get_local_storage_token(oauth_storage_prefix) {
-  return {
-    token: localStorage.getItem(oauth_storage_prefix + "token") || "",
-    refresh: localStorage.getItem(oauth_storage_prefix + "refresh") || ""
-  };
-}
 function set_local_storage_token({ access_token, refresh_token }, oauth_storage_prefix) {
   localStorage.setItem(oauth_storage_prefix + "token", access_token);
   if (refresh_token) {
@@ -16192,9 +20121,9 @@ function set_local_storage_token({ access_token, refresh_token }, oauth_storage_
   }
 }
 async function exchange_code_for_tokens(code, plugin) {
-  const oauth_storage_prefix = plugin.app.vault.getName().toLowerCase().replace(/[^a-z0-9]/g, "_") + "_smart_plugins_oauth_";
-  const url = `${get_smart_server_url()}/auth/oauth_exchange2`;
-  const resp = await (0, import_obsidian17.requestUrl)({
+  const oauth_storage_prefix = build_oauth_storage_prefix(plugin.app.vault.getName());
+  const url = `${get_smart_server_url2()}/auth/oauth_exchange2`;
+  const resp = await (0, import_obsidian34.requestUrl)({
     url,
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -16213,21 +20142,10 @@ async function exchange_code_for_tokens(code, plugin) {
   }
   set_local_storage_token({ access_token, refresh_token }, oauth_storage_prefix);
 }
-async function install_smart_plugins_plugin(plugin) {
-  const oauth_storage_prefix = plugin.app.vault.getName().toLowerCase().replace(/[^a-z0-9]/g, "_") + "_smart_plugins_oauth_";
-  const { token } = get_local_storage_token(oauth_storage_prefix);
-  if (!token) throw new Error('No token found to install "smart-plugins"');
-  const repo = "brianpetro/smart-plugins-obsidian";
-  const zipData = await fetch_plugin_zip(repo, token);
-  const { files, pluginManifest } = await parse_zip_into_files(zipData);
-  let folder_name = (pluginManifest?.id || "smart-plugins").trim();
-  folder_name = folder_name.replace(/[^\w-]/g, "_");
-  const base_folder = ".obsidian/plugins/" + folder_name;
-  await write_files_with_adapter(plugin.app.vault.adapter, base_folder, files);
-  await plugin.app.plugins.loadManifests();
-  if (plugin.app.plugins.manifests[folder_name]) {
-    await enable_plugin(plugin.app, folder_name);
-  }
+var OAUTH_SUFFIX = "_smart_plugins_oauth_";
+function build_oauth_storage_prefix(vault_name) {
+  const safe_name = String(vault_name || "").toLowerCase().replace(/[^a-z0-9]/g, "_");
+  return `${safe_name}${OAUTH_SUFFIX}`;
 }
 
 // node_modules/obsidian-smart-env/utils/open_url_externally.js
@@ -16236,177 +20154,235 @@ function open_url_externally(plugin, url) {
   window.open(url, webviewer ? "_external" : "_blank");
 }
 
+// node_modules/obsidian-smart-env/utils/replace_folder_tree_var.js
+function replace_folder_tree_var(prompt) {
+  const env = this;
+  let paths = env.smart_sources?.fs?.folder_paths ?? [];
+  paths = paths.map((p) => p.endsWith("/") ? p : p + "/");
+  const tree = build_file_tree_string([...new Set(paths)]);
+  return prompt.replace(/{{\s*folder_tree\s*}}/gi, tree);
+}
+
+// node_modules/obsidian-smart-env/utils/replace_folders_top_var.js
+function replace_folders_top_var(prompt) {
+  const env = this;
+  let paths = env.smart_sources?.fs?.folder_paths ?? [];
+  paths = paths.map((p) => (p.split("/")[0] || "") + "/");
+  const tree = build_file_tree_string([...new Set(paths)]);
+  return prompt.replace(/{{\s*folders_top\s*}}/gi, tree);
+}
+
+// node_modules/obsidian-smart-env/utils/replace_recent_n_var.js
+function replace_recent_n_var(prompt) {
+  console.log("replace_recent_n_var", prompt);
+  const env = this;
+  return prompt.replace(/{{\s*recent_(\d+)\s*}}/gi, (_, count) => {
+    const n = parseInt(count, 10) || 0;
+    const files = Object.values(env.smart_sources?.fs?.files ?? {}).sort((a, b) => b.stat.mtime - a.stat.mtime).slice(0, n).map((f) => f.path).join("\n  - ");
+    console.log("replace_recent_n_var", n, files);
+    return files ? `
+  - ${files}` : "";
+  }).trim();
+}
+
+// node_modules/obsidian-smart-env/utils/replace_vault_tags_var.js
+function replace_vault_tags_var(prompt) {
+  const appRef = this.app;
+  const tags = appRef?.metadataCache?.getTags?.() || {};
+  const vault_tags = Object.keys(tags).map((tag) => tag.replace("#", "")).join("\n  - ");
+  return prompt.replace(/{{\s*(?:vault_tags|tags)\s*}}/gi, `
+  - ${vault_tags}
+`).trim();
+}
+
+// node_modules/obsidian-smart-env/utils/register_completion_variable_adapter_replacements.js
+function register_completion_variable_adapter_replacements(variable_adapter_class) {
+  variable_adapter_class.register(
+    (txt) => /{{\s*folder_tree\s*}}/i.test(txt),
+    replace_folder_tree_var,
+    "{{ folder_tree }}"
+    // Example variable
+  );
+  variable_adapter_class.register(
+    (txt) => /{{\s*folders_top\s*}}/i.test(txt),
+    replace_folders_top_var,
+    "{{ folders_top }}"
+    // Example variable
+  );
+  variable_adapter_class.register(
+    (txt) => /{{\s*(?:tags|vault_tags)\s*}}/i.test(txt),
+    replace_vault_tags_var,
+    "{{ tags }}"
+    // Example variable
+  );
+  variable_adapter_class.register(
+    (txt) => /{{\s*recent_(\d+)\s*}}/i.test(txt),
+    replace_recent_n_var,
+    "{{ recent_10 }}"
+    // Example variable
+  );
+}
+
+// node_modules/obsidian-smart-env/migrations/remove_smart_plugins_plugin.js
+async function remove_smart_plugins_plugin({ app, plugin_ids = [] } = {}) {
+  if (!app) return;
+  const adapter = app.vault?.adapter;
+  for (const plugin_id of plugin_ids) {
+    const disabled = await disable_plugin_if_present(app.plugins, plugin_id);
+    if (disabled) console.warn(`Disabled legacy plugin: ${plugin_id}`);
+    const removed = await remove_plugin_folder(adapter, plugin_id);
+    if (removed) console.warn(`Removed legacy plugin: ${plugin_id}`);
+  }
+}
+async function disable_plugin_if_present(app_plugins, plugin_id) {
+  if (!app_plugins) return;
+  const has_plugin = Boolean(
+    app_plugins.plugins?.[plugin_id] || app_plugins.enabledPlugins?.has?.(plugin_id) || app_plugins.manifests && plugin_id in app_plugins.manifests
+  );
+  if (!has_plugin) return;
+  if (app_plugins.plugins?.[plugin_id]) {
+    await app_plugins.unloadPlugin?.(plugin_id);
+  }
+  if (app_plugins.disablePluginAndSave) {
+    await app_plugins.disablePluginAndSave(plugin_id);
+  }
+  if (app_plugins.enabledPlugins?.has?.(plugin_id)) {
+    app_plugins.enabledPlugins.delete(plugin_id);
+  }
+  if (app_plugins.manifests && plugin_id in app_plugins.manifests) {
+    delete app_plugins.manifests[plugin_id];
+  }
+  await app_plugins.loadManifests?.();
+  return true;
+}
+async function remove_plugin_folder(adapter, plugin_id) {
+  if (!adapter?.exists) return;
+  const plugin_path = `.obsidian/plugins/${plugin_id}`;
+  const exists = await adapter.exists(plugin_path);
+  if (!exists) return;
+  if (adapter.rmdir) {
+    await adapter.rmdir(plugin_path, true);
+    return;
+  }
+  if (adapter.list && adapter.remove) {
+    const stack = [plugin_path];
+    while (stack.length) {
+      const current_path = stack.pop();
+      const listing = await adapter.list(current_path);
+      for (const file of listing?.files || []) {
+        await adapter.remove(`${current_path}/${file}`);
+      }
+      for (const folder of listing?.folders || []) {
+        stack.push(`${current_path}/${folder}`);
+      }
+    }
+    await adapter.remove(plugin_path);
+    return true;
+  }
+}
+
 // node_modules/obsidian-smart-env/smart_env.js
 var SmartEnv2 = class extends SmartEnv {
-  static async create(plugin, main_env_opts = null) {
+  /**
+   * Creates and initializes a SmartEnv instance tailored for Obsidian.
+   * @param {Object} plugin - The Obsidian plugin instance.
+   * @param {Object} [env_config] - Required environment configuration object.
+   * @returns {Promise<SmartEnv>} The initialized SmartEnv instance.
+   */
+  static async create(plugin, env_config) {
+    if (!plugin) throw new Error("SmartEnv.create: 'plugin' parameter is required.");
+    if (!env_config) throw new Error("SmartEnv.create: 'env_config' parameter is required.");
+    env_config.version = this.version;
     add_smart_chat_icon();
     add_smart_connections_icon();
-    if (!main_env_opts) main_env_opts = plugin.smart_env_config;
-    if (plugin.app.plugins.plugins["smart-connections"] && plugin.app.plugins.plugins["smart-connections"].env && !plugin.app.plugins.plugins["smart-connections"].env.constructor.version) {
-      const update_notice = "Detected older SmartEnv with 'init_main'. Reloading without the outdated plugin. Please update Smart Connections.";
+    add_smart_lookup_icon();
+    if (window.smart_env && !window.smart_env.constructor.version) {
+      const update_notice = "Detected ancient SmartEnv. Removing it to prevent issues with new plugins. Make sure your Smart Plugins are up-to-date!";
       console.warn(update_notice);
-      new import_obsidian18.Notice(update_notice, 0);
-      disable_plugin(plugin.app, "smart-connections");
+      new import_obsidian35.Notice(update_notice, 0);
+      window.smart_env = null;
     }
-    const opts = merge_env_config(main_env_opts, default_config_default);
+    const opts = merge_env_config(env_config, default_config_default);
+    opts.env_path = "";
     return await super.create(plugin, opts);
   }
   async load(force_load = false) {
-    if (!import_obsidian18.Platform.isMobile && !this.plugin.app.workspace.protocolHandlers.has("sc-op/callback")) {
-      this.plugin.registerObsidianProtocolHandler("sc-op/callback", async (params) => {
-        await this.handle_sc_op_oauth_callback(params);
+    this.run_migrations();
+    if (!import_obsidian35.Platform.isMobile && !this.plugin.app.workspace.protocolHandlers.has("smart-plugins/callback")) {
+      this.plugin.registerObsidianProtocolHandler("smart-plugins/callback", async (params) => {
+        await this.handle_smart_plugins_oauth_callback(params);
       });
     }
-    if (import_obsidian18.Platform.isMobile && !force_load) {
+    if (import_obsidian35.Platform.isMobile && !force_load) {
       const frag = this.smart_view.create_doc_fragment(`<div><p>Smart Environment loading deferred on mobile.</p><button>Load Environment</button></div>`);
       frag.querySelector("button").addEventListener("click", () => {
         this.load(true);
       });
-      new import_obsidian18.Notice(frag, 0);
+      new import_obsidian35.Notice(frag, 0);
       return;
     }
     await super.load();
+    this.smart_sources?.register_source_watchers?.(this.smart_sources);
     const plugin = this.main;
     plugin.registerEvent(
-      plugin.app.vault.on("create", (file) => {
-        if (file instanceof import_obsidian18.TFile && this.smart_sources?.source_adapters?.[file.extension]) {
-          const source2 = this.smart_sources?.init_file_path(file.path);
-          if (source2) this.smart_sources?.fs.include_file(file.path);
-        }
+      plugin.app.workspace.on("active-leaf-change", (leaf) => {
+        this.smart_sources?.debounce_re_import_queue?.();
+        const current_path = leaf.view?.file?.path;
+        this.emit_source_opened(current_path, "active-leaf-change");
       })
     );
     plugin.registerEvent(
-      plugin.app.vault.on("rename", (file, old_path) => {
-        if (file instanceof import_obsidian18.TFile && this.smart_sources?.source_adapters?.[file.extension]) {
-          const source2 = this.smart_sources?.init_file_path(file.path);
-          if (source2) this.smart_sources?.fs.include_file(file.path);
-        }
-        if (old_path) {
-          const source2 = this.smart_sources?.get(old_path);
-          if (source2) {
-            source2.delete();
-            if (this.rename_debounce_timeout) clearTimeout(this.rename_debounce_timeout);
-            this.rename_debounce_timeout = setTimeout(() => {
-              this.smart_sources?.process_save_queue();
-              this.rename_debounce_timeout = null;
-            }, 1e3);
-          }
-        }
+      plugin.app.workspace.on("file-open", (file) => {
+        this.smart_sources?.debounce_re_import_queue?.();
+        const current_path = file?.path;
+        this.emit_source_opened(current_path, "file-open");
       })
     );
-    plugin.registerEvent(
-      plugin.app.vault.on("modify", (file) => {
-        if (file instanceof import_obsidian18.TFile && this.smart_sources?.source_adapters?.[file.extension]) {
-          if (!this.sources_re_import_queue) this.sources_re_import_queue = {};
-          if (this.sources_re_import_queue?.[file.path]) return;
-          const source2 = this.smart_sources?.get(file.path);
-          if (source2) {
-            source2.data.last_import = { at: 0, hash: null, mtime: 0, size: 0 };
-            this.sources_re_import_queue[source2.key] = source2;
-            this.debounce_re_import_queue();
-          }
-        }
-      })
-    );
-    plugin.registerEvent(
-      plugin.app.workspace.on("editor-change", () => {
-        this.debounce_re_import_queue();
-      })
-    );
-    plugin.registerEvent(
-      plugin.app.workspace.on("active-leaf-change", () => {
-        this.debounce_re_import_queue();
-      })
-    );
-    plugin.registerEvent(
-      plugin.app.vault.on("delete", (file) => {
-        if (file instanceof import_obsidian18.TFile && this.smart_sources?.source_adapters?.[file.extension]) {
-          delete this.smart_sources?.items[file.path];
-        }
-      })
-    );
-    this.refresh_status();
-  }
-  debounce_re_import_queue() {
-    this.refresh_status();
-    this.sources_re_import_halted = true;
-    if (this.sources_re_import_timeout) clearTimeout(this.sources_re_import_timeout);
-    if (!this.sources_re_import_queue || Object.keys(this.sources_re_import_queue).length === 0) {
-      this.sources_re_import_timeout = null;
-      return;
+    if (this._config.collections.smart_completions?.completion_adapters?.SmartCompletionVariableAdapter) {
+      register_completion_variable_adapter_replacements(this._config.collections.smart_completions.completion_adapters.SmartCompletionVariableAdapter);
     }
-    this.sources_re_import_timeout = setTimeout(this.run_re_import.bind(this), this.settings.re_import_wait_time * 1e3);
+    const ContextModal2 = this._config.modals.context_selector.class;
+    ContextModal2.register_modal(this.main);
+    this.register_status_bar();
+  }
+  emit_source_opened(current_path, event_source = null) {
+    if (this._current_opened_source === current_path) return;
+    const current_source = this.smart_sources.get(current_path);
+    if (current_source) {
+      this._current_opened_source = current_path;
+      current_source.emit_event("sources:opened", { event_source });
+    }
+  }
+  // queue re-import the file
+  queue_source_re_import(source) {
+    this.smart_sources?.queue_source_re_import?.(source);
+  }
+  // prevent importing when user is acting within the workspace
+  debounce_re_import_queue() {
+    this.smart_sources?.debounce_re_import_queue?.();
   }
   async run_re_import() {
-    this.sources_re_import_halted = false;
-    const queue_length = Object.keys(this.sources_re_import_queue || {}).length;
-    if (queue_length) {
-      for (const [key, src] of Object.entries(this.sources_re_import_queue)) {
-        await src.import();
-        if (!this.smart_sources._embed_queue) this.smart_sources._embed_queue = [];
-        this.smart_sources._embed_queue.push(src);
-        if (this.smart_blocks.settings.embed_blocks) {
-          for (const block of src.blocks) {
-            if (block._queue_embed || block.should_embed && block.is_unembedded) {
-              this.smart_sources._embed_queue.push(block);
-              block._queue_embed = true;
-            }
-          }
-        }
-        delete this.sources_re_import_queue[key];
-        if (this.sources_re_import_halted) {
-          this.debounce_re_import_queue();
-        }
-      }
-      await this.smart_sources?.process_embed_queue();
-    }
-    if (this.sources_re_import_timeout) clearTimeout(this.sources_re_import_timeout);
-    this.sources_re_import_timeout = null;
-    this.refresh_status();
+    await this.smart_sources?.run_re_import?.();
   }
-  refresh_status() {
-    if (!this.status_elm) {
-      const existing = this.main.app.statusBar.containerEl.querySelector(".smart-env-status-container");
-      if (existing) {
-        existing.closest(".status-bar-item")?.remove();
-      }
-      this.status_elm = this.main.addStatusBarItem();
-      this.smart_view.apply_style_sheet(styles_default);
-      this.status_container = this.status_elm.createEl("a", { cls: "smart-env-status-container" });
-      this.status_container.setAttribute("href", "https://smartconnections.app/community-supporters/?utm_source=status-bar");
-      this.status_container.setAttribute("target", "_external");
-      (0, import_obsidian18.setIcon)(this.status_container, "smart-connections");
-      this.status_msg = this.status_container.createSpan("smart-env-status-msg");
-    }
-    const queue_length = Object.keys(this.sources_re_import_queue || {}).length;
-    if (queue_length) {
-      this.status_msg.setText(`Embed now (${queue_length})`);
-      this.status_container.setAttribute("title", "Click to re-import.");
-      this.status_container.removeEventListener("click", re_embed_click_handler);
-      this.status_container.addEventListener("click", re_embed_click_handler);
-    } else {
-      this.status_msg.setText("Smart Env " + this.constructor.version);
-      this.status_container.setAttribute("title", "Learn about Community Supporters");
-      this.status_container.removeEventListener("click", re_embed_click_handler);
-    }
+  register_status_bar() {
+    const status_container = this.main?.app?.statusBar?.containerEl;
+    status_container?.querySelector?.(".smart-env-status-container")?.closest?.(".status-bar-item")?.remove?.();
+    this.status_elm = this.main.addStatusBarItem();
+    this.smart_components?.render_component("status_bar", this).then((container) => {
+      this.status_elm.empty?.();
+      this.status_elm.appendChild(container);
+    });
   }
+  /**
+   * @deprecated see events
+   */
   get notices() {
     if (!this._notices) {
       this._notices = new SmartNotices(this, {
-        adapter: import_obsidian18.Notice
+        adapter: import_obsidian35.Notice
       });
     }
     return this._notices;
-  }
-  get settings_config() {
-    const config = super.settings_config;
-    delete config["is_obsidian_vault"];
-    config["re_import_wait_time"] = {
-      type: "number",
-      name: "Re-import wait time",
-      description: "Time in seconds to wait before re-importing a file after modification."
-    };
-    return config;
   }
   // Smart Plugins
   /**
@@ -16416,50 +20392,39 @@ var SmartEnv2 = class extends SmartEnv {
   initiate_smart_plugins_oauth() {
     console.log("initiate_smart_plugins_oauth");
     const state = Math.random().toString(36).slice(2);
-    const redirect_uri = encodeURIComponent("obsidian://sc-op/callback");
-    const url = `${get_smart_server_url()}/oauth?client_id=smart-plugins-op&redirect_uri=${redirect_uri}&state=${state}`;
+    const redirect_uri = encodeURIComponent("obsidian://smart-plugins/callback");
+    const url = `${get_smart_server_url2()}/oauth?client_id=smart-plugins-op&redirect_uri=${redirect_uri}&state=${state}`;
     open_url_externally(this.plugin, url);
   }
   /**
    * Handles the OAuth callback from the Smart Plugins server.
    * @param {Object} params - The URL parameters from the OAuth callback.
    */
-  async handle_sc_op_oauth_callback(params) {
+  async handle_smart_plugins_oauth_callback(params) {
     const code = params.code;
     if (!code) {
-      new import_obsidian18.Notice("No OAuth code provided in URL. Login failed.");
+      new import_obsidian35.Notice("No OAuth code provided in URL. Login failed.");
       return;
     }
     try {
       await exchange_code_for_tokens(code, this.plugin);
-      await install_smart_plugins_plugin(this.plugin);
-      new import_obsidian18.Notice("Smart Plugins installed / updated successfully!");
-      this.open_smart_plugins_settings();
+      this.events.emit("smart_plugins_oauth_completed");
     } catch (err) {
       console.error("OAuth callback error", err);
-      new import_obsidian18.Notice(`OAuth callback error: ${err.message}`);
+      new import_obsidian35.Notice(`OAuth callback error: ${err.message}`);
     }
   }
   /**
-   * Opens the Obsidian settings window with the 'Smart Plugins' tab active.
-   * @public
+   * Serializes the environment and, when in a browser, triggers a download.
+   * @param {string} [filename='smart_env.json']
+   * @returns {string} stringified JSON
    */
-  async open_smart_plugins_settings() {
-    const spInstalled = this.plugin.app.plugins.plugins["smart-plugins"];
-    if (!spInstalled) {
-      await install_smart_plugins_plugin(this.plugin);
-      await new Promise((r) => setTimeout(r, 500));
+  export_json(filename = "smart_env.json") {
+    const json = JSON.stringify(this.to_json(), null, 2);
+    if (typeof document !== "undefined") {
+      download_json(json, filename);
     }
-    const spEnabled = this.plugin.app.plugins.enabledPlugins.has("smart-plugins");
-    if (!spEnabled) {
-      await enable_plugin(this.plugin.app, "smart-plugins");
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    this.plugin.app.commands.executeCommandById("app:open-settings");
-    const spTab = this.plugin.app.setting.pluginTabs.find((t) => t.name === "Smart Plugins");
-    if (spTab) {
-      this.plugin.app.setting.openTab(spTab);
-    }
+    return json;
   }
   // WAIT FOR OBSIDIAN SYNC
   async ready_to_load_collections() {
@@ -16480,129 +20445,621 @@ var SmartEnv2 = class extends SmartEnv {
     if (obsidian_sync_instance?.syncStatus.startsWith("Fully synced")) return false;
     return obsidian_sync_instance?.syncing;
   }
+  // get obsidian app instance
+  get obsidian_app() {
+    return this.plugin?.app ?? window.app;
+  }
+  // open notifications feed modal
+  open_notifications_feed_modal() {
+    const NotificationsModalClass = this.config.modals.notifications_feed_modal.class;
+    const modal = new NotificationsModalClass(this.obsidian_app, this);
+    modal.open();
+  }
+  run_migrations() {
+    remove_smart_plugins_plugin({ app: this.plugin.app, plugin_ids: ["smart-plugins"] });
+    remove_smart_plugins_plugin({ app: this.plugin.app, plugin_ids: ["smart-editor"] });
+    remove_smart_plugins_plugin({ app: this.plugin.app, plugin_ids: ["smart-sources"] });
+  }
 };
-async function disable_plugin(app, plugin_id) {
-  console.log("disabling plugin " + plugin_id);
-  await app.plugins.unloadPlugin(plugin_id);
-  await app.plugins.disablePluginAndSave(plugin_id);
-  await app.plugins.loadManifests();
-}
-function re_embed_click_handler(e) {
-  e.preventDefault();
-  e.stopPropagation();
-  smart_env.status_msg.setText(`Embedding...`);
-  smart_env.run_re_import();
+function download_json(json, filename) {
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
 }
 
-// src/views/link_depth_modal.js
-var import_obsidian19 = require("obsidian");
-function approximate_tokens(charCount) {
-  return Math.ceil(charCount / 4);
+// node_modules/obsidian-smart-env/src/views/smart_plugin_settings_tab.js
+var import_obsidian37 = require("obsidian");
+
+// node_modules/obsidian-smart-env/utils/wait_for_env_to_load.js
+var import_obsidian36 = require("obsidian");
+async function wait_for_env_to_load(scope, opts = {}) {
+  const { wait_for_states = ["loaded"] } = opts;
+  const container = scope.container || scope.containerEl;
+  if (!wait_for_states.includes(scope.env?.state)) {
+    let clicked_load_env = false;
+    while (scope.env.state === "init" && import_obsidian36.Platform.isMobile && !clicked_load_env) {
+      if (container) {
+        container.empty();
+        scope.env.smart_view.safe_inner_html(container, "<button>Load Smart Environment</button>");
+        container.querySelector("button").addEventListener("click", () => {
+          scope.env.load(true);
+          clicked_load_env = true;
+        });
+      } else {
+        console.log("Waiting for env to load (mobile)...");
+      }
+      await new Promise((r) => setTimeout(r, 2e3));
+    }
+    while (!wait_for_states.includes(scope.env.state)) {
+      if (container) {
+        const loading_msg = scope.env?.obsidian_is_syncing ? "Waiting for Obsidian Sync to finish..." : "Loading Obsidian Smart Environment...";
+        container.empty();
+        scope.env.smart_view.safe_inner_html(container, loading_msg);
+      } else {
+        console.log("Waiting for env to load...");
+      }
+      await new Promise((r) => setTimeout(r, 2e3));
+    }
+  }
 }
-var LinkDepthModal = class extends import_obsidian19.SuggestModal {
+
+// node_modules/obsidian-smart-env/src/views/settings.css
+var settings_default = `/* 1) Host elements that should get a PRO badge */\r
+:is(\r
+  .setting-component.pro-setting .setting-item-name\r
+) {\r
+  position: relative; /* safe default, keeps ::after anchored */\r
+}\r
+\r
+/* 2) The PRO badge itself */\r
+:is(\r
+  .setting-component.pro-setting .setting-item-name\r
+)::after {\r
+  content: "PRO";\r
+\r
+  /* layout */\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  margin-left: 0.4em;\r
+  padding: 0.08em 0.55em;\r
+  border-radius: 999px;\r
+  white-space: nowrap;\r
+  vertical-align: middle;\r
+\r
+  /* typography */\r
+  font-size: 0.7em;\r
+  font-weight: 600;\r
+  letter-spacing: 0.14em;\r
+  text-transform: uppercase;\r
+  line-height: 1;\r
+\r
+  /* color system: only Obsidian variables */\r
+  background-color: var(--interactive-accent);\r
+  background-image: linear-gradient(\r
+    135deg,\r
+    var(--interactive-accent),\r
+    var(--interactive-accent-hover)\r
+  );\r
+  color: var(--text-on-accent, var(--background-primary));\r
+  border: 1px solid var(--background-modifier-border);\r
+\r
+  /* subtle separation & depth, theme-aware */\r
+  box-shadow:\r
+    0 0 0 1px var(--background-primary),\r
+    0 1px 3px rgba(0, 0, 0, 0.35);\r
+  transform: translateY(-0.03em);\r
+}\r
+\r
+/* 3) Interactive refinement: follow Obsidian's accent hover behavior */\r
+:is(\r
+  .setting-component.pro-setting .setting-item-name\r
+):hover::after {\r
+  background-color: var(--interactive-accent-hover);\r
+  filter: brightness(1.05);\r
+}\r
+\r
+.pro-plugins-container {\r
+  border: 1px solid var(--interactive-accent);\r
+  border-radius: var(--radius-m);\r
+  padding: 1rem;\r
+  margin-top: 1rem;\r
+  background-color: var(--background-secondary);\r
+}\r
+\r
+.smart-plugin-settings-header .actions-container {\r
+  display: flex;\r
+  flex-wrap: wrap;\r
+  gap: var(--pill-padding-y);\r
+}\r
+\r
+.setting-component:has(.dropdown-no-options) {\r
+  display: none;\r
+}`;
+
+// node_modules/obsidian-smart-env/src/views/smart_plugin_settings_tab.js
+var SmartPluginSettingsTab = class extends import_obsidian37.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+    this.header_container = null;
+    this.plugin_container = null;
+    this.global_settings_container = null;
+    this.plugin?.env?.create_env_getter?.(this);
+    if (this.env.is_pro && !this.env_settings_tab) this.plugin.addSettingTab(new SmartEnvSettingTab(this.plugin.app, this.plugin));
+  }
+  get smart_view() {
+    return this.env?.smart_view;
+  }
+  async display() {
+    await this.render();
+  }
+  async render() {
+    this.containerEl.empty();
+    render_pre_env_load(this);
+    await this.env.constructor.wait_for({ loaded: true });
+    this.prepare_layout();
+    await this.render_header(this.header_container);
+    await this.render_plugin_settings(this.plugin_container);
+    await this.render_global_settings(this.global_settings_container);
+  }
+  prepare_layout() {
+    this.smart_view.apply_style_sheet(settings_default);
+    this.containerEl.empty();
+    this.header_container = this.containerEl.createDiv({ cls: "smart-plugin-settings-header" });
+    this.plugin_container = this.containerEl.createDiv({ cls: "smart-plugin-settings-main" });
+    this.global_settings_container = this.containerEl.createDiv({ cls: "smart-plugin-settings-env" });
+    this.pro_plugins_container = this.containerEl.createDiv({ cls: "smart-plugin-settings-pro-plugins" });
+  }
   /**
-   * @param {import("obsidian").Plugin} plugin
-   * @param {any[]} base_items - An array of TFiles or similar, each with a .path
-   * @param {number[]} depth_range - e.g. [0,1,2,3,4,5]
+   * @abstract
    */
-  constructor(plugin, base_items, depth_range = [0, 1, 2, 3, 4, 5]) {
+  async render_header(container) {
+  }
+  /**
+   * @abstract
+   */
+  async render_plugin_settings(container) {
+  }
+  async render_global_settings(container) {
+    if (!container) return;
+    container.empty?.();
+    if (!this.env) return;
+    if (this.env.is_pro) {
+      const settings_item_div = container.createDiv({ cls: "setting-item" });
+      const info_div = settings_item_div.createDiv({ cls: "setting-item-info" });
+      info_div.createDiv({ cls: "setting-item-name", text: "Smart Environment" });
+      info_div.createDiv({
+        cls: "setting-item-description",
+        text: "Manage global settings in the dedicated Smart Environment settings tab."
+      });
+      const control_div = settings_item_div.createDiv({ cls: "setting-item-control" });
+      const button = control_div.createEl("button", { text: "Open settings" });
+      button.addEventListener("click", () => {
+        this.app.setting.openTabById("smart-environment");
+      });
+    } else {
+      const settings_smart_env = await this.render_component("settings_smart_env", this.env);
+      if (settings_smart_env) container.appendChild(settings_smart_env);
+    }
+    const smart_plugins_settings = await this.render_component("pro_plugins_list", this.env);
+    this.pro_plugins_container.empty?.();
+    this.pro_plugins_container.appendChild(smart_plugins_settings);
+  }
+  async render_component(name, scope, params = {}) {
+    return await this.env.smart_components.render_component(name, scope, params);
+  }
+  // Detect Existing Smart Environment Settings Tab
+  get env_settings_tab() {
+    const app = this.plugin.app || window.app;
+    return app.setting.pluginTabs.find((t) => t.id === "smart-environment");
+  }
+};
+var SmartEnvSettingTab = class extends import_obsidian37.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+    this.header_container = null;
+    this.plugin_container = null;
+    this.global_settings_container = null;
+    this.plugin?.env?.create_env_getter?.(this);
+    this.plugin = plugin;
+    this.name = "Smart Environment";
+    if (this.env.is_pro) this.name += " Pro";
+    this.id = "smart-environment";
+  }
+  get smart_view() {
+    return this.env?.smart_view;
+  }
+  display() {
+    this.render();
+  }
+  async render_component(name, scope, params = {}) {
+    return await this.env.smart_components.render_component(name, scope, params);
+  }
+  async render() {
+    this.containerEl.empty();
+    this.smart_view.apply_style_sheet(settings_default);
+    render_pre_env_load(this);
+    await this.env.constructor.wait_for({ loaded: true });
+    this.containerEl.empty();
+    this.header_container = this.containerEl.createDiv({ cls: "smart-plugin-settings-header" });
+    this.plugin_container = this.containerEl.createDiv({ cls: "smart-plugin-settings-main" });
+    this.pro_plugins_container = this.containerEl.createDiv({ cls: "smart-plugin-settings-pro-plugins" });
+    this.header_container.createEl("p", { text: "Manage all global Smart Environment settings from one tab. These settings apply to all Smart Plugins." });
+    const settings_smart_env = await this.render_component("settings_smart_env", this.env);
+    if (settings_smart_env) this.plugin_container.appendChild(settings_smart_env);
+    const smart_plugins_settings = await this.render_component("pro_plugins_list", this.env);
+    this.pro_plugins_container.empty?.();
+    this.pro_plugins_container.appendChild(smart_plugins_settings);
+  }
+};
+function render_pre_env_load(scope) {
+  const container = scope.containerEl;
+  const env = scope.env;
+  if (env.state !== "loaded") {
+    if (env.state === "loading") {
+      container.createEl("p", { text: "Smart Environment is loading\u2026" });
+    } else {
+      container.createEl("p", { text: "Smart Environment not yet initialized." });
+      const load_btn = container.createEl("button", { text: "Load Smart Environment" });
+      load_btn.addEventListener("click", async () => {
+        load_btn.disabled = true;
+        load_btn.textContent = "Loading Smart Environment\u2026";
+        await env.load(true);
+      });
+    }
+  }
+}
+
+// node_modules/obsidian-smart-env/src/modals/story.js
+var import_obsidian38 = require("obsidian");
+var StoryModal = class _StoryModal extends import_obsidian38.Modal {
+  constructor(plugin, { title, url }) {
     super(plugin.app);
     this.plugin = plugin;
-    this.env = plugin.env;
-    this.base_items = base_items;
-    this.depth_range = depth_range;
-    this.depths_info = [];
-    this.setPlaceholder("Pick a link depth...");
+    this.title = title;
+    this.url = url;
   }
-  async onOpen() {
-    const ctx = this.env.smart_contexts.new_context({}, {
-      add_items: this.base_items
+  static open(plugin, story_url) {
+    const modal = new _StoryModal(plugin, story_url);
+    modal.open();
+  }
+  onOpen() {
+    this.titleEl.setText(this.title);
+    this.modalEl.addClass("sc-story-modal");
+    const container = this.contentEl.createEl("div", {
+      cls: "sc-story-container"
     });
-    const { context: zeroContext, stats: zeroStats } = await ctx.compile({ link_depth: 0, calculating: true });
-    this.zero_char_count = zeroStats.char_count;
-    this.zero_tokens = approximate_tokens(this.zero_char_count);
-    const cache = ctx?.meta?.depth_cache || null;
-    const isCacheValid = cache && cache.depth0_token_count === this.zero_tokens;
-    if (isCacheValid) {
-      this.depths_info = cache.depths_info;
+    if (import_obsidian38.Platform.isMobile) {
+      const btn = container.createEl("button", { text: "Open in browser" });
+      btn.addEventListener("click", () => {
+        open_url_externally(this.plugin, this.url);
+        this.close();
+      });
+      return;
     } else {
-      if (ctx?.meta) {
-        ctx.meta.depth_cache = null;
-      }
-      this.depths_info = [];
-      let stopFurther = false;
-      for (const d of this.depth_range) {
-        if (stopFurther) {
-          this.depths_info.push({
-            depth: d,
-            label: `Depth ${d} (not calculated)`,
-            token_count: 0,
-            ctx,
-            stats: {}
-          });
-          continue;
+      const webview = container.createEl("webview", {
+        attr: { src: this.url, allowpopups: "" }
+      });
+      webview.style.width = "100%";
+      webview.style.height = "100%";
+      webview.addEventListener("did-navigate", (event) => {
+        const new_url = event.url || webview.getAttribute("src");
+        if (new_url && new_url !== this.url) {
+          open_url_externally(this.plugin, new_url);
+          this.close();
         }
-        const { stats } = await ctx.compile({ link_depth: d, calculating: true });
-        const total_chars = stats.char_count;
-        const total_tokens = approximate_tokens(total_chars);
-        const chars = total_chars > 1e4 ? `${Math.round(total_chars / 1e3)}k` : total_chars;
-        const tokens = total_tokens > 1e4 ? `${Math.round(total_tokens / 1e3)}k` : total_tokens;
-        let label = `Depth ${d} (${chars} chars, ${tokens} tokens)`;
-        if (total_tokens > 5e4) {
-          label += " [exceeds 50k; stopping further]";
-          stopFurther = true;
-        }
-        this.depths_info.push({
-          depth: d,
-          label,
-          token_count: tokens,
-          ctx,
-          stats
-        });
-      }
-      if (ctx?.meta) {
-        ctx.meta.depth_cache = {
-          depth0_token_count: this.zero_tokens,
-          depths_info: this.depths_info
-        };
+      });
+    }
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/views/settings_tab.js
+var SmartContextSettingTab = class extends SmartPluginSettingsTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+  async render_plugin_settings(container) {
+    if (!container) return;
+    container.empty?.();
+    const getting_started_container = container.createDiv({
+      cls: "smart-context-getting-started-container"
+    });
+    getting_started_container.style.marginBottom = "1em";
+    const launch_button = getting_started_container.createEl("button", {
+      cls: "sc-getting-started-button",
+      text: "Getting started guide"
+    });
+    launch_button.addEventListener("click", () => {
+      StoryModal.open(this.plugin, {
+        title: "Getting Started With Smart Context",
+        url: "https://smartconnections.app/story/smart-context-getting-started/?utm_source=context-settings"
+      });
+    });
+    this.env.smart_components.render_component("smart_context_settings_tab", this).then((settings_container) => {
+      container.appendChild(settings_container);
+    });
+  }
+};
+
+// src/utils/show_stats_notice.js
+var import_obsidian39 = require("obsidian");
+function show_stats_notice(stats, contextMsg) {
+  let noticeMsg = `Copied to clipboard! (${contextMsg})`;
+  if (stats) {
+    const char_count = stats.char_count < 1e5 ? stats.char_count : `~${Math.round(stats.char_count / 1e3)}k`;
+    noticeMsg += `, ${char_count} chars`;
+    if (stats.exclusions) {
+      const total_excluded = Object.values(stats.exclusions).reduce(
+        (p, c) => p + c,
+        0
+      );
+      if (total_excluded > 0) {
+        noticeMsg += `, ${total_excluded} section(s) excluded`;
       }
     }
-    super.onOpen();
+  }
+  new import_obsidian39.Notice(noticeMsg);
+}
+
+// src/utils/get_selected_note_keys.js
+function get_selected_note_keys(files = [], smart_sources) {
+  if (!Array.isArray(files) || !smart_sources?.get) return [];
+  const seen = /* @__PURE__ */ new Set();
+  return files.reduce((keys, file) => {
+    const ext = file?.extension?.toLowerCase?.();
+    if (ext !== "md") return keys;
+    const path = file?.path;
+    if (!path || seen.has(path)) return keys;
+    const source = smart_sources.get(path);
+    if (!source?.key) return keys;
+    seen.add(path);
+    keys.push(source.key);
+    return keys;
+  }, []);
+}
+
+// node_modules/obsidian-smart-env/views/smart_item_view.js
+var import_obsidian40 = require("obsidian");
+var SmartItemView = class extends import_obsidian40.ItemView {
+  /**
+   * Creates an instance of SmartItemView.
+   * @param {any} leaf
+   * @param {any} plugin
+   */
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.app = plugin.app;
+    this.plugin = plugin;
   }
   /**
-   * The suggestions to display (one per depth).
-   * @param {string} _query
+   * The unique view type. Must be implemented in subclasses.
+   * @returns {string}
    */
-  getSuggestions(_query) {
-    return this.depths_info;
+  static get view_type() {
+    throw new Error("view_type must be implemented in subclass");
   }
   /**
-   * Renders each depth option in the suggestion list.
-   * @param {DepthInfo} item
-   * @param {HTMLElement} el
+   * The display text for this view. Must be implemented in subclasses.
+   * @returns {string}
    */
-  renderSuggestion(item, el) {
-    el.createDiv({ text: item.label });
+  static get display_text() {
+    throw new Error("display_text must be implemented in subclass");
   }
   /**
-   * Called when user picks a depth info item.
-   * Re-compile at that depth and copy result to clipboard.
-   * @param {DepthInfo} item
+   * The icon name for this view.
+   * @returns {string}
    */
-  async onChooseSuggestion(item) {
-    const { context, stats, images } = await item.ctx.compile({ link_depth: item.depth });
-    await this.plugin.copy_to_clipboard(context, images);
-    this.plugin.showStatsNotice(stats, `Depth ${item.depth} selected`);
-    new import_obsidian19.Notice("Copied context to clipboard!");
+  static get icon_name() {
+    return "smart-connections";
+  }
+  /**
+   * Registers this ItemView subclass against a plugin instance and
+   * installs ergonomic accessors, an open helper, and an `${view_type}:open` listener.
+   *
+   * Usage from a plugin class:
+   *   SubClass.register_item_view(this);
+   *
+   * This will:
+   * - call plugin.registerView(view_type, ...)
+   * - add a command "Open: <display_text> view"
+   * - define a getter on plugin: plugin[method_name] -> the view instance
+   * - define a method on plugin: plugin["open_" + method_name]() -> opens the view
+   * - listen for env events named `${view_type}:open` and open the view when emitted
+   *
+   * @param {import('obsidian').Plugin} plugin
+   * @returns {{method_name:string, open_method_name:string, event_name:string}}
+   */
+  static register_item_view(plugin) {
+    const View = (
+      /** @type {typeof SmartItemView} */
+      this
+    );
+    plugin.registerView(View.view_type, (leaf) => new View(leaf, plugin));
+    plugin.addCommand({
+      id: View.view_type,
+      name: "Open: " + View.display_text + " view",
+      callback: () => {
+        View.open(plugin.app.workspace);
+      }
+    });
+    const method_name = View.view_type.replace(/^smart-/, "").replace(/-/g, "_");
+    const open_method_name = "open_" + method_name;
+    if (!Object.getOwnPropertyDescriptor(plugin, method_name)) {
+      Object.defineProperty(plugin, method_name, {
+        configurable: true,
+        enumerable: false,
+        get: () => View.get_view(plugin.app.workspace)
+      });
+    }
+    plugin[open_method_name] = () => View.open(plugin.app.workspace);
+    const event_name = `${method_name}:open`;
+    const handler = (payload) => {
+      const active = typeof payload?.active === "boolean" ? payload.active : true;
+      View.open(plugin.app.workspace, active);
+    };
+    const unsubscribe = plugin?.env?.events.on(event_name, handler);
+    if (typeof plugin.register === "function" && typeof unsubscribe === "function") {
+      plugin.register(() => unsubscribe());
+    }
+    return { method_name, open_method_name, event_name };
+  }
+  /**
+   * Retrieves the Leaf instance for this view type if it exists.
+   * @param {import("obsidian").Workspace} workspace
+   * @returns {import("obsidian").WorkspaceLeaf | undefined}
+   */
+  static get_leaf(workspace) {
+    return workspace.getLeavesOfType(this.view_type)[0];
+  }
+  /**
+   * Retrieves the view instance if it exists.
+   * @param {import("obsidian").Workspace} workspace
+   * @returns {SmartItemView | undefined}
+   */
+  static get_view(workspace) {
+    const leaf = this.get_leaf(workspace);
+    return leaf ? leaf.view : void 0;
+  }
+  /**
+   * Opens the view. If `this.default_open_location` is "root",
+   * it opens (or reveals) in a root leaf; otherwise in the right leaf.
+   *
+   * @param {import("obsidian").Workspace} workspace
+   * @param {boolean} [active=true]
+   */
+  static open(workspace, params = {}) {
+    const {
+      active = true
+    } = params;
+    const existing_leaf = this.get_leaf(workspace);
+    if (this.default_open_location === "root") {
+      if (existing_leaf) {
+        existing_leaf.setViewState({ type: this.view_type, active });
+      } else {
+        workspace.getLeaf(false).setViewState({ type: this.view_type, active });
+      }
+    } else {
+      if (existing_leaf) {
+        existing_leaf.setViewState({ type: this.view_type, active });
+      } else {
+        workspace.getRightLeaf(false).setViewState({
+          type: this.view_type,
+          active
+        });
+      }
+      if (workspace.rightSplit?.collapsed) {
+        workspace.rightSplit.toggle();
+      }
+    }
+    setTimeout(() => {
+      this.get_view(workspace)?.render_view(params);
+    }, 100);
+  }
+  static is_open(workspace) {
+    return this.get_leaf(workspace)?.view instanceof this;
+  }
+  // instance
+  getViewType() {
+    return this.constructor.view_type;
+  }
+  getDisplayText() {
+    return this.constructor.display_text;
+  }
+  getIcon() {
+    return this.constructor.icon_name;
+  }
+  async onOpen() {
+    this.app.workspace.onLayoutReady(this.initialize.bind(this));
+  }
+  async initialize() {
+    await wait_for_env_to_load(this);
+    this.container.empty();
+    this.register_plugin_events();
+    this.app.workspace.registerHoverLinkSource(this.constructor.view_type, { display: this.getDisplayText(), defaultMod: true });
+    this.render_view();
+    if (import_obsidian40.Platform.isMobile) {
+      const status_bar_container = this.containerEl.querySelector(".status-bar-mobile") ?? this.containerEl.createDiv({ cls: "status-bar-mobile" });
+      ;
+      status_bar_container.empty();
+      const status_bar_item = status_bar_container.createDiv({ cls: "status-bar-item" });
+      this.env.smart_components.render_component("status_bar", this.env).then((el) => status_bar_item.appendChild(el));
+    }
+  }
+  register_plugin_events() {
+  }
+  render_view(params = {}) {
+    throw new Error("render_view must be implemented in subclass");
+  }
+  get container() {
+    return this.containerEl.children[1];
+  }
+  get env() {
+    return this.plugin.env;
+  }
+  async open_settings() {
+    await this.app.setting.open();
+    await this.app.setting.openTabById(this.plugin.manifest.id);
+  }
+};
+
+// src/views/contexts_dashboard_view.js
+var CONTEXTS_DASHBOARD_VIEW_TYPE = "smart-contexts-dashboard";
+var ContextsDashboardView = class extends SmartItemView {
+  static get view_type() {
+    return CONTEXTS_DASHBOARD_VIEW_TYPE;
+  }
+  static get display_text() {
+    return "Management dashboard (show named contexts)";
+  }
+  static get icon_name() {
+    return "layout-dashboard";
+  }
+  async render_view(params = {}) {
+    const dashboard = await this.env.render_component(
+      "smart_context_list",
+      this.env.smart_contexts,
+      { ...params }
+    );
+    dashboard.classList.add("item-view");
+    this.container.empty();
+    this.container.append(dashboard);
   }
 };
 
 // node_modules/smart-collections/utils/collection_instance_name_from.js
 function collection_instance_name_from2(class_name) {
   if (class_name.endsWith("Item")) {
-    return class_name.replace(/Item$/, "").toLowerCase();
+    return class_name.replace(/Item$/, "").replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
   }
   return class_name.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/y$/, "ie") + "s";
+}
+
+// node_modules/smart-utils/deep_merge.js
+function deep_merge2(target = {}, source = {}) {
+  for (const key in source) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    if (is_plain_object4(source[key]) && is_plain_object4(target[key])) {
+      deep_merge2(target[key], source[key]);
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+function is_plain_object4(o) {
+  return o && typeof o === "object" && !Array.isArray(o);
 }
 
 // node_modules/smart-collections/utils/helpers.js
@@ -16618,17 +21075,10 @@ function create_uid2(data) {
   }
   return hash.toString() + str.length;
 }
-function deep_merge3(target, source2) {
-  for (const key in source2) {
-    if (source2.hasOwnProperty(key)) {
-      if (is_obj(source2[key]) && is_obj(target[key])) deep_merge3(target[key], source2[key]);
-      else target[key] = source2[key];
-    }
-  }
-  return target;
-  function is_obj(item) {
-    return item && typeof item === "object" && !Array.isArray(item);
-  }
+
+// node_modules/smart-utils/camel_case_to_snake_case.js
+function camel_case_to_snake_case2(str = "") {
+  return str.replace(/([A-Z])/g, (m) => `_${m.toLowerCase()}`).replace(/^_/, "").replace(/2$/, "");
 }
 
 // node_modules/smart-collections/utils/deep_equal.js
@@ -16651,8 +21101,236 @@ function deep_equal2(obj1, obj2, visited = /* @__PURE__ */ new WeakMap()) {
   return obj1 === obj2;
 }
 
+// node_modules/smart-collections/utils/get_item_display_name.js
+function get_item_display_name2(key, show_full_path) {
+  if (show_full_path) {
+    return key.split("/").join(" > ").replace(".md", "");
+  }
+  return key.split("/").pop().replace(".md", "");
+}
+
+// node_modules/smart-collections/utils/create_actions_proxy.js
+function create_actions_proxy2(ctx, actions_source) {
+  const input = actions_source || {};
+  const is_plain_object5 = (val) => typeof val === "object" && val !== null && !Array.isArray(val);
+  const is_function = (val) => typeof val === "function";
+  const is_class_export = (val) => is_function(val) && /^class\s/.test(Function.prototype.toString.call(val));
+  const is_action_object = (val) => is_plain_object5(val) && is_function(val.action);
+  const is_action_candidate = (val) => is_function(val) || is_action_object(val) || is_class_export(val);
+  const ignored_meta_keys = /* @__PURE__ */ new Set(["length", "name", "prototype"]);
+  const clone_with_descriptors = (obj) => {
+    if (!is_plain_object5(obj)) return obj;
+    const out = Object.create(Object.getPrototypeOf(obj) || null);
+    for (const key of Reflect.ownKeys(obj)) {
+      const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+      if (!descriptor) continue;
+      const next = { ...descriptor };
+      if ("value" in next && is_plain_object5(next.value)) {
+        next.value = clone_with_descriptors(next.value);
+      }
+      try {
+        Object.defineProperty(out, key, next);
+      } catch {
+        out[key] = next.value;
+      }
+    }
+    return out;
+  };
+  const should_bucket_actions = (val) => {
+    if (!is_plain_object5(val)) return false;
+    if (is_action_object(val)) return false;
+    const keys = Reflect.ownKeys(val);
+    if (keys.length === 0) return false;
+    let found_candidate = false;
+    for (const key of keys) {
+      const descriptor = Object.getOwnPropertyDescriptor(val, key);
+      if (!descriptor) continue;
+      if ("value" in descriptor) {
+        const entry = descriptor.value;
+        if (is_action_candidate(entry)) {
+          found_candidate = true;
+          continue;
+        }
+        if (is_plain_object5(entry)) {
+          if (should_bucket_actions(entry)) {
+            found_candidate = true;
+            continue;
+          }
+          return false;
+        }
+        if (typeof entry === "undefined") continue;
+        return false;
+      }
+      return false;
+    }
+    return found_candidate;
+  };
+  const clone_descriptor = (descriptor) => {
+    if (!descriptor) return descriptor;
+    if (!("value" in descriptor)) return { ...descriptor };
+    const cloned = is_plain_object5(descriptor.value) ? clone_with_descriptors(descriptor.value) : descriptor.value;
+    return { ...descriptor, value: cloned };
+  };
+  const build_sources = (src) => {
+    const global_source2 = /* @__PURE__ */ Object.create(null);
+    const scoped_sources2 = /* @__PURE__ */ new Map();
+    for (const key of Reflect.ownKeys(src)) {
+      const descriptor = Object.getOwnPropertyDescriptor(src, key);
+      if (!descriptor) continue;
+      if ("value" in descriptor && should_bucket_actions(descriptor.value)) {
+        scoped_sources2.set(key, clone_with_descriptors(descriptor.value));
+        continue;
+      }
+      try {
+        Object.defineProperty(global_source2, key, clone_descriptor(descriptor));
+      } catch {
+        global_source2[key] = descriptor.value;
+      }
+    }
+    return { global_source: global_source2, scoped_sources: scoped_sources2 };
+  };
+  const { global_source, scoped_sources } = build_sources(input);
+  const has_own = (obj, prop) => Object.prototype.hasOwnProperty.call(obj, prop);
+  const cache = /* @__PURE__ */ Object.create(null);
+  const copy_metadata = (source, target, omit = []) => {
+    if (!source || !target) return;
+    const skips = /* @__PURE__ */ new Set([...ignored_meta_keys, ...omit]);
+    for (const key of Reflect.ownKeys(source)) {
+      if (skips.has(key)) continue;
+      const descriptor = Object.getOwnPropertyDescriptor(source, key);
+      if (!descriptor) continue;
+      try {
+        Object.defineProperty(target, key, descriptor);
+      } catch {
+        target[key] = descriptor.value;
+      }
+    }
+  };
+  const instantiate_class = (Ctor) => {
+    const instance = new Ctor(ctx);
+    const candidate = instance.action || instance.run || instance.execute || instance.call;
+    if (is_function(candidate)) {
+      const bound = candidate.bind(instance);
+      copy_metadata(Ctor, bound);
+      copy_metadata(instance, bound);
+      bound.instance = instance;
+      return bound;
+    }
+    copy_metadata(Ctor, instance);
+    return instance;
+  };
+  const bind_or_clone = (val) => {
+    if (is_class_export(val)) {
+      return instantiate_class(val);
+    }
+    if (is_action_object(val)) {
+      const bound = val.action.bind(ctx);
+      copy_metadata(val, bound, ["action"]);
+      return bound;
+    }
+    if (is_function(val)) {
+      const bound = val.bind(ctx);
+      copy_metadata(val, bound);
+      return bound;
+    }
+    if (is_plain_object5(val)) {
+      return clone_with_descriptors(val);
+    }
+    return val;
+  };
+  const scope_actions_for = () => {
+    const scope_key = ctx?.constructor?.key;
+    if (typeof scope_key === "undefined" || scope_key === null) return null;
+    const bucket = scoped_sources.get(scope_key);
+    return bucket && is_plain_object5(bucket) ? bucket : null;
+  };
+  const cache_result = (target, prop, value) => {
+    target[prop] = value;
+    return value;
+  };
+  const compute_and_cache = (target, prop) => {
+    const scoped = scope_actions_for();
+    if (scoped && has_own(scoped, prop)) {
+      return cache_result(target, prop, bind_or_clone(scoped[prop]));
+    }
+    if (has_own(global_source, prop)) {
+      return cache_result(target, prop, bind_or_clone(global_source[prop]));
+    }
+    return cache_result(target, prop, void 0);
+  };
+  const union_keys = () => {
+    const scoped = scope_actions_for();
+    const keys = new Set(Reflect.ownKeys(cache));
+    for (const key of Reflect.ownKeys(global_source)) {
+      keys.add(key);
+    }
+    if (scoped) {
+      for (const key of Reflect.ownKeys(scoped)) {
+        keys.add(key);
+      }
+    }
+    return Array.from(keys);
+  };
+  const descriptor_for = (target, prop) => ({
+    configurable: true,
+    enumerable: true,
+    value: target[prop]
+  });
+  return new Proxy(cache, {
+    get: (target, prop) => {
+      if (prop === Symbol.toStringTag) return "ActionsProxy";
+      if (prop in target) return target[prop];
+      return compute_and_cache(target, prop);
+    },
+    has: (target, prop) => {
+      if (prop in target) return true;
+      const scoped = scope_actions_for();
+      if (scoped && has_own(scoped, prop)) return true;
+      return has_own(global_source, prop);
+    },
+    ownKeys: () => union_keys(),
+    getOwnPropertyDescriptor: (target, prop) => {
+      if (has_own(target, prop)) {
+        return descriptor_for(target, prop);
+      }
+      const scoped = scope_actions_for();
+      if (scoped && has_own(scoped, prop)) {
+        if (!has_own(target, prop)) {
+          compute_and_cache(target, prop);
+        }
+        return descriptor_for(target, prop);
+      }
+      if (has_own(global_source, prop)) {
+        if (!has_own(target, prop)) {
+          compute_and_cache(target, prop);
+        }
+        return descriptor_for(target, prop);
+      }
+      return void 0;
+    },
+    defineProperty: (target, prop, descriptor) => {
+      if ("value" in descriptor) {
+        target[prop] = descriptor.value;
+        return true;
+      }
+      return false;
+    },
+    set: (target, prop, value) => {
+      target[prop] = value;
+      return true;
+    },
+    deleteProperty: (target, prop) => {
+      if (has_own(target, prop)) {
+        delete target[prop];
+      }
+      return true;
+    }
+  });
+}
+
 // node_modules/smart-collections/item.js
 var CollectionItem2 = class _CollectionItem {
+  static version = 2e-3;
   /**
    * Default properties for an instance of CollectionItem.
    * Override in subclasses to define different defaults.
@@ -16671,7 +21349,7 @@ var CollectionItem2 = class _CollectionItem {
     env.create_env_getter(this);
     this.config = this.env?.config;
     this.merge_defaults();
-    if (data) deep_merge3(this.data, data);
+    if (data) deep_merge2(this.data, data);
     if (!this.data.class_name) this.data.class_name = this.collection.item_class_name;
   }
   /**
@@ -16722,7 +21400,7 @@ var CollectionItem2 = class _CollectionItem {
   update_data(data) {
     const sanitized_data = this.sanitize_data(data);
     const current_data = { ...this.data };
-    deep_merge3(current_data, sanitized_data);
+    deep_merge2(current_data, sanitized_data);
     const changed = !deep_equal2(this.data, current_data);
     if (!changed) return false;
     this.data = current_data;
@@ -16823,6 +21501,9 @@ var CollectionItem2 = class _CollectionItem {
    * @param {string} [filter_opts.exclude_key_starts_with] - Exclude keys starting with this string.
    * @param {string[]} [filter_opts.exclude_key_starts_with_any] - Exclude keys starting with any of these strings.
    * @param {string} [filter_opts.exclude_key_includes] - Exclude keys that include this string.
+   * @param {string[]} [filter_opts.exclude_key_includes_any] - Exclude keys that include any of these strings.
+   * @param {string} [filter_opts.exclude_key_ends_with] - Exclude keys ending with this string.
+   * @param {string[]} [filter_opts.exclude_key_ends_with_any] - Exclude keys ending with any of these strings.
    * @param {string} [filter_opts.key_ends_with] - Include only keys ending with this string.
    * @param {string} [filter_opts.key_starts_with] - Include only keys starting with this string.
    * @param {string[]} [filter_opts.key_starts_with_any] - Include only keys starting with any of these strings.
@@ -16838,6 +21519,7 @@ var CollectionItem2 = class _CollectionItem {
       exclude_key_includes,
       exclude_key_includes_any,
       exclude_key_ends_with,
+      exclude_key_ends_with_any,
       key_ends_with,
       key_starts_with,
       key_starts_with_any,
@@ -16850,6 +21532,7 @@ var CollectionItem2 = class _CollectionItem {
     if (exclude_key_includes && this.key.includes(exclude_key_includes)) return false;
     if (exclude_key_includes_any && exclude_key_includes_any.some((include) => this.key.includes(include))) return false;
     if (exclude_key_ends_with && this.key.endsWith(exclude_key_ends_with)) return false;
+    if (exclude_key_ends_with_any && exclude_key_ends_with_any.some((suffix) => this.key.endsWith(suffix))) return false;
     if (key_ends_with && !this.key.endsWith(key_ends_with)) return false;
     if (key_starts_with && !this.key.startsWith(key_starts_with)) return false;
     if (key_starts_with_any && !key_starts_with_any.some((prefix) => this.key.startsWith(prefix))) return false;
@@ -16857,17 +21540,32 @@ var CollectionItem2 = class _CollectionItem {
     if (key_includes_any && !key_includes_any.some((include) => this.key.includes(include))) return false;
     return true;
   }
+  filter_and_score(params = {}) {
+    if (this.filter(params.filter) === false) return null;
+    return this.score(params);
+  }
+  score(params = {}) {
+    const score_action = this.actions[params.score_algo_key];
+    if (typeof score_action !== "function") throw new Error(`Missing score action: ${params.score_algo_key}`);
+    return {
+      ...score_action(params) || {},
+      item: this
+    };
+  }
   /**
    * Parses item data for additional processing. Override as needed.
+   * @deprecated is this used anywhere?
    */
   parse() {
   }
   get actions() {
     if (!this._actions) {
-      this._actions = Object.entries(this.env.opts.items[this.item_type_key].actions || {}).reduce((acc, [k, v]) => {
-        acc[k] = v.bind(this);
-        return acc;
-      }, {});
+      this._actions = create_actions_proxy2(this, {
+        ...this.env.config.actions || {},
+        // main actions scope for actions/ exports
+        ...this.env.opts.items?.[this.item_type_key]?.actions || {}
+        // DEPRECATED OR KEEP?
+      });
     }
     return this._actions;
   }
@@ -16904,14 +21602,29 @@ var CollectionItem2 = class _CollectionItem {
   get item_type_key() {
     let name = this.constructor.name;
     if (name.match(/\d$/)) name = name.slice(0, -1);
-    return camel_case_to_snake_case3(name);
+    return camel_case_to_snake_case2(name);
   }
   /**
-   * A simple reference object for this item.
-   * @returns {{collection_key: string, key: string}}
+   * Emits an event with item metadata.
+   *
+   * @param {string} event_key
+   * @param {Object} [payload={}]
+   * @returns {void}
    */
-  get ref() {
-    return { collection_key: this.collection_key, key: this.key };
+  emit_event(event_key, payload = {}) {
+    this.env.events?.emit(event_key, { collection_key: this.collection_key, item_key: this.key, ...payload });
+  }
+  on_event(event_key, callback) {
+    return this.env.events?.on(event_key, (payload) => {
+      if (payload?.item_key && payload.item_key !== this.key) return;
+      callback(payload);
+    });
+  }
+  once_event(event_key, callback) {
+    return this.env.events?.once(event_key, (payload) => {
+      if (payload?.item_key && payload.item_key !== this.key) return;
+      callback(payload);
+    });
   }
   /**
    * @returns {Object} The data adapter for this item's collection.
@@ -16937,43 +21650,40 @@ var CollectionItem2 = class _CollectionItem {
     this.env.settings[this.collection_key] = settings;
     this.env.smart_settings.save();
   }
-  // /**
-  //  * Render this item into a container using the item's component.
-  //  * @deprecated 2024-12-02 Use explicit component pattern from environment
-  //  * @param {HTMLElement} container
-  //  * @param {Object} opts
-  //  * @returns {Promise<HTMLElement>}
-  //  */
-  // async render_item(container, opts = {}) {
-  //   const frag = await this.component.call(this.smart_view, this, opts);
-  //   this.env.smart_view.empty(container);
-  //   container.appendChild(frag);
-  //   return container;
-  // }
   /**
-   * @deprecated use env.smart_view
-   * @returns {Object}
+   * A simple reference object for this item.
+   * @deprecated 2025-11-11 lacks adoption
+   * @returns {{collection_key: string, key: string}}
+   */
+  get ref() {
+    return { collection_key: this.collection_key, key: this.key };
+  }
+  /**
+   * @deprecated use env.smart_components~~env.smart_view~~ instead
    */
   get smart_view() {
     if (!this._smart_view) this._smart_view = this.env.init_module("smart_view");
     return this._smart_view;
   }
-  // /**
-  //  * Override in child classes to set the component for this item
-  //  * @deprecated 2024-12-02
-  //  * @returns {Function} The render function for this component
-  //  */
-  // get component() { return item_component; }
+  /**
+   * Retrieves the display name of the collection item.
+   * @readonly
+   * @deprecated Use `get_item_display_name(key, show_full_path)` instead (keep UI logic out of collections).
+   * @returns {string} The display name.
+   */
+  get name() {
+    return get_item_display_name2(
+      this.key,
+      this.env.settings.smart_view_filter?.show_full_path
+    );
+  }
 };
-function camel_case_to_snake_case3(str) {
-  const result = str.replace(/([A-Z])/g, (match) => `_${match.toLowerCase()}`).replace(/^_/, "").replace(/2$/, "");
-  return result;
-}
 
 // node_modules/smart-collections/collection.js
 var AsyncFunction2 = Object.getPrototypeOf(async function() {
 }).constructor;
 var Collection2 = class {
+  static version = 1e-3;
   /**
    * Constructs a new Collection instance.
    *
@@ -16981,7 +21691,6 @@ var Collection2 = class {
    * @param {Object} [opts={}] - Optional configuration.
    * @param {string} [opts.collection_key] - Custom key to override default collection name.
    * @param {string} [opts.data_dir] - Custom data directory path.
-   * @param {boolean} [opts.prevent_load_on_init] - Whether to prevent loading items on initialization.
    */
   constructor(env, opts = {}) {
     env.create_env_getter(this);
@@ -17030,6 +21739,8 @@ var Collection2 = class {
    * If validation succeeds for a new item, it is added to the collection and marked for saving.
    *
    * If the item’s `init()` method is async, a promise is returned that resolves once init completes.
+   * 
+   * NOTE: wrapping in try/catch seems to fail to catch errors thrown in async init functions when awaiting create_or_update
    *
    * @param {Object} [data={}] - Data for creating/updating an item.
    * @returns {Promise<Item>|Item} The created or updated item. May return a promise if `init()` is async.
@@ -17065,7 +21776,7 @@ var Collection2 = class {
     if (data.key) return this.get(data.key);
     const temp = new this.item_type(this.env);
     const temp_data = JSON.parse(JSON.stringify(data, temp.sanitize_data(data)));
-    deep_merge3(temp.data, temp_data);
+    deep_merge2(temp.data, temp_data);
     return temp.key ? this.get(temp.key) : null;
   }
   /**
@@ -17078,7 +21789,6 @@ var Collection2 = class {
     if (typeof filter_opts === "function") {
       return Object.values(this.items).filter(filter_opts);
     }
-    filter_opts = this.prepare_filter(filter_opts);
     const results = [];
     const { first_n } = filter_opts;
     for (const item of Object.values(this.items)) {
@@ -17094,15 +21804,6 @@ var Collection2 = class {
    */
   list(filter_opts) {
     return this.filter(filter_opts);
-  }
-  /**
-   * Prepares filter options. Can be overridden by subclasses to normalize filter options.
-   *
-   * @param {Object} filter_opts
-   * @returns {Object} Prepared filter options.
-   */
-  prepare_filter(filter_opts) {
-    return filter_opts;
   }
   /**
    * Retrieves an item by key.
@@ -17189,6 +21890,7 @@ var Collection2 = class {
   }
   /**
    * Data directory strategy for this collection. Defaults to 'multi'.
+   * @deprecated should be handled in adapters (2025-12-09)
    * @returns {string}
    */
   get data_dir() {
@@ -17221,11 +21923,28 @@ var Collection2 = class {
   }
   /**
    * Retrieves the item type (constructor) from the environment.
+   * @deprecated replace with item_class with strict adherence to conventions (2025-10-28)
    * @returns {Function} Item constructor.
    */
   get item_type() {
-    if (this.opts.item_type) return this.opts.item_type;
-    return this.env.item_types[this.item_class_name];
+    if (!this._item_type) this._item_type = this.resolve_item_type();
+    return this._item_type;
+  }
+  // TEMP resolver (2025-11-03): until better handled on merging configs at obsidian-smart-env startup
+  resolve_item_type() {
+    const available = [
+      this.env.config?.items?.[this.item_name],
+      this.opts.item_type,
+      this.env.item_types?.[this.item_class_name]
+    ].filter(Boolean).sort((a, b) => {
+      const a_version = a?.class?.version || a.version || 0;
+      const b_version = b?.class?.version || b.version || 0;
+      return b_version - a_version;
+    });
+    if (available.length === 0) {
+      throw new Error(`No item_type found for collection '${this.collection_key}' with item_name '${this.item_name}' or class_name '${this.item_class_name}'`);
+    }
+    return available[0].class || available[0];
   }
   /**
    * Returns an array of all keys in the collection.
@@ -17278,6 +21997,7 @@ var Collection2 = class {
   }
   /**
    * Processes given settings config, adding prefixes and handling conditionals.
+   * @deprecated removing settings_config from collections (2025-11-24)
    *
    * @private
    * @param {Object} _settings_config
@@ -17327,7 +22047,85 @@ var Collection2 = class {
     return this.env.settings[this.collection_key];
   }
   /**
-   * @deprecated use env.smart_view instead
+   * Unloads collection data from memory.
+   */
+  unload() {
+    this.clear();
+    this.unloaded = true;
+    this.env.collections[this.collection_key] = null;
+  }
+  /**
+   * Displays a process notice if the operation exceeds one second.
+   *
+   * @param {string} process - Identifier for the ongoing process.
+   * @param {Object} [opts={}] - Additional options passed to the notice.
+   */
+  show_process_notice(process, opts = {}) {
+    if (!this.debounce_process_notice) this.debounce_process_notice = {};
+    this.debounce_process_notice[process] = setTimeout(() => {
+      this.debounce_process_notice[process] = null;
+      this.env.notices?.show(process, { collection_key: this.collection_key, ...opts });
+    }, 1e3);
+  }
+  /**
+   * Clears any pending process notice timers and removes active notices.
+   *
+   * @param {string} process - Identifier for the process notice to clear.
+   */
+  clear_process_notice(process) {
+    if (this.debounce_process_notice?.[process]) {
+      clearTimeout(this.debounce_process_notice[process]);
+      this.debounce_process_notice[process] = null;
+    } else {
+      this.env.notices?.remove(process);
+    }
+  }
+  /**
+   * Emits an event with collection metadata.
+   *
+   * @param {string} event_key
+   * @param {Object} [payload={}]
+   * @returns {void}
+   */
+  emit_event(event_key, payload = {}) {
+    this.env.events?.emit(event_key, { collection_key: this.collection_key, ...payload });
+  }
+  /**
+   * Lazily binds action functions to the collection instance.
+   *
+   * @returns {Object} Bound action functions keyed by name.
+   */
+  get actions() {
+    if (!this.constructor.key) this.constructor.key = this.collection_key;
+    if (!this._actions) {
+      const actions_modules = {
+        ...this.env?.config?.actions || {},
+        ...this.env?.config?.collections?.[this.collection_key]?.actions || {},
+        ...this.env?.opts?.collections?.[this.collection_key]?.actions || {},
+        ...this.opts?.actions || {}
+      };
+      this._actions = create_actions_proxy2(this, actions_modules);
+    }
+    return this._actions;
+  }
+  /**
+   * Clears cached actions proxy and rebuilds on next access.
+   * @returns {Object} Rebuilt proxy with latest source snapshot.
+   */
+  refresh_actions() {
+    this._actions = null;
+    return this.actions;
+  }
+  // debounce running process save queue
+  queue_save() {
+    if (this._debounce_queue_save) clearTimeout(this._debounce_queue_save);
+    this._debounce_queue_save = setTimeout(() => {
+      this.process_save_queue();
+    }, 750);
+  }
+  // BEGIN DEPRECATED
+  /**
+   * @deprecated use env.smart_components~~env.smart_view~~ instead
    * @returns {Object} smart_view instance
    */
   get smart_view() {
@@ -17363,792 +22161,6 @@ var Collection2 = class {
     container.appendChild(frag);
     return container;
   }
-  /**
-   * Unloads collection data from memory.
-   */
-  unload() {
-    this.clear();
-    this.unloaded = true;
-    this.env.collections[this.collection_key] = null;
-  }
-  // only show process notice if taking longer than 1 second
-  show_process_notice(process2, opts = {}) {
-    if (!this.debounce_process_notice) this.debounce_process_notice = {};
-    this.debounce_process_notice[process2] = setTimeout(() => {
-      this.debounce_process_notice[process2] = null;
-      this.env.notices?.show(process2, { collection_key: this.collection_key, ...opts });
-    }, 1e3);
-  }
-  clear_process_notice(process2) {
-    if (this.debounce_process_notice?.[process2]) {
-      clearTimeout(this.debounce_process_notice[process2]);
-      this.debounce_process_notice[process2] = null;
-    } else {
-      this.env.notices?.remove(process2);
-    }
-  }
-};
-
-// node_modules/smart-contexts/smart_contexts.js
-var SmartContexts = class extends Collection2 {
-  static version = 0.1;
-  /**
-   * new_context
-   * @param {object} data
-   * @param {object} opts
-   * @param {string[]} opts.add_items
-   * @returns {SmartContext}
-   */
-  new_context(data = {}, opts = {}) {
-    const item = new this.item_type(this.env, data);
-    if (Array.isArray(opts.add_items)) item.add_items(opts.add_items);
-    this.set(item);
-    return item;
-  }
-  /**
-   * Default settings for all SmartContext items in this collection.
-   * @readonly
-   */
-  get default_settings() {
-    return {
-      link_depth: 0,
-      inlinks: false,
-      follow_links_in_excluded: true,
-      // NEW: toggle whether to follow outlinks from excluded headings
-      excluded_headings: [],
-      max_len: 0,
-      // 0 => no enforced limit
-      templates: {
-        "-1": {
-          before: `<context>
-<file_tree>
-{{FILE_TREE}}
-</file_tree>`,
-          after: `</context>`
-        },
-        "0": {
-          before: `<context_primary path="{{ITEM_PATH}}" mtime="{{ITEM_TIME_AGO}}">`,
-          after: `</context_primary>`
-        },
-        "1": {
-          before: `<context_linked path="{{ITEM_PATH}}" mtime="{{ITEM_TIME_AGO}}">`,
-          after: `</context_linked>`
-        }
-      }
-    };
-  }
-  get compile_adapters() {
-    if (!this._compile_adapters) {
-      this._compile_adapters = {};
-      Object.values(this.opts.compile_adapters || {}).forEach((cls) => {
-        this._compile_adapters[cls.adapter_key] = cls;
-      });
-    }
-    return this._compile_adapters;
-  }
-  get settings_config() {
-    return {
-      inlinks: {
-        name: "In-links",
-        description: "Include inbound links from other items?",
-        type: "toggle"
-      },
-      excluded_headings: {
-        name: "Excluded headings",
-        description: "Headings/patterns to exclude; use newline to separate multiple patterns. Case-sensitive",
-        type: "textarea_array"
-      },
-      follow_links_in_excluded: {
-        name: "Follow links in excluded headings?",
-        description: "If off, any links found inside excluded heading sections are ignored (not followed).",
-        type: "toggle"
-      },
-      context_explanation: {
-        type: "html",
-        value: `
-          <div class="setting-explanation">
-            <h5>Context templates</h5>
-            <span>Included once in the final output at the beginning (before_context) and end (after_context).</span>
-            <br>
-            <br>
-            <span>Available variables:</span>
-            <ul>
-              <li><code>{{FILE_TREE}}</code> - Shows hierarchical view of all files</li>
-            </ul>
-          </div>
-        `
-      },
-      before_context: {
-        setting: "templates.-1.before",
-        name: "Before context",
-        description: "Text inserted at the top of the final output.",
-        type: "textarea"
-      },
-      after_context: {
-        setting: "templates.-1.after",
-        name: "After context",
-        description: "Text inserted at the bottom of the final output.",
-        type: "textarea"
-      },
-      item_explanation: {
-        type: "html",
-        value: `
-          <div class="setting-explanation">
-            <h5>Item templates</h5>
-            <span>Included once for each item (before_item and after_item).</span>
-            <br>
-            <br>
-            <span>Available variables:</span>
-            <ul>
-              <li><code>{{ITEM_PATH}}</code> - Full path of the item</li>
-              <li><code>{{ITEM_NAME}}</code> - Filename of the item</li>
-              <li><code>{{ITEM_EXT}}</code> - File extension</li>
-              <li><code>{{ITEM_DEPTH}}</code> - Depth level of the item</li>
-              <li><code>{{ITEM_TIME_AGO}}</code> - Time since the item was last modified</li>
-            </ul>
-          </div>
-        `
-      },
-      before_item: {
-        setting: "templates.0.before",
-        name: "Before each primary item",
-        description: "Text inserted before each depth=0 item.",
-        type: "textarea"
-      },
-      after_item: {
-        setting: "templates.0.after",
-        name: "After each primary item",
-        description: "Text inserted after each depth=0 item.",
-        type: "textarea"
-      },
-      link_explanation: {
-        type: "html",
-        value: `
-          <div class="setting-explanation">
-            <h5>Link templates</h5>
-            <span>Inserted before/after each link-based item (depth=1,2,...). 
-                  Typically used to separate these items from the primary content.
-                  <i>Note: links are treated similar to items but are aggregated after all items.</i>
-            </span>
-            <br>
-            <br>
-            <span>Available variables:</span>
-            <ul>
-              <li><code>{{ITEM_PATH}}</code> - Full path of the linked file</li>
-              <li><code>{{ITEM_NAME}}</code> - Filename of the linked file</li>
-              <li><code>{{ITEM_EXT}}</code> - File extension</li>
-              <li><code>{{ITEM_DEPTH}}</code> - Depth level of the link</li>
-              <li><code>{{ITEM_TIME_AGO}}</code> - Time since the linked file was last modified</li>
-            </ul>
-          </div>
-        `
-      },
-      before_link: {
-        setting: "templates.1.before",
-        name: "Before link item",
-        description: "Text inserted before each depth=1 link item.",
-        type: "textarea"
-      },
-      after_link: {
-        setting: "templates.1.after",
-        name: "After link item",
-        description: "Text inserted after each depth=1 link item.",
-        type: "textarea"
-      }
-    };
-  }
-  get_ref(key) {
-    const collection = key.includes("#") ? this.env.smart_blocks : this.env.smart_sources;
-    return collection.get(key);
-  }
-};
-
-// node_modules/smart-contexts/utils/get_snapshot.js
-async function get_snapshot(ctx, opts = {}) {
-  const snapshot = {
-    items: {},
-    // depth ⇒ { path ⇒ item }
-    truncated_items: [],
-    skipped_items: [],
-    missing_items: [],
-    images: [],
-    char_count: opts.items ? Object.values(opts.items).reduce((p, i) => p + i.char_count, 0) : 0
-  };
-  const seen = new Set(Object.keys(opts.items || {}));
-  const keys_at_depth = { 0: ctx.get_item_keys_by_depth(0) };
-  const max_depth = opts.link_depth ?? 0;
-  for (let depth = 0; depth <= max_depth; depth++) {
-    const depth_keys = keys_at_depth[depth] || [];
-    if (!depth_keys.length) continue;
-    const ctx_items = ctx.get_context_items(depth_keys);
-    const curr_depth = snapshot.items[depth] = {};
-    for (const item of ctx_items) {
-      await item.add_to_snapshot(snapshot, { ...opts, depth });
-      seen.add(item.path);
-    }
-    if (depth !== max_depth) {
-      const accumulate = new Set(keys_at_depth[depth + 1] || []);
-      for (const context_item of Object.values(curr_depth)) {
-        if (!context_item) continue;
-        if (opts.inlinks) {
-          const inlinks = context_item.inlinks ?? context_item.ref?.inlinks ?? [];
-          inlinks.forEach((p) => {
-            if (!seen.has(p)) accumulate.add(p);
-          });
-        }
-        const outlinks = context_item.outlinks ?? context_item.ref?.outlinks ?? [];
-        outlinks.forEach((p) => {
-          if (!seen.has(p)) accumulate.add(p);
-        });
-      }
-      keys_at_depth[depth + 1] = Array.from(accumulate);
-    }
-  }
-  if (opts.items) {
-    snapshot.items[0] = { ...snapshot.items[0], ...opts.items };
-  }
-  return snapshot;
-}
-
-// node_modules/smart-contexts/utils/merge_context_opts.js
-function merge_context_opts(context_item, input_opts = {}) {
-  const cset = context_item.collection.settings || {};
-  const local_opts = context_item.data.context_opts || {};
-  const merged_templates = {
-    ...cset.templates ? JSON.parse(JSON.stringify(cset.templates)) : {},
-    ...local_opts.templates && typeof local_opts.templates === "object" ? local_opts.templates : {},
-    ...input_opts.templates && typeof input_opts.templates === "object" ? input_opts.templates : {}
-  };
-  return {
-    ...input_opts,
-    link_depth: input_opts.link_depth ?? local_opts.link_depth ?? cset.link_depth ?? 0,
-    inlinks: input_opts.inlinks ?? local_opts.inlinks ?? Boolean(cset.inlinks),
-    excluded_headings: input_opts.excluded_headings ?? local_opts.excluded_headings ?? (Array.isArray(cset.excluded_headings) ? [...cset.excluded_headings] : []),
-    max_len: input_opts.max_len ?? local_opts.max_len ?? cset.max_len ?? 0,
-    templates: merged_templates
-  };
-}
-
-// node_modules/smart-blocks/parsers/markdown.js
-function parse_markdown_blocks2(markdown, opts = {}) {
-  const { start_index = 1, line_keys = false } = opts;
-  const lines = markdown.split("\n");
-  const result = {};
-  const heading_stack = [];
-  const heading_lines = {};
-  const heading_counts = {};
-  const sub_block_counts = {};
-  const subheading_counts = {};
-  let current_list_item = null;
-  let current_content_block = null;
-  let in_frontmatter = false;
-  let frontmatter_started = false;
-  const root_heading_key = "#";
-  let in_code_block = false;
-  sub_block_counts[root_heading_key] = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line_number = i + start_index;
-    const line = lines[i];
-    const trimmed_line = line.trim();
-    if (trimmed_line === "---") {
-      if (!frontmatter_started) {
-        frontmatter_started = true;
-        in_frontmatter = true;
-        heading_lines["#---frontmatter---"] = [line_number, null];
-        continue;
-      } else if (in_frontmatter) {
-        in_frontmatter = false;
-        heading_lines["#---frontmatter---"][1] = line_number;
-        continue;
-      }
-    }
-    if (in_frontmatter) {
-      continue;
-    }
-    if (trimmed_line.startsWith("```")) {
-      in_code_block = !in_code_block;
-      if (!current_content_block) {
-        const parent_key = heading_stack.length > 0 ? heading_stack[heading_stack.length - 1].key : root_heading_key;
-        if (parent_key === root_heading_key && !heading_lines[root_heading_key]) {
-          heading_lines[root_heading_key] = [line_number, null];
-        }
-        if (parent_key === root_heading_key) {
-          current_content_block = { key: root_heading_key, start_line: line_number };
-          if (heading_lines[root_heading_key][1] === null || heading_lines[root_heading_key][1] < line_number) {
-            heading_lines[root_heading_key][1] = null;
-          }
-        } else {
-          if (sub_block_counts[parent_key] === void 0) {
-            sub_block_counts[parent_key] = 0;
-          }
-          sub_block_counts[parent_key] += 1;
-          const n = sub_block_counts[parent_key];
-          const key = `${parent_key}#{${n}}`;
-          heading_lines[key] = [line_number, null];
-          current_content_block = { key, start_line: line_number };
-        }
-      }
-      continue;
-    }
-    const heading_match = trimmed_line.match(/^(#{1,6})\s*(.+)$/);
-    if (heading_match && !in_code_block) {
-      const level = heading_match[1].length;
-      let title = heading_match[2].trim();
-      while (heading_stack.length > 0 && heading_stack[heading_stack.length - 1].level >= level) {
-        const finished_heading = heading_stack.pop();
-        if (heading_lines[finished_heading.key][1] === null) {
-          heading_lines[finished_heading.key][1] = line_number - 1;
-        }
-      }
-      if (heading_stack.length === 0 && heading_lines[root_heading_key] && heading_lines[root_heading_key][1] === null) {
-        heading_lines[root_heading_key][1] = line_number - 1;
-      }
-      if (current_content_block) {
-        if (heading_lines[current_content_block.key][1] === null) {
-          heading_lines[current_content_block.key][1] = line_number - 1;
-        }
-        current_content_block = null;
-      }
-      if (current_list_item) {
-        if (heading_lines[current_list_item.key][1] === null) {
-          heading_lines[current_list_item.key][1] = line_number - 1;
-        }
-        current_list_item = null;
-      }
-      let parent_key = "";
-      let parent_level = 0;
-      if (heading_stack.length > 0) {
-        parent_key = heading_stack[heading_stack.length - 1].key;
-        parent_level = heading_stack[heading_stack.length - 1].level;
-      } else {
-        parent_key = "";
-        parent_level = 0;
-      }
-      if (heading_stack.length === 0) {
-        heading_counts[title] = (heading_counts[title] || 0) + 1;
-        if (heading_counts[title] > 1) {
-          title += `[${heading_counts[title]}]`;
-        }
-      } else {
-        if (!subheading_counts[parent_key]) {
-          subheading_counts[parent_key] = {};
-        }
-        subheading_counts[parent_key][title] = (subheading_counts[parent_key][title] || 0) + 1;
-        const count = subheading_counts[parent_key][title];
-        if (count > 1) {
-          title += `#{${count}}`;
-        }
-      }
-      const level_diff = level - parent_level;
-      const hashes = "#".repeat(level_diff);
-      const key = parent_key + hashes + title;
-      heading_lines[key] = [line_number, null];
-      sub_block_counts[key] = 0;
-      heading_stack.push({ level, title, key });
-      continue;
-    }
-    const list_match = line.match(/^(\s*)([-*]|\d+\.) (.+)$/);
-    if (list_match && !in_code_block) {
-      const indentation = list_match[1].length;
-      if (indentation === 0) {
-        if (current_list_item) {
-          if (heading_lines[current_list_item.key][1] === null) {
-            heading_lines[current_list_item.key][1] = line_number - 1;
-          }
-          current_list_item = null;
-        }
-        if (current_content_block && current_content_block.key !== root_heading_key) {
-          if (heading_lines[current_content_block.key][1] === null) {
-            heading_lines[current_content_block.key][1] = line_number - 1;
-          }
-          current_content_block = null;
-        }
-        let parent_key = heading_stack.length > 0 ? heading_stack[heading_stack.length - 1].key : root_heading_key;
-        if (parent_key === root_heading_key && !heading_lines[root_heading_key]) {
-          heading_lines[root_heading_key] = [line_number, null];
-        }
-        if (sub_block_counts[parent_key] === void 0) {
-          sub_block_counts[parent_key] = 0;
-        }
-        sub_block_counts[parent_key] += 1;
-        const n = sub_block_counts[parent_key];
-        let key;
-        if (line_keys) {
-          const words = get_longest_words_in_order2(list_match[3], 10);
-          key = `${parent_key}#${words}`;
-        } else {
-          key = `${parent_key}#{${n}}`;
-        }
-        heading_lines[key] = [line_number, null];
-        current_list_item = { key, start_line: line_number };
-        continue;
-      }
-      if (current_list_item) {
-        continue;
-      }
-    }
-    if (trimmed_line === "") {
-      continue;
-    }
-    if (!current_content_block) {
-      if (current_list_item) {
-        if (heading_lines[current_list_item.key][1] === null) {
-          heading_lines[current_list_item.key][1] = line_number - 1;
-        }
-        current_list_item = null;
-      }
-      let parent_key = heading_stack.length > 0 ? heading_stack[heading_stack.length - 1].key : root_heading_key;
-      if (parent_key === root_heading_key) {
-        if (!heading_lines[root_heading_key]) {
-          heading_lines[root_heading_key] = [line_number, null];
-        }
-        if (heading_lines[root_heading_key][1] === null || heading_lines[root_heading_key][1] < line_number) {
-          heading_lines[root_heading_key][1] = null;
-        }
-        current_content_block = { key: root_heading_key, start_line: line_number };
-      } else {
-        if (sub_block_counts[parent_key] === void 0) {
-          sub_block_counts[parent_key] = 0;
-        }
-        sub_block_counts[parent_key] += 1;
-        const n = sub_block_counts[parent_key];
-        const key = `${parent_key}#{${n}}`;
-        heading_lines[key] = [line_number, null];
-        current_content_block = { key, start_line: line_number };
-      }
-    }
-  }
-  const total_lines = lines.length;
-  while (heading_stack.length > 0) {
-    const finished_heading = heading_stack.pop();
-    if (heading_lines[finished_heading.key][1] === null) {
-      heading_lines[finished_heading.key][1] = total_lines + start_index - 1;
-    }
-  }
-  if (current_list_item) {
-    if (heading_lines[current_list_item.key][1] === null) {
-      heading_lines[current_list_item.key][1] = total_lines + start_index - 1;
-    }
-    current_list_item = null;
-  }
-  if (current_content_block) {
-    if (heading_lines[current_content_block.key][1] === null) {
-      heading_lines[current_content_block.key][1] = total_lines + start_index - 1;
-    }
-    current_content_block = null;
-  }
-  if (heading_lines[root_heading_key] && heading_lines[root_heading_key][1] === null) {
-    heading_lines[root_heading_key][1] = total_lines + start_index - 1;
-  }
-  for (const key in heading_lines) {
-    result[key] = heading_lines[key];
-  }
-  return result;
-}
-function get_longest_words_in_order2(line, n = 3) {
-  const words = line.split(/\s+/).sort((a, b) => b.length - a.length).slice(0, n);
-  return words.sort((a, b) => line.indexOf(a) - line.indexOf(b)).join(" ");
-}
-
-// node_modules/smart-file-system/utils/match_glob.js
-function match_glob(pattern, str, options = {}) {
-  const regex = glob_to_regex(pattern, options);
-  return regex.test(str);
-}
-
-// node_modules/smart-contexts/utils/respect_exclusions.js
-function normalise_heading(heading) {
-  return heading.replace(/\[\d+\]$/, "").replace(/#\{\d+\}$/, "").trim();
-}
-function strip_excluded_headings(content, excluded_list) {
-  const blocks_map = parse_markdown_blocks2(content, { start_index: 0 });
-  if (!Object.keys(blocks_map).length) return [content, [], 0];
-  const exclusions = [];
-  let lines = content.split("\n");
-  for (const [block_key, line_range] of Object.entries(blocks_map)) {
-    const parts = block_key.split("#").filter(Boolean);
-    if (!parts.length) continue;
-    const raw_heading = parts[parts.length - 1].trim();
-    const heading = normalise_heading(raw_heading);
-    for (const pattern of excluded_list) {
-      if (match_glob(pattern, heading, { case_sensitive: false })) {
-        for (let i = line_range[0]; i <= line_range[1]; i++) {
-          lines[i] = null;
-        }
-        exclusions.push(pattern);
-        break;
-      }
-    }
-  }
-  lines = lines.filter(Boolean);
-  const new_content = lines.join("\n");
-  const removed_char_count = content.length - new_content.length;
-  return [new_content, exclusions, removed_char_count];
-}
-
-// node_modules/smart-sources/utils/get_markdown_links.js
-function get_markdown_links2(content) {
-  const result = [];
-  const markdown_link_re = /\[([^\]]+?)\]\(([^)]+?)\)/g;
-  const wikilink_re = /\[\[([^\|\]]+?)(?:\|([^\]]+?))?\]\]/g;
-  const normalise_target = (raw) => {
-    const trimmed = raw.trim();
-    if (/^[a-zA-Z][\w+\-.]*:\/\//.test(trimmed)) return trimmed;
-    try {
-      return decodeURIComponent(trimmed);
-    } catch (_) {
-      return trimmed.replace(/%20/gi, " ");
-    }
-  };
-  let m;
-  while ((m = markdown_link_re.exec(content)) !== null) {
-    const title = m[1];
-    const target = normalise_target(m[2]);
-    const line_no = content.slice(0, m.index).split("\n").length;
-    result.push({ title, target, line: line_no });
-  }
-  while ((m = wikilink_re.exec(content)) !== null) {
-    const target_raw = m[1];
-    const title = m[2] || target_raw;
-    const target = normalise_target(target_raw);
-    const line_no = content.slice(0, m.index).split("\n").length;
-    result.push({ title, target, line: line_no });
-  }
-  return result.sort(
-    (a, b) => a.line - b.line || a.target.localeCompare(b.target)
-  );
-}
-
-// node_modules/smart-contexts/context_item.js
-var BaseContextItem = class {
-  constructor(ctx, key) {
-    ctx.env.create_env_getter(this);
-    this.ctx = ctx;
-    this.key = key;
-    const ctx_data = ctx.data?.context_items?.[key];
-    if (ctx_data && typeof ctx_data === "object" && "content" in ctx_data) {
-      this.content = String(ctx_data.content ?? "");
-    }
-  }
-  get name() {
-    return this.path.split("/").pop();
-  }
-  get path() {
-    return this.key;
-  }
-  /* fallback empty link arrays so link‑depth traversal works */
-  get inlinks() {
-    return this._inlinks ?? [];
-  }
-  get outlinks() {
-    return this._outlinks ?? [];
-  }
-  set inlinks(links) {
-    this._inlinks = Array.isArray(links) ? links : [];
-  }
-  set outlinks(links) {
-    links = links.map((link) => {
-      const link_ref = link?.target || link;
-      if (link_ref.startsWith("http")) return null;
-      const link_path = this.env.smart_sources.fs.get_link_target_path(link_ref, this.key);
-      return link_path;
-    }).filter((link_path) => link_path);
-    this._outlinks = Array.isArray(links) ? links : [];
-  }
-  async add_to_snapshot(snapshot, opts = {}) {
-    if (typeof this.content !== "string") return;
-    this.outlinks = get_markdown_links2(this.content);
-    const [clean, exclusions, excluded_char_count] = strip_excluded_headings(this.content, opts.excluded_headings ?? []);
-    const depth = opts.depth || 0;
-    if (!snapshot.items[depth]) snapshot.items[depth] = {};
-    snapshot.items[depth][this.key] = {
-      path: this.key,
-      content: clean,
-      char_count: clean.length,
-      mtime: Date.now(),
-      // inline items have no mtime
-      exclusions,
-      excluded_char_count,
-      inlinks: this.inlinks,
-      outlinks: this.outlinks
-    };
-    snapshot.char_count += clean.length;
-  }
-  async find_connections(opts = {}) {
-    return await this.env.smart_sources.lookup({ hypotheticals: [
-      this.data.content
-    ] });
-  }
-};
-var SourceContextItem = class extends BaseContextItem {
-  constructor(context, ref) {
-    super(context, ref.key);
-    this.ref = ref;
-  }
-  get inlinks() {
-    return this.ref.inlinks || [];
-  }
-  get outlinks() {
-    return this.ref.outlinks || [];
-  }
-  async add_to_snapshot(snapshot, opts) {
-    let raw = await this.ref.read();
-    if (!opts.calculating && raw.split("\n").some((line) => line.startsWith("```dataview"))) {
-      raw = await this.ref.read({ render_output: true });
-      this.ref.data.outlinks = get_markdown_links2(raw);
-    }
-    const [content, exclusions, excluded_char_count] = strip_excluded_headings(raw, opts.excluded_headings ?? []);
-    if (!snapshot.items) snapshot.items = [];
-    if (!snapshot.items[0]) snapshot.items[0] = {};
-    snapshot.items[0][this.path] = {
-      ref: this.ref,
-      path: this.path,
-      mtime: this.ref.mtime,
-      content,
-      char_count: content.length,
-      exclusions,
-      excluded_char_count
-    };
-    snapshot.char_count += content.length;
-  }
-  async find_connections(opts = {}) {
-    return await this.ref.find_connections(opts);
-  }
-};
-var ImageContextItem = class extends BaseContextItem {
-  async add_to_snapshot(snapshot) {
-    if (!snapshot.images) snapshot.images = [];
-    snapshot.images.push(this.path);
-  }
-};
-var PdfContextItem = class extends BaseContextItem {
-  async add_to_snapshot(snapshot) {
-    if (!snapshot.pdfs) snapshot.pdfs = [];
-    snapshot.pdfs.push(this.path);
-  }
-};
-
-// node_modules/smart-contexts/utils/image_extension_regex.js
-var image_extension_regex = /\.(png|jpe?g|gif|bmp|webp|svg|ico|mp4)$/i;
-
-// node_modules/smart-contexts/smart_context.js
-var SmartContext = class extends CollectionItem2 {
-  static version = 1;
-  static get defaults() {
-    return {
-      data: {
-        key: "",
-        context_items: {},
-        context_opts: {}
-      }
-    };
-  }
-  /**
-   * add_item
-   * @param {string|object} item
-   */
-  add_item(item) {
-    let key;
-    if (typeof item === "object") {
-      key = item.key || item.path;
-    } else {
-      key = item;
-    }
-    const context_item = {
-      d: 0,
-      ...typeof item === "object" ? item : {}
-    };
-    if (!key) return console.error("SmartContext: add_item called with invalid item", item);
-    this.data.context_items[key] = context_item;
-    this.queue_save();
-  }
-  /**
-   * add_items
-   * @param {string[]|object[]} items
-   */
-  add_items(items) {
-    if (!Array.isArray(items)) {
-      items = [items];
-    }
-    items.forEach((item) => this.add_item(item));
-  }
-  /**
-   * Return *ContextItem* instances (any depth) for a given key array.
-   * @param {string[]} keys
-   */
-  get_context_items(keys = this.context_item_keys) {
-    return keys.map((k) => this.get_context_item(k)).filter(Boolean);
-  }
-  /** Map any key to ContextItem subclass */
-  get_context_item(key) {
-    const ctx_item = this.data?.context_items?.[key];
-    if (ctx_item && typeof ctx_item === "object" && "content" in ctx_item) {
-      return new BaseContextItem(this, key);
-    }
-    if (image_extension_regex.test(key)) return new ImageContextItem(this, key);
-    if (key.endsWith(".pdf")) return new PdfContextItem(this, key);
-    const src = this.env.smart_sources.get(key) || this.env.smart_blocks.get(key);
-    return src ? new SourceContextItem(this, src) : null;
-  }
-  /**
-   * get_snapshot
-   * Gathers items at depth=0..link_depth, respects exclusions, and tracks truncated/skipped items.
-   * @async
-   * @param {object} opts
-   * @returns {Promise<object>} context_snapshot - an object with .items[0], .items[1], etc.
-   */
-  async get_snapshot(opts = {}) {
-    const merged_opts = merge_context_opts(this, opts);
-    return await get_snapshot(this, merged_opts);
-  }
-  /**
-   * compile
-   * Delegates to a compile adapter from this.collection.compile_adapters.
-   * By default uses the 'default' adapter unless opts.adapter_key is given.
-   * @async
-   * @param {object} [opts={}]
-   * @returns {Promise<object|string>} Typically {context, stats} from the template adapter
-   */
-  async compile(opts = {}) {
-    const adapter_key = opts.adapter_key || "default";
-    const adapter_class = this.collection.compile_adapters[adapter_key];
-    if (!adapter_class) {
-      throw new Error(`SmartContext: Compile adapter not found: ${adapter_key}`);
-    }
-    const adapter = new adapter_class(this);
-    return adapter.compile(opts);
-  }
-  /**
-   * @method get_ref
-   * @deprecated moving to using ContextItem instances
-   * Looks up a reference in the environment. Distinguishes block vs source by '#' presence.
-   */
-  get_ref(key) {
-    return this.collection.get_ref(key);
-  }
-  get_item_keys_by_depth(depth) {
-    return Object.keys(this.data.context_items).filter((k) => {
-      const item_depth = this.data.context_items[k].d;
-      if (item_depth === depth) return true;
-      if (typeof item_depth === "undefined" && depth === 0) return true;
-      return false;
-    });
-  }
-  get context_item_keys() {
-    return Object.keys(this.data?.context_items || {});
-  }
-  /**
-   * If no user-provided key, fallback to a stable hash of the context_items.
-   */
-  get key() {
-    if (!this.data.key) {
-      this.data.key = Date.now().toString();
-    }
-    return this.data.key;
-  }
-  get has_context_items() {
-    return Object.keys(this.data.context_items || {}).length > 0;
-  }
 };
 
 // node_modules/smart-collections/adapters/_adapter.js
@@ -18181,6 +22193,7 @@ var CollectionDataAdapter2 = class {
   /**
    * Load a single item by its key using an `ItemDataAdapter`.
    * @async
+   * @abstract
    * @param {string} key - The key of the item to load.
    * @returns {Promise<void>} Resolves when the item is loaded.
    */
@@ -18190,6 +22203,7 @@ var CollectionDataAdapter2 = class {
   /**
    * Save a single item by its key using its associated `ItemDataAdapter`.
    * @async
+   * @abstract
    * @param {string} key - The key of the item to save.
    * @returns {Promise<void>} Resolves when the item is saved.
    */
@@ -18200,6 +22214,7 @@ var CollectionDataAdapter2 = class {
    * Delete a single item by its key. This may involve updating or removing its file,
    * as handled by the `ItemDataAdapter`.
    * @async
+   * @abstract
    * @param {string} key - The key of the item to delete.
    * @returns {Promise<void>} Resolves when the item is deleted.
    */
@@ -18207,18 +22222,20 @@ var CollectionDataAdapter2 = class {
     throw new Error("Not implemented");
   }
   /**
-   * Process any queued load operations. Typically orchestrates calling `load_item()` 
+   * Process any queued load operations. Typically orchestrates calling `load_item()`
    * on items that have been flagged for loading.
    * @async
+   * @abstract
    * @returns {Promise<void>}
    */
   async process_load_queue() {
     throw new Error("Not implemented");
   }
   /**
-   * Process any queued save operations. Typically orchestrates calling `save_item()` 
+   * Process any queued save operations. Typically orchestrates calling `save_item()`
    * on items that have been flagged for saving.
    * @async
+   * @abstract
    * @returns {Promise<void>}
    */
   async process_save_queue() {
@@ -18234,6 +22251,15 @@ var CollectionDataAdapter2 = class {
     const adapter = this.create_item_adapter(item);
     await adapter.load_if_updated();
   }
+  /**
+   * Clear all data associated with this collection.
+   * @async
+   * @abstract
+   * @returns {Promise<void>}
+   */
+  async clear_all() {
+    throw new Error("Not implemented");
+  }
 };
 var ItemDataAdapter2 = class {
   /**
@@ -18244,18 +22270,20 @@ var ItemDataAdapter2 = class {
     this.item = item;
   }
   /**
-   * Load the item's data from storage. May involve reading a file and parsing 
+   * Load the item's data from storage. May involve reading a file and parsing
    * its contents, then updating `item.data`.
    * @async
+   * @abstract
    * @returns {Promise<void>} Resolves when the item is fully loaded.
    */
   async load() {
     throw new Error("Not implemented");
   }
   /**
-   * Save the item's data to storage. May involve writing to a file or appending 
+   * Save the item's data to storage. May involve writing to a file or appending
    * lines in an append-only format.
    * @async
+   * @abstract
    * @param {string|null} [ajson=null] - An optional serialized representation of the item’s data.
    *                                     If not provided, the adapter should derive it from the item.
    * @returns {Promise<void>} Resolves when the item is saved.
@@ -18264,17 +22292,19 @@ var ItemDataAdapter2 = class {
     throw new Error("Not implemented");
   }
   /**
-   * Delete the item's data from storage. May involve removing a file or writing 
+   * Delete the item's data from storage. May involve removing a file or writing
    * a `null` entry in an append-only file to signify deletion.
    * @async
+   * @abstract
    * @returns {Promise<void>} Resolves when the item’s data is deleted.
    */
   async delete() {
     throw new Error("Not implemented");
   }
   /**
-   * Returns the file path or unique identifier used by this adapter to locate and store 
+   * Returns the file path or unique identifier used by this adapter to locate and store
    * the item's data. This may be a file name derived from the item's key.
+   * @abstract
    * @returns {string} The path or identifier for the item's data.
    */
   get data_path() {
@@ -18292,6 +22322,7 @@ var ItemDataAdapter2 = class {
   /**
    * Load the item's data from storage if it has been updated externally.
    * @async
+   * @abstract
    * @returns {Promise<void>} Resolves when the item is loaded.
    */
   async load_if_updated() {
@@ -18312,6 +22343,9 @@ var FileCollectionDataAdapter2 = class extends CollectionDataAdapter2 {
   get fs() {
     return this.collection.data_fs || this.collection.env.data_fs;
   }
+  async clear_all() {
+    await this.fs.remove_dir(this.collection.data_dir, true);
+  }
 };
 var FileItemDataAdapter2 = class extends ItemDataAdapter2 {
   /**
@@ -18320,6 +22354,11 @@ var FileItemDataAdapter2 = class extends ItemDataAdapter2 {
   get fs() {
     return this.item.collection.data_fs || this.item.collection.env.data_fs;
   }
+  /**
+   * Resolve the file path for the item's data.
+   * @abstract
+   * @returns {string} Path to the persisted item data.
+   */
   get data_path() {
     throw new Error("Not implemented");
   }
@@ -18380,6 +22419,7 @@ var AjsonMultiFileCollectionDataAdapter2 = class extends FileCollectionDataAdapt
    * @returns {Promise<void>}
    */
   async process_load_queue() {
+    this.collection.emit_event("collection:load_started");
     this.collection.show_process_notice("loading_collection");
     if (!await this.fs.exists(this.collection.data_dir)) {
       await this.fs.mkdir(this.collection.data_dir);
@@ -18389,7 +22429,8 @@ var AjsonMultiFileCollectionDataAdapter2 = class extends FileCollectionDataAdapt
       this.collection.clear_process_notice("loading_collection");
       return;
     }
-    console.log(`Loading ${this.collection.collection_key}: ${load_queue.length} items`);
+    const now = Date.now();
+    console.log(`Loading ${this.collection.collection_key}: ${load_queue.length} items from disk`);
     const batch_size = 100;
     for (let i = 0; i < load_queue.length; i += batch_size) {
       const batch = load_queue.slice(i, i + batch_size);
@@ -18401,8 +22442,10 @@ var AjsonMultiFileCollectionDataAdapter2 = class extends FileCollectionDataAdapt
         });
       }));
     }
+    console.log(`Loaded ${this.collection.collection_key} from disk in ${Date.now() - now}ms`);
     this.collection.loaded = load_queue.length;
     this.collection.clear_process_notice("loading_collection");
+    this.collection.emit_event("collection:load_completed");
   }
   /**
    * Process any queued save operations.
@@ -18410,6 +22453,7 @@ var AjsonMultiFileCollectionDataAdapter2 = class extends FileCollectionDataAdapt
    * @returns {Promise<void>}
    */
   async process_save_queue() {
+    this.collection.emit_event("collection:save_started");
     this.collection.show_process_notice("saving_collection");
     const save_queue = Object.values(this.collection.items).filter((item) => item._queue_save);
     console.log(`Saving ${this.collection.collection_key}: ${save_queue.length} items`);
@@ -18433,6 +22477,7 @@ var AjsonMultiFileCollectionDataAdapter2 = class extends FileCollectionDataAdapt
     }
     console.log(`Saved ${this.collection.collection_key} in ${Date.now() - time_start}ms`);
     this.collection.clear_process_notice("saving_collection");
+    this.collection.emit_event("collection:save_completed");
   }
   get_item_data_path(key) {
     return [
@@ -18666,6 +22711,7 @@ var AjsonSingleFileCollectionDataAdapter2 = class extends AjsonMultiFileCollecti
    * @returns {Promise<void>}
    */
   async process_load_queue() {
+    this.collection.emit_event("collection:load_started");
     this.collection.show_process_notice("loading_collection");
     if (!await this.fs.exists(this.collection.data_dir)) {
       await this.fs.mkdir(this.collection.data_dir);
@@ -18678,6 +22724,7 @@ var AjsonSingleFileCollectionDataAdapter2 = class extends AjsonMultiFileCollecti
         }
       }
       this.collection.clear_process_notice("loading_collection");
+      this.collection.emit_event("collection:load_halted");
       return;
     }
     const raw_data = await this.fs.read(path, "utf-8", { no_cache: true });
@@ -18688,6 +22735,7 @@ var AjsonSingleFileCollectionDataAdapter2 = class extends AjsonMultiFileCollecti
         }
       }
       this.collection.clear_process_notice("loading_collection");
+      this.collection.emit_event("collection:load_halted");
       return;
     }
     const { rewrite, file_data } = this.parse_single_file_ajson(raw_data);
@@ -18703,6 +22751,7 @@ var AjsonSingleFileCollectionDataAdapter2 = class extends AjsonMultiFileCollecti
       item.loaded_at = Date.now();
     }
     this.collection.clear_process_notice("loading_collection");
+    this.collection.emit_event("collection:load_completed");
   }
   /**
    * Helper to parse single-file .ajson content, distributing states to items.
@@ -18783,6 +22832,7 @@ var AjsonSingleFileCollectionDataAdapter2 = class extends AjsonMultiFileCollecti
    * @returns {Promise<void>}
    */
   async process_save_queue() {
+    this.collection.emit_event("collection:save_started");
     this.collection.show_process_notice("saving_collection");
     const save_queue = Object.values(this.collection.items).filter((item) => item._queue_save);
     const time_start = Date.now();
@@ -18805,689 +22855,490 @@ var AjsonSingleFileCollectionDataAdapter2 = class extends AjsonMultiFileCollecti
     }
     console.log(`Saved (single-file) ${this.collection.collection_key} in ${Date.now() - time_start}ms`);
     this.collection.clear_process_notice("saving_collection");
+    this.collection.emit_event("collection:save_completed");
   }
 };
 
-// node_modules/smart-contexts/adapters/_adapter.js
-var ContextCompileAdapter = class {
-  /**
-   * @static
-   * @type {string}
-   * Identifies this adapter by a short, unique key. The collection
-   * will store it in a map at `collection.compile_adapters[adapter_key]`.
-   */
-  static adapter_key = "raw";
-  /**
-   * @constructor
-   * @param {SmartContext} context_item
-   */
-  constructor(context_item) {
-    this.context_item = context_item;
+// node_modules/smart-contexts/utils/filter_redundant_context_items.js
+function filter_redundant_context_items2(items = []) {
+  const parents = /* @__PURE__ */ new Set();
+  for (const { key } of items) {
+    if (!key.includes("#")) parents.add(key);
   }
-  /**
-   * @method compile
-   * Returns the snapshot as-is (no further transformations).
-   * @param {object} [opts={}]
-   * @returns {Promise<object>} The snapshot from get_snapshot().
-   */
-  async compile(opts = {}) {
-    const snapshot = await this.context_item.get_snapshot(opts);
-    return snapshot;
-  }
-};
+  return items.filter(({ key }) => {
+    if (!key.includes("#")) return true;
+    const base = key.split("#")[0];
+    return !parents.has(base);
+  });
+}
 
-// node_modules/smart-contexts/utils/compiler.js
-async function compile_snapshot(context_snapshot, merged_opts) {
-  const depths = Object.keys(context_snapshot.items).map((d) => parseInt(d, 10)).sort((a, b) => a - b);
-  const chunks = [];
-  for (const depth of depths) {
-    const items = context_snapshot.items[depth] || {};
-    const { before_raw, after_raw } = get_templates_for_depth(depth, merged_opts);
-    for (const [path, item] of Object.entries(items)) {
-      const placeholders = build_item_placeholders(path, depth, item.mtime);
-      chunks.push({
-        path,
-        mtime: item.mtime,
-        before_tpl: replace_vars(before_raw, placeholders),
-        item_text: item.content,
-        after_tpl: replace_vars(after_raw, placeholders)
+// node_modules/smart-contexts/smart_context.js
+var SmartContext2 = class extends CollectionItem2 {
+  static version = 1;
+  static get defaults() {
+    return {
+      data: {
+        key: "",
+        context_items: {},
+        context_opts: {}
+      }
+    };
+  }
+  // queue_save to debounce process save queue
+  queue_save() {
+    super.queue_save();
+    this.collection.queue_save();
+  }
+  /**
+   * add_item
+   * @param {string|object} item
+   */
+  add_item(item, params = {}) {
+    const {
+      emit_updated = true
+    } = params;
+    let key;
+    if (typeof item === "object") {
+      key = item.key || item.path;
+    } else {
+      key = item;
+    }
+    const existing = this.data.context_items[key];
+    const context_item = {
+      d: 0,
+      at: Date.now(),
+      ...existing || {},
+      ...typeof item === "object" ? item : {}
+    };
+    if (!key) return console.error("SmartContext: add_item called with invalid item", item);
+    this.data.context_items[key] = context_item;
+    this.queue_save();
+    if (emit_updated) this.emit_event("context:updated", { add_item: key });
+  }
+  /**
+   * add_items
+   * @param {string[]|object[]} items
+   */
+  add_items(items) {
+    if (!Array.isArray(items)) items = [items];
+    items.forEach((item) => this.add_item(item, { emit_updated: false }));
+    this.emit_event("context:updated", { added_items: items.map((item) => typeof item === "object" ? item.key || item.path : item) });
+  }
+  /**
+   * remove_item
+   * Removes a path/ref from context and emits context:updated
+   * @param {string} key
+   */
+  remove_item(key) {
+    if (!key || !this.data?.context_items?.[key]) return;
+    if (this.data.context_items[key].folder) {
+      this.data.context_items[key].exclude = true;
+    } else {
+      delete this.data.context_items[key];
+    }
+    this.queue_save();
+    this.emit_event("context:updated", { removed_key: key });
+  }
+  clear_all() {
+    this.data.context_items = {};
+    this.queue_save();
+    this.emit_event("context:updated", { cleared: true });
+  }
+  get context_item_keys() {
+    return Object.entries(this.data?.context_items || {}).filter(([key, item_data]) => !item_data.exclude).map(([key, item_data]) => key);
+  }
+  get key() {
+    if (!this.data.key) {
+      this.data.key = Date.now().toString();
+    }
+    return this.data.key;
+  }
+  get has_context_items() {
+    return Object.keys(this.data.context_items || {}).length > 0;
+  }
+  get name() {
+    return this.data.name;
+  }
+  set name(name) {
+    if (typeof name !== "string") throw new TypeError("Name must be a string");
+    const was_nameless = !this.data.name || String(this.data.name).trim().length === 0;
+    this.data.name = name;
+    if (was_nameless) this.emit_event("context:created");
+    else this.emit_event("context:renamed", { name });
+    this.queue_save();
+  }
+  get size() {
+    let size = 0;
+    const context_items = this.get_context_items();
+    context_items.forEach((item) => {
+      if (item.size) size += item.size;
+    });
+    return size;
+  }
+  get item_count() {
+    return Object.entries(this.data?.context_items || {}).filter(([key, item_data]) => !item_data.exclude).length;
+  }
+  // v3
+  async get_text(params = {}) {
+    const segments = [];
+    const context_items = this.context_items.filter(params.filter).sort((a, b) => a.data.d - b.data.d);
+    console.log("get_text context_items", context_items);
+    for (const item of context_items) {
+      if (item.is_media) continue;
+      const item_text = await item.get_text();
+      if (typeof item_text === "string") segments.push(item_text);
+      else this.emit_get_text_error(item, item_text);
+    }
+    const context_items_text = segments.join("\n");
+    if (typeof this.actions.context_merge_template === "function") {
+      return await this.actions.context_merge_template(context_items_text, context_items);
+    }
+    return context_items_text;
+  }
+  async get_media(params = {}) {
+    const context_items = this.context_items.filter(params.filter);
+    const out = [];
+    for (const item of context_items) {
+      if (!item.is_media) continue;
+      const item_base64 = await item.get_base64();
+      if (item_base64.error) this.emit_get_media_error(item, item_base64);
+      else out.push(item_base64);
+    }
+    return out;
+  }
+  get context_items() {
+    if (!this._context_items) {
+      const config = this.env.config.collections.context_items;
+      const Class = config.class;
+      this._context_items = new Class(this.env, { ...config, class: null });
+      this._context_items.load_from_data(this.data.context_items || {});
+      this.on_event("context:updated", () => {
+        this._context_items = null;
       });
     }
+    return this._context_items;
   }
-  const skipped_items = new Set(context_snapshot.skipped_items || []);
-  const truncated_items = new Set(context_snapshot.truncated_items || []);
-  const max_len = merged_opts.max_len || 0;
-  const result_pieces = [];
-  for (const chunk of chunks) {
-    if (!max_len) {
-      const joined = [chunk.before_tpl, chunk.item_text, chunk.after_tpl].join("\n");
-      result_pieces.push(joined);
-      continue;
-    }
-    const template_len = chunk.before_tpl.length + chunk.after_tpl.length;
-    const leftover_for_text = max_len - template_len;
-    const text_len = chunk.item_text.length;
-    if (text_len <= leftover_for_text) {
-      const joined = [chunk.before_tpl, chunk.item_text, chunk.after_tpl].join("\n");
-      result_pieces.push(joined);
-    } else {
-      truncated_items.add(chunk.path);
-      const partial = chunk.item_text.slice(0, leftover_for_text);
-      const joined = [chunk.before_tpl, partial, chunk.after_tpl].join("\n");
-      result_pieces.push(joined);
-    }
+  emit_get_text_error(item, item_text) {
+    this.emit_event("notification:error", {
+      message: `Context item did not return text: ${item.key}`,
+      ...item_text && typeof item_text === "object" ? item_text : {}
+    });
   }
-  let raw_output = result_pieces.join("\n");
-  const top_before_raw = merged_opts.templates?.["-1"]?.before || "";
-  const top_after_raw = merged_opts.templates?.["-1"]?.after || "";
-  const want_tree = top_before_raw.includes("{{FILE_TREE}}") || top_after_raw.includes("{{FILE_TREE}}");
-  let file_tree_str = "";
-  if (want_tree) {
-    const all_paths = chunks.map((c) => c.path);
-    file_tree_str = create_file_tree_string(all_paths);
+  emit_get_media_error(item, item_base64) {
+    this.emit_event("notification:error", {
+      message: `Context item did not return media: ${item.key}`,
+      ...item_base64 && typeof item_base64 === "object" ? item_base64 : {}
+    });
   }
-  const wrap_before = replace_vars(top_before_raw, { FILE_TREE: file_tree_str });
-  const wrap_after = replace_vars(top_after_raw, { FILE_TREE: file_tree_str });
-  let final_context = "";
-  const wrap_has_content = wrap_before.length > 0 || wrap_after.length > 0;
-  if (!wrap_has_content) {
-    final_context = raw_output + "\n";
-  } else {
-    final_context = wrap_before + "\n" + raw_output + "\n" + wrap_after + "\n";
-  }
-  const final_len = final_context.length;
-  const stats = {
-    char_count: final_len,
-    depth_count: depths.length,
-    truncated_items: Array.from(truncated_items),
-    skipped_items: Array.from(skipped_items)
-  };
-  return {
-    context: final_context.trim(),
-    stats,
-    images: context_snapshot.images,
-    pdfs: context_snapshot.pdfs
-  };
-}
-function get_templates_for_depth(depth, merged_opts) {
-  let before_template_depth = depth;
-  let before_raw = merged_opts.templates?.[before_template_depth]?.before;
-  while (typeof before_raw !== "string" && before_template_depth > -1) {
-    before_template_depth--;
-    before_raw = merged_opts.templates?.[before_template_depth]?.before;
-  }
-  let after_template_depth = depth;
-  let after_raw = merged_opts.templates?.[after_template_depth]?.after;
-  while (typeof after_raw !== "string" && after_template_depth > -1) {
-    after_template_depth--;
-    after_raw = merged_opts.templates?.[after_template_depth]?.after;
-  }
-  return { before_raw, after_raw };
-}
-function build_item_placeholders(path, depth, mtime) {
-  const name = path.substring(path.lastIndexOf("/") + 1);
-  const dot_pos = name.lastIndexOf(".");
-  const ext = dot_pos > 0 ? name.slice(dot_pos + 1) : "";
-  return {
-    ITEM_PATH: path.replace("external:", ""),
-    ITEM_NAME: name,
-    ITEM_EXT: ext,
-    ITEM_DEPTH: depth,
-    ITEM_TIME_AGO: convert_to_time_ago(mtime)
-  };
-}
-function convert_to_time_ago(timestamp) {
-  const now = Date.now();
-  let diffMs = now - timestamp;
-  if (timestamp < 1e12) {
-    diffMs = now - timestamp * 1e3;
-  }
-  const seconds = Math.floor(diffMs / 1e3);
-  const intervals = [
-    { label: "year", seconds: 31536e3 },
-    { label: "month", seconds: 2592e3 },
-    { label: "day", seconds: 86400 },
-    { label: "hour", seconds: 3600 },
-    { label: "minute", seconds: 60 },
-    { label: "second", seconds: 1 }
-  ];
-  for (const interval of intervals) {
-    const count = Math.floor(seconds / interval.seconds);
-    if (count >= 1) {
-      return `${count} ${interval.label}${count > 1 ? "s" : ""} ago`;
-    }
-  }
-  return "just now";
-}
-function replace_vars(template, replacements) {
-  if (!template) return "";
-  let out = template;
-  for (const [k, v] of Object.entries(replacements)) {
-    const safe_v = v !== void 0 && v !== null ? String(v) : "";
-    out = out.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), safe_v);
-  }
-  return out;
-}
-function create_file_tree_string(all_paths) {
-  const root = {};
-  for (const p of all_paths) {
-    let cursor = root;
-    const parts = p.split("/");
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (i === parts.length - 1) {
-        cursor[part] = null;
-      } else {
-        if (!cursor[part]) cursor[part] = {};
-        cursor = cursor[part];
-      }
-    }
-  }
-  compress_single_child_dirs(root);
-  return build_tree_string(root);
-}
-function compress_single_child_dirs(node) {
-  if (!node || typeof node !== "object") return;
-  const keys = Object.keys(node);
-  for (const k of keys) {
-    const child = node[k];
-    if (child && typeof child === "object") {
-      const childKeys = Object.keys(child);
-      if (childKeys.length === 1) {
-        const subKey = childKeys[0];
-        const subChild = child[subKey];
-        if (subChild !== null) {
-          const combined = k + "/" + subKey;
-          node[combined] = subChild;
-          delete node[k];
-          compress_single_child_dirs(node[combined]);
-        } else {
-        }
-      } else {
-        compress_single_child_dirs(child);
-      }
-    }
-  }
-}
-function build_tree_string(node, prefix = "") {
-  let res = "";
-  const entries = Object.entries(node).sort((a, b) => {
-    const a_is_dir = a[1] !== null;
-    const b_is_dir = b[1] !== null;
-    if (a_is_dir && !b_is_dir) return -1;
-    if (!a_is_dir && b_is_dir) return 1;
-    return a[0].localeCompare(b[0]);
-  });
-  entries.forEach(([name, subnode], idx) => {
-    const is_last = idx === entries.length - 1;
-    const connector = is_last ? "\u2514\u2500\u2500 " : "\u251C\u2500\u2500 ";
-    if (subnode === null) {
-      res += prefix + connector + name + "\n";
-    } else {
-      res += prefix + connector + name + "/\n";
-      const next_prefix = prefix + (is_last ? "    " : "\u2502   ");
-      res += build_tree_string(subnode, next_prefix);
-    }
-  });
-  return res;
-}
-
-// node_modules/smart-contexts/adapters/default.js
-var DefaultContextCompileAdapter = class extends ContextCompileAdapter {
-  static adapter_key = "default";
   /**
-   * @method compile
-   * Builds a snapshot via get_snapshot, then calls compile_snapshot.
-   * @param {object} [opts={}]
-   * @returns {Promise<{context: string, stats: object}>}
+   * DEPRECATED
    */
-  async compile(opts = {}) {
-    const snapshot = await this.context_item.get_snapshot(opts);
-    const merged_opts = merge_context_opts(this.context_item, opts);
-    return compile_snapshot(snapshot, merged_opts);
+  /**
+   * Return *ContextItem* instances (any depth) for a given key array.
+   * @deprecated use context_items property instead
+   * @param {string[]} keys
+   */
+  get_context_items(keys = this.context_item_keys) {
+    return filter_redundant_context_items2(
+      keys.map((k) => this.get_context_item(k)).filter(Boolean)
+    );
+  }
+  /**
+   * @deprecated use context_items property instead
+   */
+  get_context_item(key) {
+    const existing = this.env.context_items.get(key);
+    if (existing) return existing;
+    return this.env.context_items.new_item({ key, ...this.data.context_items[key] || {} });
+  }
+  /**
+   * @method get_ref
+   * @deprecated moving to using ContextItem instances
+   */
+  get_ref(key) {
+    return this.collection.get_ref(key);
+  }
+  /**
+   * @deprecated
+   */
+  get_item_keys_by_depth(depth) {
+    return Object.keys(this.data.context_items).filter((k) => {
+      const item_depth = this.data.context_items[k].d;
+      if (item_depth === depth) return true;
+      if (typeof item_depth === "undefined" && depth === 0) return true;
+      return false;
+    });
+  }
+};
+
+// node_modules/smart-contexts/smart_contexts.js
+var SmartContexts2 = class extends Collection2 {
+  static version = 0.1;
+  async load() {
+    console.log("SmartContexts: load called");
+  }
+  /**
+   * new_context
+   * @param {object} data
+   * @param {object} opts
+   * @param {string[]} opts.add_items
+   * @returns {SmartContext}
+   */
+  new_context(data = {}, opts = {}) {
+    const item = new this.item_type(this.env, data);
+    if (Array.isArray(opts.add_items)) item.add_items(opts.add_items);
+    this.set(item);
+    item.queue_save();
+    item.emit_event("context:created");
+    return item;
+  }
+  /**
+   * Default settings for all SmartContext items in this collection.
+   * @readonly
+   */
+  static get default_settings() {
+    return {
+      template_before: "<context>\n{{FILE_TREE}}",
+      template_after: "</context>"
+    };
+  }
+  get settings_config() {
+    return {
+      ...this.env.config.actions.context_merge_template?.settings_config || {}
+    };
+  }
+  get_ref(key) {
+    const collection = key.includes("#") ? this.env.smart_blocks : this.env.smart_sources;
+    return collection.get(key);
   }
 };
 
 // node_modules/smart-contexts/index.js
-var smart_contexts_default_config = {
-  class: SmartContexts,
+var smart_contexts_default_config2 = {
+  class: SmartContexts2,
   data_adapter: AjsonSingleFileCollectionDataAdapter2,
-  compile_adapters: {
-    DefaultContextCompileAdapter
-  },
-  item_type: SmartContext
+  item_type: SmartContext2
 };
 
-// node_modules/obsidian-smart-env/modals/story.js
-var import_obsidian20 = require("obsidian");
-var StoryModal = class _StoryModal extends import_obsidian20.Modal {
-  constructor(plugin, { title, url }) {
-    super(plugin.app);
+// src/modals/copy_context_modal.js
+var import_obsidian41 = require("obsidian");
+var CopyContextModal = class extends import_obsidian41.SuggestModal {
+  constructor(ctx, params = {}) {
+    const env = ctx.env;
+    const plugin = env.plugin;
+    const app = plugin.app;
+    super(app);
+    this.app = app;
+    env.create_env_getter(this);
     this.plugin = plugin;
-    this.title = title;
-    this.url = url;
+    this.ctx = ctx;
+    this.params = params;
   }
-  static open(plugin, story_url) {
-    const modal = new _StoryModal(plugin, story_url);
-    modal.open();
-  }
-  onOpen() {
-    this.titleEl.setText(this.title);
-    this.modalEl.addClass("sc-story-modal");
-    const container = this.contentEl.createEl("div", {
-      cls: "sc-story-container"
+  /* ------------------------------------------------------ */
+  async onOpen() {
+    const ctx_items = this.ctx.context_items.filter((i) => {
+      if (i.data.exclude) return false;
+      if (i.is_media && !this.params.with_media) return false;
+      return true;
     });
-    if (import_obsidian20.Platform.isMobile) {
-      const btn = container.createEl("button", { text: "Open in browser" });
-      btn.addEventListener("click", () => {
-        open_url_externally(this.plugin, this.url);
-        this.close();
-      });
-      return;
-    } else {
-      const webview = container.createEl("webview", {
-        attr: { src: this.url, allowpopups: "" }
-      });
-      webview.style.width = "100%";
-      webview.style.height = "100%";
-      webview.addEventListener("did-navigate", (event) => {
-        const new_url = event.url || webview.getAttribute("src");
-        if (new_url && new_url !== this.url) {
-          open_url_externally(this.plugin, new_url);
-          this.close();
-        }
-      });
-    }
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-
-// settings.js
-var import_obsidian21 = require("obsidian");
-var SmartContextSettingTab = class extends import_obsidian21.PluginSettingTab {
-  constructor(app, plugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-    this.env = plugin.env;
-  }
-  display() {
-    const { containerEl } = this;
-    containerEl.empty();
-    const gs_container = containerEl.createEl("div", {
-      cls: "smart-context-getting-started-container"
-    });
-    gs_container.style.marginBottom = "1em";
-    gs_container.createEl("button", {
-      cls: "sc-getting-started-button",
-      text: "Getting started guide"
-    });
-    gs_container.querySelector(".sc-getting-started-button").addEventListener("click", () => {
-      StoryModal.open(this.plugin, {
-        title: "Getting Started With Smart Context",
-        url: "https://smartconnections.app/story/smart-context-getting-started/?utm_source=context-settings"
-      });
-    });
-    Object.entries(this.plugin.env.smart_contexts.settings_config).forEach(
-      ([setting, config]) => {
-        const setting_html = this.env.smart_view.render_setting_html({
-          setting,
-          ...config
-        });
-        const frag = this.env.smart_view.create_doc_fragment(setting_html);
-        containerEl.appendChild(frag);
-      }
+    const max_depth = Math.max(
+      ...ctx_items.map((item) => typeof item.data.d === "number" ? item.data.d : 0)
     );
-    this.env.smart_view.render_setting_components(containerEl, {
-      scope: this.plugin.env.smart_contexts
+    const suggestions = ctx_items.reduce((acc, item) => {
+      if (typeof item.data.d === "number") {
+        for (let d = item.data.d; d <= max_depth; d++) {
+          if (!acc[d]) {
+            acc[d] = { d, size: 0, sizes: 0, count: 0 };
+          }
+          acc[d].count += 1;
+          if (typeof item.size === "number") {
+            if (item.size > 0) {
+              acc[d].size += item.size;
+              acc[d].sizes += 1;
+            }
+          }
+        }
+      }
+      return acc;
+    }, Array.from({ length: max_depth + 1 }));
+    ;
+    this.suggestions = suggestions.filter(Boolean);
+    super.onOpen();
+  }
+  /* SuggestModal overrides                                  */
+  getSuggestions() {
+    return this.suggestions;
+  }
+  renderSuggestion(item, el) {
+    el.createDiv({ text: `Depth ${item.d} (${format_suggestion_size(item.size)} chars, ${item.count} items)` });
+  }
+  async onChooseSuggestion(item) {
+    const wait = new import_obsidian41.Notice("Copying context\u2026", 0);
+    await this.ctx.actions.context_copy_to_clipboard({
+      filter: (ctx_item) => {
+        return ctx_item.data.d <= item.d;
+      },
+      max_depth: item.d,
+      // for stats notification
+      ...this.params
     });
+    wait.hide();
   }
 };
-
-// src/components/context_builder.css
-var css_sheet3 = new CSSStyleSheet();
-css_sheet3.replaceSync(`.sc-context-builder {
-  padding: 6px 8px;
-  display: flex;
-  flex: 0 1 auto;
-  flex-direction: column;
-  width: 100%;
-  overflow: auto;
-  &.modal {
-    max-height: 50%;
+function format_suggestion_size(size) {
+  const value = Number(size) || 0;
+  if (value >= 1e7) {
+    const millions = value / 1e6;
+    const rounded = millions >= 10 ? Math.round(millions) : Math.round(millions * 10) / 10;
+    return `${rounded}M`;
   }
-  .sc-context-header {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    .sc-context-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
+  if (value >= 1e4) {
+    const thousands = value / 1e3;
+    const rounded = thousands >= 10 ? Math.round(thousands) : Math.round(thousands * 10) / 10;
+    return `${rounded}K`;
   }
-  .sc-context-body {
-    flex: 1 1 auto;
-    overflow: auto;
-  }
-  .sc-context-footer {
-    flex: 0 1 auto;
-    .sc-context-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      justify-content: flex-end;
-    }
-  }
+  return value.toLocaleString();
 }
 
-
-.sc-context-tree ul {
-  list-style: none;
-  margin: 0 0 0 .8em;
-  padding: 0;
+// src/components/smart-context/list.js
+var DASHBOARD_CLASS = "sc-contexts-dashboard";
+var DASHBOARD_LIST_CLASS = "sc-contexts-dashboard-list";
+function build_html24() {
+  return `<div class="${DASHBOARD_CLASS}">
+    <div class="${DASHBOARD_LIST_CLASS}"></div>
+  </div>`;
 }
-.sc-context-tree .sc-tree-item {
-  gap: 4px;
-  padding: 2px 0;
-  overflow: auto;
-
-  &.dir {
-    &> span {
-      opacity: 0.8;
+async function render24(smart_contexts, params = {}) {
+  const html = build_html24();
+  const fragment = this.create_doc_fragment(html);
+  const container = fragment.querySelector(`.${DASHBOARD_CLASS}`);
+  post_process23.call(this, smart_contexts, container, params);
+  return container;
+}
+async function post_process23(smart_contexts, container, params = {}) {
+  const disposers = [];
+  const list_el = container.querySelector(`.${DASHBOARD_LIST_CLASS}`);
+  const env = smart_contexts?.env;
+  const render_list_items = async () => {
+    const items = smart_contexts.filter((ctx) => {
+      return ctx?.data?.name && String(ctx.data.name).trim().length > 0;
+    });
+    this.empty(list_el);
+    if (!items.length) {
+      const empty2 = document.createElement("div");
+      empty2.classList.add("sc-contexts-dashboard-empty");
+      empty2.textContent = "No named contexts yet. Save a context to see it here.";
+      list_el.appendChild(empty2);
+      return;
     }
-    &> span::after {
-      content: '/';
+    for (const item of items) {
+      const row_el = await env.smart_components.render_component(
+        "smart_context_list_item",
+        item,
+        params
+      );
+      if (row_el) list_el.appendChild(row_el);
     }
-  }
-  .sc-tree-label {
-    cursor: pointer;
-  }
+  };
+  await render_list_items();
+  disposers.push(smart_contexts?.env?.events?.on("context:created", render_list_items));
+  this.attach_disposer(container, disposers);
+  return container;
 }
-.sc-context-tree .sc-tree-remove,
-.sc-context-tree .sc-tree-connections,
-.sc-context-tree .sc-tree-links {
-  cursor: pointer;
-  opacity: .8;
-}
-.sc-context-tree .sc-tree-remove:hover,
-.sc-context-tree .sc-tree-connections:hover,
-.sc-context-tree .sc-tree-links:hover {
-  opacity: 1;
-}`);
-var context_builder_default = css_sheet3;
 
-// src/components/context_builder.js
-function build_html10(ctx, opts = {}) {
+// src/components/smart-context/list_item.js
+var import_obsidian42 = require("obsidian");
+var DASHBOARD_ITEM_CLASS = "sc-contexts-dashboard-item";
+function build_html25(ctx, opts = {}) {
   return `<div>
-    <div class="sc-context-builder" data-context-key="${ctx.data.key}">
-      <div class="sc-context-header">
-        <div class="sc-context-actions"></div>
+    <div class="${DASHBOARD_ITEM_CLASS}" data-context-key="${ctx?.data?.key || ""}">
+      <div class="sc-contexts-dashboard-item-header" tabindex="0" aria-label="${ctx.name}">
+        <button class="sc-contexts-dashboard-show" aria-expanded="false" aria-label="Show ${ctx.name}">Show</button>
+        <span class="sc-contexts-dashboard-name">${ctx.name}</span>
+        <span class="sc-contexts-dashboard-count">${ctx.item_count} items</span>
       </div>
-      <div class="sc-context-body">
-      </div>
-      <div class="sc-context-footer">
-        <div class="sc-context-stats"></div>
-      </div>
+      <div class="sc-contexts-dashboard-item-detail" hidden></div>
     </div>
   </div>`;
 }
-async function render12(ctx, opts = {}) {
-  const html = build_html10.call(this, ctx, opts);
+async function render25(ctx, opts = {}) {
+  const html = build_html25(ctx, opts);
   const frag = this.create_doc_fragment(html);
-  const ctx_container = frag.querySelector(".sc-context-builder");
-  this.apply_style_sheet(context_builder_default);
-  await post_process11.call(this, ctx, ctx_container, opts);
-  return ctx_container;
+  const container = frag.querySelector(`.${DASHBOARD_ITEM_CLASS}`);
+  post_process24.call(this, ctx, container, opts);
+  return container;
 }
-async function post_process11(ctx, container, opts = {}) {
-  const env = ctx.env;
-  const body = container.querySelector(".sc-context-body");
-  const footer = container.querySelector(".sc-context-footer");
-  container.addEventListener("smart-env:context-updated", async (e) => {
-    const new_tree = await env.render_component("context_tree", ctx, {
-      ...opts
-    });
-    this.empty(body);
-    body.appendChild(new_tree);
-    const new_stats = await env.render_component("context_stats", ctx, opts);
-    this.empty(footer);
-    footer.appendChild(new_stats);
+async function post_process24(ctx, container, opts = {}) {
+  const show_btn = container.querySelector(".sc-contexts-dashboard-show");
+  show_btn.addEventListener("click", async () => {
+    ctx.emit_event("context_selector:open");
   });
-  const tree_container = await env.render_component("context_tree", ctx, {
-    ...opts
+  container.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const app = ctx?.env?.smart_context_plugin?.app || ctx?.env?.plugin?.app || window.app || null;
+    if (!app) return;
+    const menu = new import_obsidian42.Menu(app);
+    menu.addItem(
+      (mi) => mi.setTitle("Copy context to clipboard").setIcon("copy").onClick(async (ev2, ...other) => {
+        ctx.actions.context_copy_to_clipboard();
+      })
+    );
+    menu.showAtMouseEvent(ev);
   });
-  this.empty(body);
-  body.appendChild(tree_container);
-  const stats_container = await env.render_component("context_stats", ctx, opts);
-  this.empty(footer);
-  footer.appendChild(stats_container);
+  const disposers = [];
+  const update_count = () => {
+    const count_span = container.querySelector(".sc-contexts-dashboard-count");
+    if (count_span) {
+      count_span.textContent = `${ctx.item_count} item${ctx.item_count === 1 ? "" : "s"}`;
+    }
+  };
+  const rename_handler = (payload) => {
+    const name_span = container.querySelector(".sc-contexts-dashboard-name");
+    if (name_span && payload?.name) {
+      name_span.textContent = payload.name;
+    } else {
+      console.warn("Received context:renamed event without name payload or missing name_span element", { payload, name_span });
+    }
+  };
+  disposers.push(ctx.on_event("context:renamed", rename_handler));
+  disposers.push(ctx.on_event("context:updated", update_count));
+  this.attach_disposer(container, disposers);
+  return container;
 }
 
-// src/components/context_stats.js
-function estimate_tokens(char_count) {
-  return Math.ceil(char_count / 4);
-}
-var get_selected_items = (ctx) => Object.keys(ctx?.data?.context_items || {}).map((k) => ({ path: k }));
-function build_html11(ctx) {
-  return `<div>
-    <div class="sc-stats" aria-live="polite"></div>
+// src/components/smart-context/settings_tab.css
+var settings_tab_default = ".smart-context-settings-tab {\r\n  .setting-item-control textarea {\r\n    width: 100%;\r\n  }\r\n  \r\n  @media (min-width: 720px) {\r\n    .setting-item-info {\r\n      max-width: 50%;\r\n    }\r\n  }\r\n}";
+
+// src/components/smart-context/settings_tab.js
+async function build_html26(settings_tab, params = {}) {
+  return `<div class="smart-context-settings-tab">
+    <div class="smart-contexts"></div>
+    <div class="context-items"></div>
   </div>`;
 }
-async function render13(ctx, opts = {}) {
-  const html = build_html11(ctx);
+async function render26(settings_tab, params = {}) {
+  this.apply_style_sheet(settings_tab_default);
+  const html = await build_html26.call(this, settings_tab, params);
   const frag = this.create_doc_fragment(html);
-  const container = frag.querySelector(".sc-stats");
-  post_process12.call(this, ctx, container, opts);
-  return container;
+  const container = frag.firstElementChild;
+  post_process25.call(this, settings_tab, container, params);
+  return frag;
 }
-async function post_process12(ctx, container, opts = {}) {
-  const items = get_selected_items(ctx);
-  if (!items.length) {
-    return;
-  }
-  const { stats } = await ctx.compile({ link_depth: 0, calculating: true });
-  const total_chars = stats.char_count;
-  const total_tokens = estimate_tokens(total_chars);
-  container.textContent = `\u2248 ${total_chars.toLocaleString()} chars \xB7 ${total_tokens.toLocaleString()} tokens`;
-  return container;
+async function post_process25(settings_tab, container, params = {}) {
+  const env = settings_tab.env;
+  const render_component = env.smart_components?.render_component.bind(env.smart_components);
+  const smart_contexts = env.smart_contexts;
+  const contexts_container = container.querySelector(".smart-contexts");
+  render_component("collection_settings", smart_contexts).then((settings_container) => {
+    contexts_container.appendChild(settings_container);
+  });
+  const context_items = env.context_items;
+  const context_items_container = container.querySelector(".context-items");
+  render_component("collection_settings", context_items).then((settings_container) => {
+    context_items_container.appendChild(settings_container);
+  });
 }
-
-// src/utils/build_context_items_tree_html.js
-function build_context_items_tree_html(items) {
-  const tree_root = build_path_tree(items);
-  const selected_set = new Set(items.map((it) => it.path));
-  const tree_list_html = tree_to_html(tree_root, selected_set);
-  return tree_list_html;
-}
-function build_path_tree(selected_items = []) {
-  const split_path_segments = (item_path) => {
-    const BLOCK_ID_RE = /#\{\d+\}$/u;
-    let remainder = item_path;
-    let block_id_seg = null;
-    let block_key_seg = null;
-    let has_block = false;
-    const id_match = remainder.match(BLOCK_ID_RE);
-    if (id_match) {
-      block_id_seg = id_match[0];
-      remainder = remainder.slice(0, -block_id_seg.length);
-      has_block = true;
-    }
-    const key_idx = remainder.indexOf("##");
-    if (key_idx !== -1) {
-      block_key_seg = remainder.slice(key_idx);
-      remainder = remainder.slice(0, key_idx);
-      has_block = true;
-    }
-    const segments = [];
-    if (remainder) {
-      let seg = "";
-      let in_wikilink = false;
-      for (let i = 0; i < remainder.length; i++) {
-        if (!in_wikilink && remainder.slice(i, i + 2) === "[[") {
-          in_wikilink = true;
-          seg += "[[";
-          i++;
-        } else if (in_wikilink && remainder.slice(i, i + 2) === "]]") {
-          in_wikilink = false;
-          seg += "]]";
-          i++;
-        } else if (!in_wikilink && remainder[i] === "/") {
-          segments.push(seg);
-          seg = "";
-        } else {
-          seg += remainder[i];
-        }
-      }
-      if (seg) segments.push(seg);
-    }
-    if (block_key_seg) segments.push(block_key_seg);
-    if (block_id_seg) segments.push(block_id_seg);
-    return { segments, has_block };
-  };
-  const root = { name: "", children: {}, selected: false };
-  const is_redundant = (p, selected_folders2) => selected_folders2.some((folder) => p.startsWith(`${folder}/`));
-  const selected_folders = selected_items.filter((it) => {
-    const for_ext_check = it.path.includes("##") ? it.path.split("#")[0] : it.path;
-    return !for_ext_check.match(/\.[a-zA-Z0-9]+$/u);
-  }).map((it) => it.path);
-  for (const { path } of selected_items) {
-    if (is_redundant(path, selected_folders.filter((p) => p !== path))) continue;
-    const { segments, has_block } = split_path_segments(path);
-    let node = root;
-    let running = "";
-    segments.forEach((seg, idx) => {
-      running = running ? `${running}/${seg}` : seg;
-      if (seg.startsWith("external:..")) return;
-      const is_last = idx === segments.length - 1;
-      const is_block_leaf = is_last && has_block;
-      if (!node.children[seg]) {
-        node.children[seg] = {
-          name: seg,
-          path: is_block_leaf ? path : running,
-          // For blocks we store an empty *array* so AVA can assert `children.length === 0`
-          children: is_block_leaf ? [] : {},
-          selected: false,
-          is_file: is_block_leaf || is_last && seg.includes(".")
-        };
-      }
-      node = node.children[seg];
-      if (is_last) node.selected = true;
-    });
-  }
-  return root;
-}
-function tree_to_html(node, selected_paths) {
-  if (!node.children || !Object.keys(node.children).length) return "";
-  const child_html = Object.values(node.children).sort((a, b) => {
-    if (a.is_file !== b.is_file) return a.is_file ? 1 : -1;
-    return a.name.localeCompare(b.name);
-  }).map((child) => {
-    let remove_btn = "";
-    let connections_btn = "";
-    let links_btn = "";
-    if (selected_paths.has(child.path)) {
-      remove_btn = `<span class="sc-tree-remove" data-path="${child.path}">\xD7</span>`;
-      if (!child.path.startsWith("external:../")) {
-        connections_btn = `<span class="sc-tree-connections" data-path="${child.path}" title="Connections for ${child.name}"></span>`;
-        links_btn = `<span class="sc-tree-links" data-path="${child.path}" title="Links for ${child.name}"></span>`;
-      }
-    }
-    const li_inner = `
-        ${remove_btn}
-        <span class="sc-tree-label">${child.name}</span>
-        ${connections_btn}
-        ${links_btn}
-        ${tree_to_html(child, selected_paths)}
-      `;
-    return `<li data-path="${child.path}" class="sc-tree-item ${child.is_file ? "file" : "dir"}${child.path?.startsWith("external:") ? " sc-external" : ""}">${li_inner}</li>`;
-  }).join("");
-  return `<ul>${child_html}</ul>`;
-}
-
-// src/components/context_tree.css
-var css_sheet4 = new CSSStyleSheet();
-css_sheet4.replaceSync(`.sc-context-tree ul {
-  list-style: none;
-  margin: 0 0 0 .8em;
-  padding: 0;
-}
-.sc-context-tree .sc-tree-item {
-  gap: 4px;
-  padding: 2px 0;
-  overflow: auto;
-}
-
-.sc-context-tree .sc-tree-item.expandable > .sc-tree-label::before {
-  content: '\u25BE';
-  display: inline-block;
-  width: 1em;
-  margin-right: 2px;
-  cursor: pointer;
-}
-
-.sc-context-tree .sc-tree-item.collapsed > .sc-tree-label::before {
-  content: '\u25B8';
-}
-
-.sc-context-tree .sc-tree-item.collapsed > ul {
-  display: none;
-}
-
-.sc-context-tree .sc-tree-item.dir > span {
-  opacity: 0.8;
-}
-.sc-context-tree .sc-tree-item.dir > span::after {
-  content: '/';
-}
-.sc-context-tree .sc-tree-label {
-  cursor: pointer;
-}
-.sc-context-tree .sc-tree-remove,
-.sc-context-tree .sc-tree-connections,
-.sc-context-tree .sc-tree-links {
-  cursor: pointer;
-  opacity: .8;
-}
-.sc-context-tree .sc-tree-remove:hover,
-.sc-context-tree .sc-tree-connections:hover,
-.sc-context-tree .sc-tree-links:hover {
-  opacity: 1;
-}
-
-.sc-tree-remove, 
-.sc-tree-connections, 
-.sc-tree-links {
-  display: inline-flex;
-  width: 20px;
-  justify-content: space-around;
-  align-items: center;
-  border-radius: 5px;
-  border: 1px solid transparent;
-  transition: all 0.2s ease; /* Smooth transition for hover effects */
-}
-
-.sc-tree-remove:hover,
-.sc-tree-connections:hover,
-.sc-tree-links:hover {
-  border-color: var(--interactive-accent);
-}
-
-
-/* * Hover state for tree elements that should change text/icon color.
- * This includes the label and the connection/link icons.
- */
-.sc-tree-label:hover,
-.sc-tree-connections:hover,
-.sc-tree-links:hover {
-  color: var(--text-accent);
-}
-
-.smart-block-popover {
-  z-index: 999999;
-}`);
-var context_tree_default = css_sheet4;
 
 // node_modules/smart-sources/actions/get_links_to_depth.js
 var LINK_DIRECTIONS = (
@@ -19540,753 +23391,99 @@ function get_links_to_depth(target_source, max_depth = 1, {
   return results;
 }
 
-// node_modules/obsidian-smart-env/utils/open_note.js
-var import_obsidian22 = require("obsidian");
-async function open_note(plugin, target_path, event = null, opts = {}) {
-  const { new_tab = false } = opts;
-  const env = plugin.env;
-  if (target_path.includes(".pdf#page=")) {
-    return plugin.app.workspace.openLinkText(target_path, "/");
-  }
-  if (target_path.endsWith("#")) target_path = target_path.slice(0, -1);
-  let target_file;
-  let block = null;
-  if (target_path.includes("#")) {
-    const [file_path] = target_path.split("#");
-    target_file = plugin.app.metadataCache.getFirstLinkpathDest(file_path, "");
-    block = env.smart_blocks.get(target_path);
-  } else {
-    target_file = plugin.app.metadataCache.getFirstLinkpathDest(target_path, "");
-  }
-  if (!target_file) {
-    console.warn(`[open_note] Unable to resolve file for ${target_path}`);
-    return;
-  }
-  let leaf;
-  if (event) {
-    const is_mod = import_obsidian22.Keymap.isModEvent(event);
-    const is_alt = import_obsidian22.Keymap.isModifier(event, "Alt");
-    if (is_mod && is_alt) {
-      leaf = plugin.app.workspace.splitActiveLeaf("vertical");
-    } else if (is_mod || new_tab) {
-      leaf = plugin.app.workspace.getLeaf(true);
-    } else {
-      leaf = plugin.app.workspace.getMostRecentLeaf();
-    }
-  } else {
-    leaf = plugin.app.workspace.getMostRecentLeaf();
-  }
-  await leaf.openFile(target_file);
-  if (typeof block?.line_start === "number") {
-    const { editor } = leaf.view;
-    const pos = { line: block.line_start, ch: 0 };
-    editor.setCursor(pos);
-    editor.scrollIntoView({ to: pos, from: pos }, true);
-  }
-}
-
-// src/components/context_tree.js
-var import_obsidian25 = require("obsidian");
-
-// src/views/context_selector_modal.js
-var import_obsidian23 = require("obsidian");
-
-// node_modules/smart-file-system/utils/ignore.js
-var TEXT_FILE_EXTENSIONS = [
-  ".asm",
-  ".bat",
-  ".c",
-  ".cfg",
-  ".clj",
-  ".conf",
-  ".cpp",
-  ".cs",
-  ".css",
-  ".csv",
-  ".d",
-  ".dart",
-  ".ejs",
-  ".elm",
-  ".erl",
-  ".f",
-  ".go",
-  ".gradle",
-  ".groovy",
-  ".h",
-  ".hbs",
-  ".hpp",
-  ".hs",
-  ".html",
-  ".ini",
-  ".jade",
-  ".java",
-  ".js",
-  ".json",
-  ".jsx",
-  ".kt",
-  ".less",
-  ".lisp",
-  ".log",
-  ".lua",
-  ".m",
-  ".makefile",
-  ".md",
-  ".mdx",
-  ".ml",
-  ".mjs",
-  ".mustache",
-  ".pas",
-  ".php",
-  ".pl",
-  ".properties",
-  ".pug",
-  ".py",
-  ".r",
-  ".rb",
-  ".rs",
-  ".sass",
-  ".scala",
-  ".scheme",
-  ".scss",
-  ".sh",
-  ".sql",
-  ".svelte",
-  ".swift",
-  ".tcl",
-  ".tex",
-  ".tpl",
-  ".ts",
-  ".tsx",
-  ".twig",
-  ".txt",
-  ".vb",
-  ".vue",
-  ".xml",
-  ".yaml",
-  ".yml",
-  ".canvas"
-];
-var NO_EXTENSION_TEXT_FILES = [
-  "Dockerfile",
-  "Appfile",
-  "Matchfile",
-  "Deliverfile",
-  "Gymfile",
-  "Fastfile",
-  "Gemfile",
-  "Guardfile",
-  "Jenkinsfile",
-  "Makefile",
-  "Procfile",
-  "Rakefile"
-];
-function is_text_file(file_path) {
-  const last_dot_index = file_path.lastIndexOf(".");
-  if (last_dot_index === -1) {
-    if (NO_EXTENSION_TEXT_FILES.some((file) => file_path.endsWith(file))) {
-      return true;
-    }
-    return false;
-  }
-  const ext = file_path.substring(last_dot_index).toLowerCase();
-  return TEXT_FILE_EXTENSIONS.includes(ext);
-}
-
-// src/utils/get_all_leaves.js
-function get_all_leaves(app) {
-  const leaves = [];
-  const recurse = (container) => {
-    if (container.children) {
-      for (const child of container.children) {
-        recurse(child);
+// src/actions/source/get_context.js
+function build_context_items_from_graph(graph = [], root_source = null) {
+  const context_items = {};
+  const root_outlinks = Array.isArray(root_source?.data?.outlinks) ? root_source.data.outlinks : null;
+  for (const entry of graph) {
+    if (!entry || !entry.item) continue;
+    const item = entry.item;
+    const key = item.key;
+    if (!key) continue;
+    const graph_depth = typeof entry.depth === "number" ? entry.depth : 0;
+    let depth = graph_depth;
+    if (root_outlinks && graph_depth > 0 && // root itself (depth 0) is already correct
+    typeof key === "string") {
+      const embedded_outlink = root_outlinks.find((o) => {
+        if (!o || typeof o !== "object") return false;
+        const target = typeof o.target === "string" ? o.target : null;
+        if (!target) return false;
+        if (!key.endsWith(target)) return false;
+        return o.embedded === true;
+      });
+      if (embedded_outlink) {
+        depth = 0;
       }
     }
-    if (container.type === "leaf") {
-      leaves.push(container);
-    }
-  };
-  recurse(app.workspace.rootSplit);
-  return leaves;
-}
-
-// src/utils/get_all_open_file_paths.js
-function get_all_open_file_paths(app) {
-  const leaves = get_all_leaves(app);
-  const files_set = [];
-  for (const leaf of leaves) {
-    const file_path = leaf.view?.state?.file ?? leaf.view?.file?.path;
-    if (file_path && is_text_file(file_path)) {
-      files_set.push(file_path);
-    }
-  }
-  return files_set;
-}
-
-// src/utils/is_leaf_visible.js
-function is_leaf_visible(leaf) {
-  const parent = leaf.parent;
-  if (!parent) {
-    return leaf.containerEl && leaf.containerEl.offsetParent !== null;
-  }
-  if ("activeTab" in parent) {
-    return parent.activeTab === leaf && leaf.containerEl && leaf.containerEl.offsetParent !== null;
-  }
-  return leaf.containerEl && leaf.containerEl.offsetParent !== null;
-}
-
-// src/utils/get_visible_open_files.js
-function get_visible_open_files(app) {
-  const leaves = get_all_leaves(app);
-  const visible_files = /* @__PURE__ */ new Set();
-  for (const leaf of leaves) {
-    if (!is_leaf_visible(leaf)) continue;
-    const file = leaf.view?.file;
-    if (file && is_text_file(file.path)) {
-      visible_files.add(file);
-    }
-  }
-  return [...visible_files].map((file) => file.path);
-}
-
-// src/utils/send_context_changed_event.js
-function send_context_changed_event(container, next_ctx) {
-  container.dispatchEvent(new CustomEvent("smart-env:context-changed", {
-    detail: { context: next_ctx },
-    bubbles: true,
-    composed: true
-  }));
-}
-
-// src/views/context_selector_modal.js
-var ContextSelectorModal = class extends import_obsidian23.FuzzySuggestModal {
-  static open(env, opts) {
-    const plugin = env.smart_context_plugin || env.smart_chat_plugin || env.smart_connections_plugin || env.plugin;
-    if (!env.context_selector_modal) {
-      if (env.smart_context_plugin?.ContextSelectorModal) {
-        env.context_selector_modal = new env.smart_context_plugin.ContextSelectorModal(plugin, opts);
-      } else env.context_selector_modal = new this(plugin, opts);
-    }
-    env.context_selector_modal.open(opts);
-    return env.context_selector_modal;
-  }
-  static close(env) {
-    env.context_selector_modal.close(true);
-    env.context_selector_modal = null;
-  }
-  /**
-   * @param {import('../../main.js').default} plugin
-   * @param {Object} [opts={}]
-   * @param {SmartContext} [opts.ctx]
-   */
-  constructor(plugin, opts = {}) {
-    super(plugin.app);
-    this.app = plugin.app;
-    this.plugin = plugin;
-    this.opts = opts;
-    this.ctx = opts.ctx ?? null;
-    this.setInstructions([
-      { command: "Enter", purpose: "Add to context" },
-      { command: "\u2318/Ctrl + Enter", purpose: "Open named context in builder" },
-      { command: "Esc", purpose: "Close" }
-    ]);
-    this.plugin.env.create_env_getter(this);
-    this.mod_key_was_held = false;
-    this.containerEl.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") this.close(true);
-    });
-    this.modalEl.addEventListener("keydown", (e) => {
-      this.mod_key_was_held = import_obsidian23.Keymap.isModifier(e, "Mod");
-      if (e.key === "Enter") this.selectActiveSuggestion(e);
-    });
-    this.resultContainerEl.addEventListener("click", (e) => {
-      this.mod_key_was_held = import_obsidian23.Keymap.isModifier(e, "Mod");
-    });
-  }
-  /* ───────────────────────────────────────────────────────────── */
-  /**
-   * Sort an array of context entries according to:
-   *   – priority 0 → item has in/out‑links with the current active note
-   *   – priority 1 → item modified within the last 24 h
-   *   – priority 2 → all remaining items
-   * Within each priority group items are ordered alphabetically.
-   *
-   * @param {Array<Object>} entries
-   * @returns {Array<Object>} sorted copy
-   */
-  sort_context_entries(entries) {
-    const active_file = this.app.workspace.getActiveFile();
-    let active_src = null;
-    if (active_file) {
-      active_src = this.env.smart_sources.get(active_file.path);
-    }
-    const linked_keys = /* @__PURE__ */ new Set();
-    if (active_src) {
-      active_src.outlinks.forEach((k) => linked_keys.add(k));
-      active_src.inlinks.forEach((k) => linked_keys.add(k));
-    }
-    const recent_cutoff = Date.now() - 24 * 60 * 60 * 1e3;
-    const get_key = (entry) => entry?.item?.key || entry?.key || entry?.path || "";
-    const get_src = (entry) => entry?.item || entry;
-    const priority = (entry) => {
-      const key = get_key(entry);
-      const src = get_src(entry);
-      if (linked_keys.has(key)) return 0;
-      if (src?.mtime && src.mtime >= recent_cutoff) return 1;
-      return 2;
+    const existing = context_items[key] || {};
+    const final_depth = typeof existing.d === "number" ? Math.min(existing.d, depth) : depth;
+    context_items[key] = {
+      ...existing,
+      d: final_depth,
+      mtime: item.mtime,
+      size: item.size,
+      link: true
     };
-    return [...entries].sort((a, b) => {
-      const pa = priority(a);
-      const pb = priority(b);
-      if (pa !== pb) return pa - pb;
-      return get_key(a).localeCompare(get_key(b));
-    });
   }
-  /* ───────────────────────────────────────────────────────────── */
-  ensure_ctx() {
-    if (this.ctx) return this.ctx;
-    this.ctx = this.env.smart_contexts.new_context({}, {
-      add_items: this.opts.initial_context_items
-    });
-    return this.ctx;
-  }
-  async open(opts = this.opts) {
-    if (opts.ctx) this.ctx = opts.ctx;
-    if (opts.opener_container) this.add_opener_container(opts.opener_container);
-    this.opts = opts;
-    await this.render();
-    super.open();
-  }
-  async render() {
-    this.modalEl.style.display = "flex";
-    this.modalEl.style.flexDirection = "column";
-    this.modalEl.style.height = "100%";
-    const prompt_results = this.modalEl.querySelector(".prompt-results");
-    if (prompt_results) {
-      prompt_results.style.flex = "1 1 50%";
-      prompt_results.style.minHeight = "0";
-      prompt_results.style.overflowY = "auto";
-    }
-    const ctx = this.ensure_ctx();
-    const builder_container = await this.env.render_component(
-      "context_builder",
-      ctx,
-      {
-        ...this.opts
-      }
-    );
-    builder_container.addEventListener("smart-env:context-changed", (e) => {
-      const updated_ctx = e.detail.context;
-      this.ctx = updated_ctx;
-      this.opts.ctx = updated_ctx;
-      this.updateSuggestions();
-      this.render();
-    });
-    builder_container.classList.add("modal");
-    const actions_el = builder_container.querySelector(".sc-context-actions");
-    if (ctx.has_context_items) {
-      const clear_btn = document.createElement("button");
-      clear_btn.textContent = "Clear";
-      clear_btn.addEventListener("click", () => {
-        ctx.data.context_items = {};
-        ctx.queue_save();
-        ctx.collection.process_save_queue();
-        this.updateSuggestions();
-        this.render();
-      });
-      actions_el.appendChild(clear_btn);
-      const copy_btn = await this.env.render_component(
-        "copy_to_clipboard_button",
-        ctx
-      );
-      actions_el.appendChild(copy_btn);
-    }
-    if (!actions_el.querySelector('button[data-done="true"]')) {
-      const done_btn = document.createElement("button");
-      done_btn.dataset.done = "true";
-      done_btn.textContent = "Done";
-      done_btn.addEventListener("click", () => {
-        this.close(true);
-      });
-      actions_el.appendChild(done_btn);
-    }
-    this.modalEl.querySelector(".sc-context-builder")?.remove();
-    this.modalEl.prepend(builder_container);
-  }
-  get suggestions() {
-    return this.opts.suggestions ?? [];
-  }
-  set suggestions(suggestions) {
-    this.opts.suggestions = suggestions;
-  }
-  getItems() {
-    const suggestions = this.suggestions?.filter(
-      (s) => !this.ctx?.data?.context_items[s.item.key]
-    );
-    if (suggestions?.length) {
-      const special_items2 = [];
-      special_items2.push({
-        name: "Back",
-        items: {}
-      });
-      if (suggestions.some((s) => s.depth)) {
-        const depth_1 = suggestions.filter((s) => s.depth <= 1);
-        const depth_2 = suggestions.filter((s) => s.depth <= 2);
-        const depth_3 = suggestions.filter((s) => s.depth <= 3);
-        if (depth_1.length)
-          special_items2.push({ name: `Add all to depth 1 (${depth_1.length})`, items: depth_1 });
-        if (depth_2.length)
-          special_items2.push({ name: `Add all to depth 2 (${depth_2.length})`, items: depth_2 });
-        if (depth_3.length)
-          special_items2.push({ name: `Add all to depth 3 (${depth_3.length})`, items: depth_3 });
-      }
-      if (suggestions.some((s) => s.score)) {
-        const all_connections = suggestions.filter((s) => s.score);
-        special_items2.push({
-          name: `Add all connections (${all_connections.length})`,
-          items: all_connections
-        });
-      }
-      return [...special_items2, ...suggestions];
-    }
-    let special_items = this.opts.special_items ?? [];
-    const visible_open_files = Array.from(get_visible_open_files(this.app)).map((f) => {
-      return { item: this.env.smart_sources.get(f) };
-    });
-    if (visible_open_files.length) {
-      special_items.push({
-        name: "Visible open files",
-        items: visible_open_files
-      });
-      const all_open_files = Array.from(get_all_open_file_paths(this.app)).map((f) => {
-        return { item: this.env.smart_sources.get(f) };
-      });
-      if (all_open_files.length && visible_open_files.length !== all_open_files.length) special_items.push({
-        name: "All open files",
-        items: all_open_files
-      });
-    }
-    special_items = special_items.map((i) => {
-      if (i.items) {
-        i.items = i.items.filter(
-          (item) => item.item && !this.ctx?.data?.context_items[item.item.key]
-        );
-        i.name = `${i.name} (+${i.items.length})`;
-      }
-      return i;
-    }).filter((i) => {
-      if (i.items) return i.items.length > 0;
-      return true;
-    });
-    const unselected = Object.values(this.env.smart_sources.items).filter(
-      (src) => !this.ctx?.data?.context_items[src.key]
-    );
-    const sorted_unselected = this.sort_context_entries(unselected);
-    return [...special_items, ...sorted_unselected];
-  }
-  getItemText(item) {
-    if (item.score) {
-      return `${item.score.toFixed(2)} | ${item.item.path}`;
-    }
-    if (item.depth) {
-      return `${item.depth} | ${item.item.path}`;
-    }
-    if (item.items && item.name) {
-      return item.name;
-    }
-    return item.path;
-  }
-  onChooseSuggestion(selection) {
-    if (selection.item.name === "Back") {
-      this.suggestions = null;
-      this.updateSuggestions();
-      return;
-    }
-    this.ensure_ctx();
-    if (selection.item.items) {
-      for (const special_item of selection.item.items) {
-        if (!this.ctx.data.context_items[special_item.item.key]) {
-          this.ctx.data.context_items[special_item.item.key] = { d: 0 };
-        }
-      }
-      this.updateSuggestions();
-      this.render();
-      return;
-    }
-    const item = selection.item?.item ?? selection.item;
-    if (!this.ctx.data.context_items[item.key]) {
-      this.ctx.data.context_items[item.key] = { d: 0 };
-      this.updateSuggestions();
-      this.render();
-    }
-  }
-  focus_input() {
-    setTimeout(() => this.inputEl.focus(), 100);
-  }
-  close(should_close = false) {
-    if (should_close) super.close();
-  }
-  onClose(should_close = false) {
-    while (this.opener_containers?.length) {
-      const container = this.opener_containers.pop();
-      if (container.isConnected) {
-        send_context_changed_event(container, this.ctx);
-      }
-    }
-  }
-  add_opener_container(container) {
-    if (!this.opener_containers) this.opener_containers = [];
-    if (!this.opener_containers.includes(container)) {
-      this.opener_containers.push(container);
-    }
-  }
-  load_suggestions(suggestions) {
-    this.suggestions = suggestions;
-    this.updateSuggestions();
-    this.render();
-  }
-};
-
-// node_modules/obsidian-smart-env/utils/register_block_hover_popover.js
-var import_obsidian24 = require("obsidian");
-function register_block_hover_popover(parent, target, env, block_key, plugin) {
-  target.addEventListener("mouseover", async (ev) => {
-    if (import_obsidian24.Keymap.isModEvent(ev)) {
-      const block = env.smart_blocks.get(block_key);
-      const markdown = await block?.read();
-      if (markdown) {
-        const popover = new import_obsidian24.HoverPopover(parent, target);
-        const frag = env.smart_view.create_doc_fragment(`<div class="markdown-embed is-loaded">
-                <div class="markdown-embed-content node-insert-event">
-                  <div class="markdown-preview-view markdown-rendered node-insert-event show-indentation-guide allow-fold-headings allow-fold-lists">
-                    <div class="markdown-preview-sizer markdown-preview-section">
-                    </div>
-                  </div>
-                </div>
-              </div>`);
-        popover.hoverEl.classList.add("smart-block-popover");
-        popover.hoverEl.appendChild(frag);
-        const sizer = popover.hoverEl.querySelector(".markdown-preview-sizer");
-        import_obsidian24.MarkdownRenderer.render(plugin.app, markdown, sizer, "/", popover);
-      }
-    }
+  return context_items;
+}
+async function source_get_context(params = {}) {
+  const LINK_DEPTH = 5;
+  const direction = params.direction && Object.values(LINK_DIRECTIONS).includes(params.direction) ? params.direction : LINK_DIRECTIONS.BOTH;
+  const include_self = typeof params.include_self === "boolean" ? params.include_self : true;
+  const graph = await get_links_to_depth(this, LINK_DEPTH, {
+    direction,
+    include_self
   });
-}
-
-// src/utils/send_context_updated_event.js
-function send_context_updated_event(container) {
-  container.dispatchEvent(new CustomEvent("smart-env:context-updated", {
-    detail: { updated: true },
-    bubbles: true,
-    composed: true
-  }));
-}
-
-// src/components/context_tree.js
-var test_has_children = (li) => !!li.querySelector(":scope > ul");
-var toggle_collapsed = (li) => li.classList.toggle("collapsed");
-var setup_collapse_handlers = (container) => {
-  container.querySelectorAll(".sc-tree-item.dir").forEach((li) => {
-    if (!test_has_children(li)) return;
-    li.classList.add("expandable");
-    const label = li.querySelector(":scope > .sc-tree-label");
-    if (!label) return;
-    label.addEventListener("click", (ev) => {
-      if (ev.metaKey || ev.ctrlKey) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      toggle_collapsed(li);
-    });
+  const context_items = build_context_items_from_graph(graph, this);
+  const smart_contexts = this.env.smart_contexts;
+  const context_key = this.key;
+  const smart_context = await smart_contexts.create_or_update({
+    key: context_key,
+    context_items
   });
-};
-var get_selected_items2 = (ctx) => Object.keys(ctx?.data?.context_items || {}).map((k) => ({ path: k }));
-function build_html12(ctx) {
-  const items = get_selected_items2(ctx);
-  const tree_list_html = build_context_items_tree_html(items);
-  return `<div>
-    <div class="sc-context-tree">${tree_list_html || "<em>No items selected\u2026</em>"}</div>
-  </div>`;
-}
-async function render14(ctx, opts = {}) {
-  const html = build_html12(ctx);
-  const frag = this.create_doc_fragment(html);
-  this.apply_style_sheet(context_tree_default);
-  const container = frag.querySelector(".sc-context-tree");
-  await post_process13.call(this, ctx, container, opts);
-  return container;
-}
-async function post_process13(ctx, container, opts = {}) {
-  const env = ctx?.env;
-  const plugin = env?.smart_context_plugin || // uses early-release version if available
-  env?.smart_chat_plugin || env?.smart_connections_plugin || env?.plugin;
-  const render_tree = () => {
-    const items = get_selected_items2(ctx);
-    const tree_list_html = build_context_items_tree_html(items);
-    this.safe_inner_html(container, tree_list_html || "<em>No items selected\u2026</em>");
-    attach_item_handlers();
-    setup_collapse_handlers(container);
-  };
-  container.addEventListener("smart-env:context-updated", (e) => {
-    render_tree();
+  this.once_event("sources:imported", () => {
+    if (smart_contexts.items[context_key]) delete smart_contexts.items[context_key];
+    console.log(`Invalidated SmartContext cache for source ${context_key}`);
   });
-  const attach_item_handlers = () => {
-    if (!opts.disable_context_changes) {
-      container.querySelectorAll(".sc-tree-remove").forEach((btn) => {
-        btn.title = `Remove ${btn.dataset.path}`;
-        btn.addEventListener("click", (e) => {
-          const p = e.currentTarget.dataset.path;
-          delete ctx.data.context_items[p];
-          send_context_updated_event(container);
-        });
-      });
-      container.querySelectorAll(".sc-tree-connections").forEach((btn) => {
-        if (!btn.dataset.path) return;
-        const target = ctx.get_ref(btn.dataset.path);
-        if (!target) return;
-        const icon = (0, import_obsidian25.getIcon)("smart-connections");
-        btn.appendChild(icon);
-        btn.addEventListener("click", async (e) => {
-          const p = e.currentTarget.dataset.path;
-          const target2 = ctx.get_ref(p);
-          const connections = await target2.find_connections();
-          const modal = ContextSelectorModal.open(env, {
-            ctx,
-            opener_container: container
-          });
-          modal.load_suggestions(connections);
-        });
-      });
-      container.querySelectorAll(".sc-tree-links").forEach((btn) => {
-        if (!btn.dataset.path) return;
-        const target = ctx.get_ref(btn.dataset.path);
-        if (!target) return;
-        const links = get_links_to_depth(target, 3);
-        if (!links.length) return btn.style.display = "none";
-        const icon = (0, import_obsidian25.getIcon)("link");
-        btn.appendChild(icon);
-        btn.addEventListener("click", () => {
-          const p = btn.dataset.path;
-          const target2 = ctx.get_ref(p);
-          if (!target2) return;
-          const links2 = get_links_to_depth(target2, 3);
-          const modal = ContextSelectorModal.open(env, {
-            ctx,
-            opener_container: container
-          });
-          modal.load_suggestions(links2);
-        });
-      });
-    }
-    container.querySelectorAll(".sc-tree-label").forEach((label) => {
-      const li = label.closest(".sc-tree-item");
-      if (!li) return;
-      const item_path = li.dataset.path;
-      if (!item_path) return;
-      label.dataset.href = item_path;
-      label.dataset.path = item_path;
-      label.setAttribute("draggable", "true");
-      label.title = item_path;
-      if (item_path.includes("{")) {
-        register_block_hover_popover(li, label, env, item_path, plugin);
-      } else {
-        label.addEventListener("mouseover", async (ev) => {
-          plugin?.app?.workspace.trigger("hover-link", {
-            event: ev,
-            source: "smart-context-tree",
-            hoverParent: label,
-            targetEl: label,
-            linktext: item_path
-          });
-        });
-      }
-      label.addEventListener("dragstart", (ev) => {
-        const file_path = item_path.split("#")[0];
-        const file = plugin?.app?.metadataCache?.getFirstLinkpathDest(file_path, "");
-        const drag_data = plugin?.app?.dragManager?.dragFile(ev, file);
-        plugin?.app?.dragManager?.onDragStart(ev, drag_data);
-      });
-      if (!li.classList.contains("sc-external")) {
-        label.addEventListener("click", (ev) => {
-          if (!li.classList.contains("dir") || ev.metaKey || ev.ctrlKey) {
-            ev.preventDefault();
-            open_note(plugin, item_path, ev, { new_tab: true });
-          }
-        });
-      }
-    });
-  };
-  render_tree();
-  return container;
-}
-
-// src/utils/show_stats_notice.js
-var import_obsidian26 = require("obsidian");
-function show_stats_notice(stats, contextMsg) {
-  let noticeMsg = `Copied to clipboard! (${contextMsg})`;
-  if (stats) {
-    const char_count = stats.char_count < 1e5 ? stats.char_count : `~${Math.round(stats.char_count / 1e3)}k`;
-    noticeMsg += `, ${char_count} chars`;
-    if (stats.exclusions) {
-      const total_excluded = Object.values(stats.exclusions).reduce(
-        (p, c) => p + c,
-        0
-      );
-      if (total_excluded > 0) {
-        noticeMsg += `, ${total_excluded} section(s) excluded`;
-      }
-    }
-  }
-  new import_obsidian26.Notice(noticeMsg);
-}
-
-// src/utils/copy_to_clipboard.js
-var import_obsidian27 = require("obsidian");
-async function copy_to_clipboard(text) {
-  try {
-    if (navigator?.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else if (!import_obsidian27.Platform.isMobile) {
-      const { clipboard } = require("electron");
-      clipboard.writeText(text);
-    } else {
-      new import_obsidian27.Notice("Unable to copy text: no valid method found.");
-    }
-  } catch (err) {
-    console.error("Failed to copy text:", err);
-    new import_obsidian27.Notice("Failed to copy.");
-  }
-}
-
-// src/components/copy_to_clipboard_button.js
-function build_html13() {
-  return '<button class="sc-copy-clipboard" type="button">Copy to clipboard</button>';
-}
-async function render15(ctx) {
-  const html = build_html13();
-  const frag = this.create_doc_fragment(html);
-  const btn = frag.querySelector("button");
-  btn.addEventListener("click", async () => {
-    const { context, stats, images } = await ctx.compile({ link_depth: 0 });
-    await copy_to_clipboard(context, images);
-    show_stats_notice(stats, `${Object.keys(ctx.data.context_items).length} file(s)`);
-  });
-  return frag;
+  return smart_context || null;
 }
 
 // smart_env.config.js
 var smart_env_config3 = {
   collections: {},
   item_types: {},
+  items: {},
+  modules: {},
   components: {
-    context_builder: render12,
-    context_stats: render13,
-    context_tree: render14,
-    copy_to_clipboard_button: render15
+    smart_context_list: { render: render24 },
+    smart_context_list_item: { render: render25 },
+    smart_context_settings_tab: { render: render26 }
+  },
+  actions: {
+    source_get_context: { action: source_get_context }
   }
 };
 
-// src/views/folder_select_modal.js
-var import_obsidian28 = require("obsidian");
-var FolderSelectModal = class extends import_obsidian28.SuggestModal {
+// src/default.config.js
+var default_config = {
+  collections: {
+    smart_contexts: smart_contexts_default_config2
+  },
+  item_types: {
+    SmartContext: SmartContext2
+  },
+  modals: {
+    copy_context_modal: {
+      class: CopyContextModal
+    }
+  }
+};
+var smart_env_config4 = merge_env_config(smart_env_config3, default_config);
+
+// src/modals/folder_select_modal.js
+var import_obsidian43 = require("obsidian");
+var FolderSelectModal = class extends import_obsidian43.SuggestModal {
   constructor(app, onChoose) {
     super(app);
     this.onChoose = onChoose;
@@ -20297,7 +23494,7 @@ var FolderSelectModal = class extends import_obsidian28.SuggestModal {
   getAllFolders(rootFolder, folders = []) {
     folders.push(rootFolder);
     for (const child of rootFolder.children) {
-      if (child instanceof import_obsidian28.TFolder) {
+      if (child instanceof import_obsidian43.TFolder) {
         this.getAllFolders(child, folders);
       }
     }
@@ -20317,39 +23514,78 @@ var FolderSelectModal = class extends import_obsidian28.SuggestModal {
   }
 };
 
-// main.js
-var SmartContextPlugin = class extends import_obsidian29.Plugin {
-  /* ------------------------------------------------------------------ */
-  /*  Smart‑Env registration                                             */
-  /* ------------------------------------------------------------------ */
-  compiled_smart_env_config = smart_env_config3;
-  ContextSelectorModal = ContextSelectorModal;
-  LinkDepthModal = LinkDepthModal;
-  smart_env_config = {
-    collections: {
-      smart_contexts: smart_contexts_default_config
+// src/commands/context_commands.js
+function context_commands(plugin) {
+  return {
+    new_context: {
+      id: "new-context-open-selector",
+      name: "Open Selector for New Context",
+      checkCallback: (checking) => {
+        if (!plugin?.env?.smart_contexts) return false;
+        if (checking) return true;
+        plugin.open_new_context_modal();
+        return true;
+      }
     },
-    item_types: {
-      SmartContext
+    get_started: {
+      id: "show-getting-started",
+      name: "Help: Show getting started",
+      callback: () => {
+        StoryModal.open(plugin, {
+          title: "Getting Started With Smart Context",
+          url: "https://smartconnections.app/story/smart-context-getting-started/?utm_source=sc-command"
+        });
+      }
     },
-    modules: {
-      smart_fs: {
-        class: SmartFs,
-        adapter: SmartFsObsidianAdapter
+    copy_current: {
+      id: "copy-current-note-with-depth",
+      name: "Copy current to clipboard",
+      editorCheckCallback: (checking, editor, view) => {
+        const source_path = view.file?.path;
+        if (!source_path) return false;
+        const source = plugin.env.smart_sources.get(source_path);
+        if (!source) return false;
+        const ModalClass = plugin.env.config.modals?.copy_context_modal?.class;
+        if (!ModalClass) return false;
+        if (checking) return true;
+        source.actions.source_get_context().then((ctx) => {
+          if (!ctx) {
+            plugin.env.events.emit("notification:error", {
+              message: "Failed to build context for current note."
+            });
+            new Notice("Failed to build context for current note.");
+            return;
+          }
+          const modal = new ModalClass(ctx);
+          modal.open();
+        });
+        return true;
+      }
+    },
+    copy_folder: {
+      id: "copy-folder-to-clipboard",
+      name: "Copy entire folder to clipboard",
+      callback: () => {
+        new FolderSelectModal(plugin.app, async (folder) => {
+          if (!folder) return;
+          await plugin.copy_folder_to_clipboard(folder);
+        }).open();
       }
     }
   };
-  /* ------------------------------------------------------------------ */
-  /*  Lifecycle                                                         */
-  /* ------------------------------------------------------------------ */
+}
+
+// src/main.js
+var SmartContextPlugin = class extends SmartPlugin {
   onload() {
     this.app.workspace.onLayoutReady(this.initialize.bind(this));
-    SmartEnv2.create(this, merge_env_config(
-      this.compiled_smart_env_config,
-      this.smart_env_config
-    ));
+    SmartEnv2.create(this, smart_env_config4);
   }
   onunload() {
+    try {
+      this.unregister_event_bus_handlers();
+    } catch (e) {
+    }
     this.env.unload_main(this);
   }
   /**
@@ -20362,8 +23598,9 @@ var SmartContextPlugin = class extends import_obsidian29.Plugin {
     await this.load_new_user_state();
     await SmartEnv2.wait_for({ loaded: true });
     this.register_commands();
-    this.register_context_selector_modal_command();
     this.register_folder_menu();
+    this.register_files_menu();
+    ContextsDashboardView.register_item_view(this);
     this.addSettingTab(new SmartContextSettingTab(this.app, this));
     if (this.is_new_user()) {
       setTimeout(() => {
@@ -20414,10 +23651,21 @@ var SmartContextPlugin = class extends import_obsidian29.Plugin {
   /* ------------------------------------------------------------------ */
   register_folder_menu() {
     this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
-      if (!(file instanceof import_obsidian29.TFolder)) return;
+      if (!(file instanceof import_obsidian44.TFolder)) return;
       menu.addItem((item) => {
         item.setTitle("Copy folder contents to clipboard").setIcon("documents").onClick(async () => {
           await this.copy_folder_to_clipboard(file);
+        });
+      });
+    }));
+  }
+  register_files_menu() {
+    this.registerEvent(this.app.workspace.on("files-menu", (menu, files) => {
+      const selected_keys = get_selected_note_keys(files, this.env.smart_sources);
+      if (selected_keys.length < 2) return;
+      menu.addItem((item) => {
+        item.setTitle("Copy selected notes as context").setIcon("documents").onClick(async () => {
+          await this.copy_selected_files_to_clipboard(files);
         });
       });
     }));
@@ -20432,70 +23680,18 @@ var SmartContextPlugin = class extends import_obsidian29.Plugin {
   /* ------------------------------------------------------------------ */
   /*  Commands                                                          */
   /* ------------------------------------------------------------------ */
-  register_context_selector_modal_command() {
-    this.addCommand({
-      id: "open-context-select-modal",
-      name: "Context selector",
-      callback: () => {
-        ContextSelectorModal.open(this.env);
-      }
-    });
+  get commands() {
+    return {
+      ...context_commands(this)
+    };
   }
-  register_commands() {
-    this.addCommand({
-      id: "copy-current-note-with-depth",
-      name: "Copy current note to clipboard",
-      checkCallback: (checking) => {
-        const active_file = this.app.workspace.getActiveFile();
-        const base_items = [{ key: active_file.path, path: active_file.path }];
-        if (!base_items.length || !base_items[0]) return false;
-        if (checking) return true;
-        new this.LinkDepthModal(this, base_items).open();
-        return true;
-      }
-    });
-    this.addCommand({
-      id: "copy-visible-open-files",
-      name: "Copy visible open files (pick link depth)",
-      checkCallback: (checking) => {
-        const base_items = get_visible_open_files(this.app);
-        if (!base_items.length) return false;
-        if (checking) return true;
-        new this.LinkDepthModal(this, base_items).open();
-        return true;
-      }
-    });
-    this.addCommand({
-      id: "copy-all-open-files",
-      name: "Copy all open files (pick link depth)",
-      checkCallback: (checking) => {
-        const base_items = get_all_open_file_paths(this.app);
-        if (!base_items.length) return false;
-        if (checking) return true;
-        new this.LinkDepthModal(this, base_items).open();
-        return true;
-      }
-    });
-    this.addCommand({
-      id: "select-folder-to-copy-contents",
-      name: "Select folder to copy contents",
-      callback: () => {
-        new FolderSelectModal(this.app, async (folder) => {
-          if (!folder) return;
-          await this.copy_folder_to_clipboard(folder);
-        }).open();
-      }
-    });
-    this.addCommand({
-      id: "show-getting-started",
-      name: "Show getting started",
-      callback: () => {
-        StoryModal.open(this, {
-          title: "Getting Started With Smart Context",
-          url: "https://smartconnections.app/story/smart-context-getting-started/?utm_source=sc-command"
-        });
-      }
-    });
+  /**
+   * Create a fresh SmartContext item and open the ContextModal on it.
+   * @param {object} [params]
+   */
+  open_new_context_modal(params = {}) {
+    const ctx = this.env.smart_contexts.new_context();
+    ctx.emit_event("context_selector:open", params);
   }
   /* ------------------------------------------------------------------ */
   /*  Clipboard actions                                                 */
@@ -20503,9 +23699,16 @@ var SmartContextPlugin = class extends import_obsidian29.Plugin {
   async copy_folder_to_clipboard(folder) {
     const add_items = this.env.smart_sources.filter({ key_starts_with: folder.path }).map((src) => src.key);
     const ctx = this.env.smart_contexts.new_context({}, { add_items });
-    const { context, stats, images } = await ctx.compile({ link_depth: 0 });
-    await this.copy_to_clipboard(context, images);
-    this.showStatsNotice(stats, `Folder: ${folder.path}`);
+    ctx.actions.context_copy_to_clipboard();
+  }
+  async copy_selected_files_to_clipboard(files) {
+    const add_items = get_selected_note_keys(files, this.env.smart_sources);
+    if (!add_items.length) {
+      new import_obsidian44.Notice("No Smart Context notes found in selection.");
+      return;
+    }
+    const ctx = this.env.smart_contexts.new_context({}, { add_items });
+    ctx.actions.context_copy_to_clipboard();
   }
   async copy_to_clipboard(text) {
     await copy_to_clipboard(text);
@@ -20514,6 +23717,5 @@ var SmartContextPlugin = class extends import_obsidian29.Plugin {
     show_stats_notice(stats, contextMsg);
   }
 };
-
 
 /* nosourcemap */
