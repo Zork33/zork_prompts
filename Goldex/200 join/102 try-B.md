@@ -1,0 +1,3 @@
+- источник - [[источники]]
+ - сделай nodejs реализацию по следующему плану - tm-docs\goldex-docs\monolith\migration\MIGRATION_PLAN.md
+ - результат в try-B\

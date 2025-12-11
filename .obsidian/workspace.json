@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Goldex/010 Реквизиты/Gitlab.md",
+                "file": "Goldex/200 join/100 try-A.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": true,
@@ -28,11 +28,11 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "Gitlab"
+              "title": "100 try-A"
             }
           },
           {
-            "id": "b947b3a7d3b9d764",
+            "id": "d5c9d5b0afa0abab",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -53,6 +53,30 @@
               },
               "icon": "lucide-file",
               "title": "Molecular сервис"
+            }
+          },
+          {
+            "id": "b947b3a7d3b9d764",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Goldex/210 code/100 написать monolith-v2.md",
+                "mode": "source",
+                "source": false,
+                "backlinks": true,
+                "backlinkOpts": {
+                  "collapseAll": false,
+                  "extraContext": false,
+                  "sortOrder": "alphabetical",
+                  "showSearch": false,
+                  "searchQuery": "",
+                  "backlinkCollapsed": false,
+                  "unlinkedCollapsed": true
+                }
+              },
+              "icon": "lucide-file",
+              "title": "100 написать monolith-v2"
             }
           },
           {
@@ -127,7 +151,8 @@
               "title": "источники"
             }
           }
-        ]
+        ],
+        "currentTab": 2
       }
     ],
     "direction": "vertical"
@@ -210,7 +235,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Goldex/010 Реквизиты/Gitlab.md",
+                "file": "Goldex/210 code/100 написать monolith-v2.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -220,7 +245,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for Gitlab"
+              "title": "Backlinks for 100 написать monolith-v2"
             }
           },
           {
@@ -288,16 +313,27 @@
       "file-tree-alternative:File Tree Alternative Plugin": false
     }
   },
-  "active": "b1f85124f2d02251",
+  "active": "b947b3a7d3b9d764",
   "lastOpenFiles": [
+    "Goldex/210 code/monolith spec.md",
+    "Goldex/210 code/100 написать monolith-v2.md",
+    "Goldex/200 join/102 try-B.md",
+    "Goldex/210 code",
+    "Goldex/800 common/Molecular сервис.md",
+    "Goldex/800 common/800 prompt.md",
+    "Goldex/080 business-v2/080 сделать правильный v2.md",
+    "Goldex/080 business-v2/080 тест v1 - v2.md",
+    "Goldex/200 join/README.md",
+    "Goldex/200 join/034 Перенос кода.md",
+    "Goldex/200 join/032 go - nodejs.md",
+    "Goldex/200 join/030 написание ТЗ gum.md",
     "Goldex/200 join/026 protobuf vs nats.md",
     "Goldex/200 join/024 идемпотентные функции.md",
+    "Goldex/010 Реквизиты/Gitlab.md",
     "Goldex/200 join/022 структура.md",
     "Goldex/200 join/020 промпт 4 структура.md",
     "Goldex/200 join/010 план проекта.md",
-    "Goldex/800 common/Molecular сервис.md",
     "Goldex/200 join/src/источники.md",
-    "Goldex/010 Реквизиты/Gitlab.md",
     "Goldex/200 join/src/monolith/проект монолит.md",
     "Goldex/200 join/src/robot/проект робот.md",
     "Goldex/070 mock/070 prompt 2.md",
@@ -309,23 +345,11 @@
     "Goldex/030 документация на код/036 migration/036 план миграции.md",
     "Goldex/030 документация на код/036 migration/MIGRATION_PLAN.md",
     "Goldex/030 документация на код/034 сравнение с robot/034 структура данных.md",
-    "Goldex/030 документация на код/business-v1 current.md",
-    "Goldex/030 документация на код/036 migration/MIGRATION_PLAN (2).md",
     "Goldex/030 документация на код/036 migration",
-    "Goldex/030 документация на код/034 сравнение с robot/034 сравнение.md",
-    "Goldex/030 документация на код/032 детализация monolith/032 детализация.md",
-    "Goldex/030 документация на код/правила документирования существующего кода.md",
-    "Goldex/030 документация на код/правило для mermaid-диаграмм.md",
     "Goldex/030 документация на код/034 сравнение с robot",
     "Goldex/Untitled 1",
-    "Goldex/030 документация на код/monolith.md",
-    "Goldex/030 документация на код/business-v1 new.md",
-    "Goldex/Root prompt.md",
-    "Goldex/Root script.md",
-    "Goldex/Root files.md",
     "Goldex/Notes",
     "Goldex/090 drawio",
-    "Goldex/030 документация на код/032 детализация monolith",
     "Настя/Квартиры/plan_out_package/parsed_plan_scaled.svg",
     "Настя/Квартиры/plan_out_package/parsed_plan.svg",
     "Настя/Квартиры/plan_out_package/7.1 2Д.png",
