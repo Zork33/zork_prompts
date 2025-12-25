@@ -61,7 +61,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Goldex/210 code/100 написать monolith-v2.md",
+                "file": "Goldex/1000 пересборка/000 комит.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": true,
@@ -76,7 +76,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "100 написать monolith-v2"
+              "title": "000 комит"
             }
           },
           {
@@ -235,7 +235,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Goldex/210 code/100 написать monolith-v2.md",
+                "file": "Goldex/1000 пересборка/000 комит.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -245,7 +245,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for 100 написать monolith-v2"
+              "title": "Backlinks for 000 комит"
             }
           },
           {
@@ -315,42 +315,42 @@
   },
   "active": "b947b3a7d3b9d764",
   "lastOpenFiles": [
+    "Goldex/1010 план/010 шаги.md",
+    "Goldex/1000 пересборка/001 анализ.md",
+    "Goldex/1010 план",
+    "Goldex/1000 пересборка/000 комит.md",
+    "Goldex/1000 пересборка/010 план - шаги.md",
+    "Goldex/010 Реквизиты/Gitlab.md",
+    "Goldex/1000 пересборка/030 работа по шагам/010.md",
+    "Goldex/1000 пересборка/022 шаги.md",
+    "Goldex/1000 пересборка/030 работа по шагам",
+    "Goldex/1000 пересборка/020 как и где лучше держать описание openapi.md",
+    "Goldex/810 монорепа/030 напиши промпт на сервис.md",
+    "Goldex/1000 пересборка",
+    "Goldex/810 монорепа/010 трекинг.md",
+    "Goldex/810 монорепа/020 список проектов.md",
+    "Goldex/810 монорепа",
+    "Goldex/200 join/220 добавляем код robot/020 план.md",
     "Goldex/200 join/220 добавляем код robot/010 написание ТЗ по доработке на основе robot.md",
+    "Goldex/200 join/210 monolith/024 идемпотентные функции.md",
+    "Goldex/check listst/010 ПЛАН РАБОТ ПО ПЕРЕНОСУ СЕРВИСА С GO НА NODE.JS.md",
+    "Goldex/210 code/100 написать monolith-v2.md",
+    "Goldex/090 drawio/090 drawio.md",
+    "Goldex/210 code/Спецификация 1.md",
+    "Goldex/210 code/monolith spec.md",
+    "Goldex/200 join/210 monolith/034 rbac, abac.md",
     "Goldex/200 join/210 monolith/032 sync calls in molecular.md",
     "Goldex/200 join/210 monolith/030 идемпотентность.md",
     "Goldex/200 join/210 monolith/050 написание ТЗ.md",
-    "Goldex/210 code/100 написать monolith-v2.md",
     "Goldex/200 join/210 monolith/028 redis vs valkey.md",
     "Goldex/200 join/010 план проекта.md",
     "Goldex/200 join/034 Перенос кода.md",
-    "Goldex/200 join/032 go - nodejs.md",
-    "Goldex/200 join/102 try-B.md",
-    "Goldex/200 join/210 monolith/022 структура.md",
-    "Goldex/200 join/210 monolith/020 промпт 4 структура.md",
     "Goldex/200 join/210 monolith",
     "Goldex/200 join/220 добавляем код robot",
-    "Goldex/200 join/210 monolith/026 protobuf vs nats.md",
-    "Goldex/200 join/210 monolith/024 идемпотентные функции.md",
-    "Goldex/210 code/monolith spec.md",
     "Goldex/210 code",
-    "Goldex/800 common/Molecular сервис.md",
-    "Goldex/800 common/800 prompt.md",
-    "Goldex/080 business-v2/080 сделать правильный v2.md",
-    "Goldex/080 business-v2/080 тест v1 - v2.md",
-    "Goldex/200 join/README.md",
-    "Goldex/010 Реквизиты/Gitlab.md",
-    "Goldex/200 join/src/источники.md",
-    "Goldex/200 join/src/monolith/проект монолит.md",
-    "Goldex/200 join/src/robot/проект робот.md",
-    "Goldex/070 mock/070 prompt 2.md",
     "Goldex/200 join/src/robot",
     "Goldex/200 join/src/monolith",
     "Goldex/200 join/src",
-    "Goldex/200 join",
-    "Goldex/070 mock/070 prompt.md",
-    "Goldex/030 документация на код/036 migration",
-    "Goldex/030 документация на код/034 сравнение с robot",
-    "Goldex/Untitled 1",
     "Настя/Квартиры/plan_out_package/parsed_plan_scaled.svg",
     "Настя/Квартиры/plan_out_package/parsed_plan.svg",
     "Настя/Квартиры/plan_out_package/7.1 2Д.png",
