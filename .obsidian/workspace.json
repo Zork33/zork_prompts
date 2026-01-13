@@ -215,7 +215,8 @@
               "title": "File Tree"
             }
           }
-        ]
+        ],
+        "currentTab": 3
       }
     ],
     "direction": "horizontal",
@@ -315,12 +316,20 @@
   },
   "active": "b947b3a7d3b9d764",
   "lastOpenFiles": [
+    "Goldex/1010 план/020 промпт.md",
+    "Goldex/1010 план/преза.md",
+    "Goldex/1000 пересборка/000 комит.md",
+    "Goldex/1010 план/050 демо.md",
+    "Goldex/1010 план/040 БД.md",
+    "Goldex/1010 план/012 промпт док.md",
+    "Goldex/1010 план/план 4.md",
+    "Goldex/1010 план/Untitled",
+    "Goldex/010 Реквизиты/Gitlab.md",
     "Goldex/1010 план/010 шаги.md",
+    "Goldex/1010 план/030 конфигурации.md",
     "Goldex/1000 пересборка/001 анализ.md",
     "Goldex/1010 план",
-    "Goldex/1000 пересборка/000 комит.md",
     "Goldex/1000 пересборка/010 план - шаги.md",
-    "Goldex/010 Реквизиты/Gitlab.md",
     "Goldex/1000 пересборка/030 работа по шагам/010.md",
     "Goldex/1000 пересборка/022 шаги.md",
     "Goldex/1000 пересборка/030 работа по шагам",
@@ -338,19 +347,11 @@
     "Goldex/090 drawio/090 drawio.md",
     "Goldex/210 code/Спецификация 1.md",
     "Goldex/210 code/monolith spec.md",
-    "Goldex/200 join/210 monolith/034 rbac, abac.md",
-    "Goldex/200 join/210 monolith/032 sync calls in molecular.md",
-    "Goldex/200 join/210 monolith/030 идемпотентность.md",
-    "Goldex/200 join/210 monolith/050 написание ТЗ.md",
-    "Goldex/200 join/210 monolith/028 redis vs valkey.md",
-    "Goldex/200 join/010 план проекта.md",
-    "Goldex/200 join/034 Перенос кода.md",
     "Goldex/200 join/210 monolith",
     "Goldex/200 join/220 добавляем код robot",
     "Goldex/210 code",
     "Goldex/200 join/src/robot",
     "Goldex/200 join/src/monolith",
-    "Goldex/200 join/src",
     "Настя/Квартиры/plan_out_package/parsed_plan_scaled.svg",
     "Настя/Квартиры/plan_out_package/parsed_plan.svg",
     "Настя/Квартиры/plan_out_package/7.1 2Д.png",
